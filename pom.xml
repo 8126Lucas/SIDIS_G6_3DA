@@ -1,0 +1,16 @@
+<project>
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.aisafe</groupId>
+    <artifactId>sidis-parent</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+
+    <modules>
+        <module>auth-service</module>
+        <module>aircraft-service</module>
+        <module>airport-service</module>
+        <module>route-service</module>
+        <module>flight-service</module>
+        <module>maintenance-service</module>
+    </modules>
+</project>
