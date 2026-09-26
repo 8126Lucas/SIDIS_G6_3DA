@@ -1,0 +1,28 @@
+POST http://localhost:8081/auth/login
+Content-Type: application/json
+
+{
+  "username": "atcc",
+  "password": "atcc123"
+}
+
+### view real-time aircraft availability status - 1201107
+
+###
+@token =eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjZWY0NWNiMC03NWEyLTQ1MzgtOTExZi03M2JiNDcwMmM2MjQiLCJyb2xlcyI6WyJBVENDIl0sImlhdCI6MTc4MjA3MzU5MiwiZXhwIjoxNzgyMDc3MTkyfQ.YZsq4fEi57zXYw2muaTGBHCrySk-aEg_jl1Rb9RN9YI
+
+GET http://localhost:8081/api/hangar/analytics/aircraft-availability
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+###
+GET http://localhost:8081/api/hangar/analytics/status-summary
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+###
+@registrationNumber=D-ABXA
+GET http://localhost:8081/api/hangar/aircraft/{{registrationNumber}}/status
+Content-Type: application/json
+Authorization: Bearer {{token}}
+

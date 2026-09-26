@@ -1,0 +1,18 @@
+POST http://localhost:8081/auth/login
+Content-Type: application/json
+
+{
+  "username": "atcc",
+  "password": "atcc123"
+}
+
+### gets fuel efficiency - 1201107
+
+@token = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI1NTdlNTNkMS1iYjU5LTRhZjItYmFjZS01ZDM3MGI1YzAzYjAiLCJyb2xlcyI6WyJBVENDIl0sImlhdCI6MTc4MjA3MjQ5MiwiZXhwIjoxNzgyMDc2MDkyfQ.sU05OpddZabMb0L7JTxIdru-Iz28ZxNEkfwizJ7Frf8
+
+GET http://localhost:8081/api/hangar/analytics/fuel-efficiency
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+
+

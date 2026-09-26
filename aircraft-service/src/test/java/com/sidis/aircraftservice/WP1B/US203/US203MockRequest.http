@@ -1,0 +1,18 @@
+POST http://localhost:8081/auth/login
+Content-Type: application/json
+
+{
+  "username": "atcc",
+  "password": "atcc123"
+}
+
+### gets compatibles routes with an aircraft - 1201107
+
+###
+@registrationNumber = CS-TUA
+
+@token =eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI1NTdlNTNkMS1iYjU5LTRhZjItYmFjZS01ZDM3MGI1YzAzYjAiLCJyb2xlcyI6WyJBVENDIl0sImlhdCI6MTc4MjA3MzI4MywiZXhwIjoxNzgyMDc2ODgzfQ.kjP9a3SJOcNM5AFF4CzzqJD6k2A9SByg6K2zehRPL3o
+
+GET http://localhost:8081/api/hangar/aircraft/{{registrationNumber}}/compatible-routes
+Content-Type: application/json
+Authorization: Bearer {{token}}
