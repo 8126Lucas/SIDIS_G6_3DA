@@ -1,0 +1,251 @@
+### LOGIN (us000-auth)
+POST http://localhost:8081/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+> {%
+    client.global.set("token", response.body.token);
+%}
+
+### US101 - ADD AIRCRAFT MODEL (us101)
+POST http://localhost:8081/api/catalog/model
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "modelName": "A320neo",
+  "manufacturer": "Airbus",
+  "modelImage": [
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Air_Portugal_A320neo.jpg/320px-Air_Portugal_A320neo.jpg"
+  ],
+  "specs": {
+    "fuelCapacityLiters": 26730,
+    "maximumRangeKm": 6300,
+    "cruisingSpeedKph": 833,
+    "standardSeatingCapacity": 165
+  }
+}
+
+### US102 - ADD AIRCRAFT (us102)
+POST http://localhost:8081/api/hangar/aircraft
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registrationNumber": "CS-TVA",
+  "modelName": "A320neo",
+  "manufacturingDate": "2018-03-12",
+  "totalOperationalHours": 18450.5,
+  "totalFlightHours": 17200.0,
+  "availability": "AVAILABLE"
+}
+
+### GET AIRCRAFT (us103)
+GET http://localhost:8081/api/hangar/aircraft/CS-TVA
+Authorization: Bearer {{token}}
+
+### UPDATE AIRCRAFT STATUS (us105)
+PATCH http://localhost:8081/api/hangar/aircraft/CS-TVA
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registrationNumber": "CS-TVA",
+  "availability": "MAINTENANCE"
+}
+
+### SEARCH AIRCRAFT (us104)
+GET http://localhost:8081/api/hangar/aircraft?model=A320neo&status=AVAILABLE
+Authorization: Bearer {{token}}
+
+### US106 - REGISTER AIRPORT (us106)
+POST http://localhost:8081/api/airports
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "iataCode": "ZCX",
+  "airportType": "International",
+  "name": "Francisco Sá Carneiro Airport",
+  "status": "OPERATIONAL",
+  "location": {
+    "city": "Porto",
+    "longitude": -8.6814,
+    "latitude": 41.2481,
+    "region": "Norte",
+    "timezone": "Europe/Lisbon",
+    "country": "Portugal"
+  },
+  "facilities": {
+    "terminalCount": 1,
+    "services": ["fuel", "maintenance", "catering", "ground_handling"],
+    "gateCount": 36
+  },
+  "routeDistance": 0.0,
+  "runways": [
+    {
+      "runwayName": "17/35",
+      "length": 3480.0,
+      "orientation": "N/S",
+      "status": "OPEN"
+    }
+  ],
+  "certifications": [],
+  "contacts": [
+    {
+      "type": "EMAIL",
+      "value": "ops@opo.pt"
+    },
+    {
+      "type": "PHONE",
+      "value": "+351229432400"
+    }
+  ],
+  "airportPhotos": [
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Aeroporto_Porto.jpg/320px-Aeroporto_Porto.jpg"
+  ]
+}
+
+### US107 - GET AIRPORT BY IATA (us107)
+GET http://localhost:8081/api/airports/XPT
+Authorization: Bearer {{token}}
+
+### US108 - SEARCH AIRPORTS (us108)
+GET http://localhost:8081/api/airports?city=Porto&country=Portugal&name=Francisco S%C3%A1 Carneiro Airport
+Authorization: Bearer {{token}}
+
+### US106A - ADD CERTIFICATION (us106a)
+POST http://localhost:8081/api/airports/OPO/certifications
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "EASA Aerodrome Certificate",
+  "category": "SAFETY",
+  "startsAt": "2024-01-01",
+  "expiresAt": "2027-01-01"
+}
+
+### US109 - UPDATE AIRPORT STATUS (us109)
+PATCH http://localhost:8081/api/airports/OPO/status
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "UNDER_MAINTENANCE"
+}
+
+### WP#2B ENDPOINTS
+
+### US207 - REGISTER ENHANCED AIRPORT with OPERATIONAL HOURS (us207)
+POST http://localhost:8081/api/airports
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "iataCode": "LIS",
+  "airportType": "International",
+  "name": "Humberto Delgado Airport",
+  "status": "OPERATIONAL",
+  "operationalHours": "06:00-23:00",
+  "location": {
+    "city": "Lisbon",
+    "longitude": -9.1359,
+    "latitude": 38.7742,
+    "region": "Lisbon",
+    "timezone": "Europe/Lisbon",
+    "country": "Portugal"
+  },
+  "facilities": {
+    "terminalCount": 2,
+    "services": ["fuel", "maintenance"],
+    "gateCount": 48
+  },
+  "routeDistance": 0.0,
+  "runways": [
+    {
+      "runwayName": "03/21",
+      "length": 3805.0,
+      "orientation": "NE/SW",
+      "status": "OPEN"
+    }
+  ],
+  "certifications": [],
+  "contacts": [
+    {
+      "type": "EMAIL",
+      "value": "ops@lis.pt"
+    }
+  ],
+  "airportPhotos": ["https://example.com/lis-front.jpg"]
+}
+
+### US208 - UPDATE AIRPORT DETAILS
+PATCH http://localhost:8081/api/airports/LIS/details
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Lisbon Airport",
+  "operationalHours": "05:00-00:00",
+  "contacts": [
+    {
+      "type": "PHONE",
+      "value": "+351210000000"
+    }
+  ]
+}
+
+### US209 - GET AIRPORT ROUTES (us209)
+GET http://localhost:8081/api/airports/LIS/routes
+Authorization: Bearer {{token}}
+
+### US210 - GET BUSIEST AIRPORTS (us210)
+GET http://localhost:8081/api/airports/busiest
+Authorization: Bearer {{token}}
+
+### US211 - GROUP AIRPORTS BY CRITERIA (us211)
+GET http://localhost:8081/api/airports/grouped?by=country
+Authorization: Bearer {{token}}
+
+### WP#4A ENDPOINTS
+
+### US117 - GET MAINTENANCE TEMPLATE BY ID (us117)
+GET http://localhost:8081/api/maintenance/templates/1
+Authorization: Bearer {{token}}
+
+### US117 - LIST MAINTENANCE TEMPLATES (us117)
+GET http://localhost:8081/api/maintenance/templates
+Authorization: Bearer {{token}}
+
+### US119 - GET MAINTENANCE RECORD BY ID (us119)
+GET http://localhost:8081/api/maintenance/records/1
+Authorization: Bearer {{token}}
+
+### US119 - ADVANCE MAINTENANCE RECORD STATUS (us119)
+PATCH http://localhost:8081/api/maintenance/records/1/status
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "ONGOING"
+}
+
+### WP#4B ENDPOINTS
+
+### US221 - TURNAROUND AVERAGE PER AIRCRAFT TYPE (us221)
+GET http://localhost:8081/api/maintenance/turnaround-average
+Authorization: Bearer {{token}}
+
+### US222 - MAINTENANCE ALERTS WITH DEFAULT THRESHOLDS (us222)
+GET http://localhost:8081/api/maintenance/alerts
+Authorization: Bearer {{token}}
+
+### US222 - MAINTENANCE ALERTS WITH CUSTOM THRESHOLDS (us222)
+GET http://localhost:8081/api/maintenance/alerts?calendarDaysThreshold=90&flightHoursThreshold=300
+Authorization: Bearer {{token}}
+

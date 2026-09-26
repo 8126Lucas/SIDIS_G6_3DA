@@ -14,12 +14,15 @@ jobs:
       - name: Checkout do código
         uses: actions/checkout@v4
 
-      - name: Configurar JDK 27
+      - name: Configurar JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '27'
+          java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Compilar e Correr Testes
-        run: mvn clean verify
+      - name: Dar permissões de execução ao Maven Wrapper
+        run: chmod +x mvnw
+
+      - name: Compilar e Validar Todos os Módulos
+        run: ./mvnw clean verify

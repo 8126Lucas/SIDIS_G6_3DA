@@ -1,0 +1,27 @@
+POST http://localhost:8081/auth/login
+Content-Type: application/json
+
+{
+  "username": "atcc",
+  "password": "atcc123"
+}
+
+### adds an aircraft
+
+###
+@token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI1NTdlNTNkMS1iYjU5LTRhZjItYmFjZS01ZDM3MGI1YzAzYjAiLCJyb2xlcyI6WyJBVENDIl0sImlhdCI6MTc4MjA3Mjg5MCwiZXhwIjoxNzgyMDc2NDkwfQ.u1VDlVDF5nMo33AMuy5_2nFmxpLxzdCKrUtjruSWq_M
+
+
+###
+POST http://localhost:8081/api/hangar/aircraft
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registrationNumber": "CS-TU",
+  "modelName": "A320",
+  "manufacturingDate": "2025-06-15",
+  "totalOperationalHours": 12450.5,
+  "totalFlightHours": 11890.0,
+  "availability": "AVAILABLE"
+}

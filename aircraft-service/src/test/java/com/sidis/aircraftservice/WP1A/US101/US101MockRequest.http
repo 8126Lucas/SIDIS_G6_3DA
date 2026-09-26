@@ -1,0 +1,33 @@
+POST http://localhost:8081/auth/login
+Content-Type: application/json
+
+{
+  "username": "backoffice",
+  "password": "backoffice123"
+}
+
+### adds a model to catalog
+
+###
+@token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJmZWM5ZDU4ZC03YTEzLTRjYjktYTk0OC04NmY0MGEyMmVlMjkiLCJyb2xlcyI6WyJCQUNLT0ZGSUNFIl0sImlhdCI6MTc4MjA3MjgxMiwiZXhwIjoxNzgyMDc2NDEyfQ.qM-yNlPnFKqiVEniAWEGMaPIu9UNEKuFmrINQ5rLtFE
+
+
+POST http://localhost:8081/api/catalog/model
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "modelName": "A320",
+  "manufacturer": "Airbus",
+  "modelImage": [
+    "https://example.com/images/a320-front.jpg",
+    "https://example.com/images/a320-side.jpg"
+  ],
+  "specs": {
+    "fuelCapacityLiters": 24210,
+    "maximumRangeKm": 6150,
+    "cruisingSpeedKph": 840,
+    "standardSeatingCapacity": 180
+  }
+}
+

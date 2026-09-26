@@ -1,0 +1,30 @@
+POST http://localhost:8081/auth/login
+Content-Type: application/json
+
+{
+  "username": "backoffice",
+  "password": "backoffice123"
+}
+
+### updates an aircraft model's specifications - 1201107
+
+###
+@token = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJmZWM5ZDU4ZC03YTEzLTRjYjktYTk0OC04NmY0MGEyMmVlMjkiLCJyb2xlcyI6WyJCQUNLT0ZGSUNFIl0sImlhdCI6MTc4MjA3MzA3MiwiZXhwIjoxNzgyMDc2NjcyfQ.c7iO4GMLEZNOoN_M5Kn9C6UV5ncuf_wF5h6qrUf574o
+
+
+@model = 737-800
+
+PATCH http://localhost:8081/api/catalog/model/{{model}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "modelName": "737-800",
+  "manufacturer": "ISEP",
+  "specs": {
+    "fuelCapacityLiters": 20,
+    "maximumRangeKm": 60,
+    "cruisingSpeedKph": 80,
+    "standardSeatingCapacity": 80
+  }
+}
