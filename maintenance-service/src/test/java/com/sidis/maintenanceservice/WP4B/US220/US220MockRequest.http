@@ -1,0 +1,20 @@
+﻿### LOGIN - run this request first
+POST http://localhost:8081/auth/login
+Content-Type: application/json
+
+{
+  "username": "atcc",
+  "password": "atcc123"
+}
+
+> {%
+    client.global.set("token", response.body.token);
+%}
+
+### US220 - COSTS BY AIRCRAFT
+GET http://localhost:8081/api/maintenance/reports/costs?groupBy=aircraft
+Authorization: Bearer {{token}}
+
+### US220 - COSTS BY MODEL
+GET http://localhost:8081/api/maintenance/reports/costs?groupBy=model
+Authorization: Bearer {{token}}

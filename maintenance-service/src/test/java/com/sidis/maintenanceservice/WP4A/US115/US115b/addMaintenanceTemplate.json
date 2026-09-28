@@ -1,0 +1,12 @@
+{
+  "name": "A-Check Engine Inspection",
+  "expectedDuration": 6.5,
+  "templateChecklist": {
+    "Check oil levels": true,
+    "Inspect engine turbine blades": true,
+    "Verify hydraulic pressure systems": true,
+    "Run engine ground test": true
+  },
+  "operation": "INSPECTION",
+  "attribute": "ENGINE"
+}

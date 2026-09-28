@@ -1,0 +1,22 @@
+POST http://localhost:8081/auth/login
+Content-Type: application/json
+
+{
+  "username": "technician",
+  "password": "technician123"
+}
+
+###
+@token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzM2M4M2Y1Ni0wOTNhLTRkNzUtODc0NS0xYmZlM2M2N2E1NjciLCJyb2xlcyI6WyJNQUlOVEVOQU5DRV9URUNITklDSUFOIl0sImlhdCI6MTc3OTg3ODM0NCwiZXhwIjoxNzc5ODgxOTQ0fQ.s4c-WK0zhwxWWtI9YQfF0KaX0h4TqOeLYWE7zm7XQKc
+
+POST http://localhost:8081/api/maintenance/record
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registrationNumber": "CS-TUA",
+  "templateId": 1,
+  "durationHours": 6.5,
+  "description": "Scheduled A-check maintenance including hydraulic system inspection and oil filter replacement.",
+  "startDate": "2026-05-21"
+}
