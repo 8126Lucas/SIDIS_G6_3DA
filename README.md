@@ -1,6 +1,7 @@
 # SIDIS_G6_3DA
 
 ## Service Ports
+- API Gateway: 7979
 - Aircraft Service: 8081
 - Airport Service: 8082
 - Authentication Service: 8083
