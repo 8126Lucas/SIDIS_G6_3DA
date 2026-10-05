@@ -13,7 +13,7 @@ import java.lang.annotation.Target;
  * log {@code [SUPPRESSED]} in place of the actual arguments while still recording the method
  * name and execution time.</p>
  *
- * <p>Example: {@link com.sidis.aircraftservice.authUsers.application.AuthenticateCollaboratorUseCase} carries both
+ * <p>Example: {@link com.sidis.authservice.Authentication.application.AuthenticateCollaboratorUseCase} carries both
  * {@code @UseCase} and {@code @SuppressArgLogging} so that login credentials are never
  * written to the log.</p>
  */

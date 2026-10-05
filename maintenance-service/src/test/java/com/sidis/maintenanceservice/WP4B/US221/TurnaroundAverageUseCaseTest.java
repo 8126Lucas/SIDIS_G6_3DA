@@ -9,6 +9,7 @@ import com.sidis.maintenanceservice.domain.MaintenanceStatus;
 import com.sidis.maintenanceservice.domain.MaintenanceTemplate;
 import com.sidis.maintenanceservice.domain.MaintenanceType;
 import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordRepository;
+import com.sidis.maintenanceservice.infrastructure.client.AircraftRestClientService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -22,23 +23,18 @@ import static org.mockito.Mockito.*;
 class TurnaroundAverageUseCaseTest {
 
     private MaintenanceRecordRepository maintenanceRecordRepository;
+    private AircraftRestClientService aircraftClient;
     private MaintenanceReportService service;
-
-//    private AircraftModel boeing737;
-//    private AircraftModel airbusA320;
     private MaintenanceTemplate template;
 
     @BeforeEach
     void setUp() {
         maintenanceRecordRepository = mock(MaintenanceRecordRepository.class);
-        service = new MaintenanceReportService(maintenanceRecordRepository);
-
-//        boeing737 = new AircraftModel("Boeing 737", "Boeing", null, List.of());
-//        airbusA320 = new AircraftModel("Airbus A320", "Airbus", null, List.of());
+        service = new MaintenanceReportService(aircraftClient, maintenanceRecordRepository);
         template = new MaintenanceTemplate("Engine Check", 2.0, Map.of(), MaintenanceType.INSPECTION, MaintenanceAttribute.ENGINE);
     }
 
-    /*@Test
+    @Test
     void shouldReturnEmptyListWhenNoCompletedRecords() {
         when(maintenanceRecordRepository.findByStatus(MaintenanceStatus.COMPLETED)).thenReturn(List.of());
 
@@ -46,16 +42,14 @@ class TurnaroundAverageUseCaseTest {
 
         assertTrue(result.isEmpty());
         verify(maintenanceRecordRepository, times(1)).findByStatus(MaintenanceStatus.COMPLETED);
-    }*/
+    }
 
     /*@Test
     void shouldCalculateAverageForSingleAircraftType() {
-        Aircraft aircraft = new Aircraft("CS-TVA", boeing737, LocalDate.of(2018, 1, 1), 0.0, 0.0);
-
-        MaintenanceRecord r1 = new MaintenanceRecord(aircraft, template, 6.0, "check 1", LocalDate.of(2026, 1, 1));
+        MaintenanceRecord r1 = new MaintenanceRecord("CS-TVA", template, 6.0, "check 1", LocalDate.of(2026, 1, 1));
         r1.markAsCompleted("done", Map.of(), LocalDate.of(2026, 1, 6)); // 5 days
 
-        MaintenanceRecord r2 = new MaintenanceRecord(aircraft, template, 6.0, "check 2", LocalDate.of(2026, 2, 1));
+        MaintenanceRecord r2 = new MaintenanceRecord("CS-TVA", template, 6.0, "check 2", LocalDate.of(2026, 2, 1));
         r2.markAsCompleted("done", Map.of(), LocalDate.of(2026, 2, 11)); // 10 days
 
         when(maintenanceRecordRepository.findByStatus(MaintenanceStatus.COMPLETED)).thenReturn(List.of(r1, r2));
@@ -63,7 +57,6 @@ class TurnaroundAverageUseCaseTest {
         List<MaintenanceReportService.TurnaroundAverage> result = service.averageTurnaroundTimePerAircraftType();
 
         assertEquals(1, result.size());
-        assertEquals("Boeing 737", result.get(0).aircraftType());
         assertEquals(7.5, result.get(0).averageDays());
     }*/
 

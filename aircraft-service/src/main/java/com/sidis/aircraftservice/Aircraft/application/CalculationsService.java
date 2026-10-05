@@ -1,11 +1,11 @@
-package com.sidis.aircraftservice.Aircraft.infrastructure;
+package com.sidis.aircraftservice.Aircraft.application;
 
-import com.sidis.aircraftservice.Aircraft.HangarController;
-import com.sidis.aircraftservice.Aircraft.application.AircraftSearchService;
-import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
 //import com.sidis.aircraftservice.Flight.application.FlightSearchService;
 //import com.sidis.aircraftservice.Flight.domain.Flight;
 //import com.sidis.aircraftservice.Flight.infrastructure.FlightRepository;
+import com.sidis.aircraftservice.Aircraft.HangarController;
+import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
+import com.sidis.aircraftservice.Aircraft.infrastructure.client.FlightRestClientService;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -18,14 +18,15 @@ import java.util.List;
 @Service
 public class CalculationsService {
     private final AircraftSearchService aircraftSearchService;
-//    private final FlightSearchService flightSearchService;
+    private final FlightRestClientService flightClient;
 
-    CalculationsService(AircraftSearchService aircraftSearchService/*, FlightSearchService flightSearchService*/) {
+    CalculationsService(AircraftSearchService aircraftSearchService, FlightRestClientService flightClient) {
         this.aircraftSearchService = aircraftSearchService;
-//        this.flightSearchService = flightSearchService;
+        this.flightClient = flightClient;
     }
 
-/*    public List<HangarController.UtilizationInfo> getUtilizationInfo() {
+    // Esperar pela continuação do flight-service
+    /*public List<HangarController.UtilizationInfo> getUtilizationInfo() {
 
         List<Aircraft> aircrafts = aircraftSearchService.findAll();
 
@@ -55,7 +56,7 @@ public class CalculationsService {
                                 .mapToDouble(Flight::getFlightHours)
                                 .sum();
 
-                        double availableHours =ChronoUnit.HOURS.between(start, end);
+                        double availableHours = ChronoUnit.HOURS.between(start, end);
 
                         double utilizationRate = 0;
 

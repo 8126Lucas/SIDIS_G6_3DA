@@ -1,4 +1,4 @@
-package com.example.APIgatreway;
+package com.sidis.APIgateway;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

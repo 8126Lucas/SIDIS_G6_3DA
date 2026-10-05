@@ -4,6 +4,7 @@ import com.sidis.maintenanceservice.application.MaintenanceReportService;
 import com.sidis.maintenanceservice.domain.MaintenanceRecord;
 import com.sidis.maintenanceservice.domain.MaintenanceStatus;
 import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordRepository;
+import com.sidis.maintenanceservice.infrastructure.client.AircraftRestClientService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -15,12 +16,14 @@ import static org.mockito.Mockito.*;
 class OngoingMaintenanceUseCaseTest {
 
     private MaintenanceRecordRepository maintenanceRecordRepository;
+    private AircraftRestClientService aircraftClient;
     private MaintenanceReportService service;
 
     @BeforeEach
     void setUp() {
         maintenanceRecordRepository = mock(MaintenanceRecordRepository.class);
-        service = new MaintenanceReportService(maintenanceRecordRepository);
+        aircraftClient = mock(AircraftRestClientService.class);
+        service = new MaintenanceReportService(aircraftClient, maintenanceRecordRepository);
     }
 
     @Test

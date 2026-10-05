@@ -4,6 +4,7 @@ import com.sidis.maintenanceservice.domain.MaintenanceRecord;
 import com.sidis.maintenanceservice.domain.MaintenanceStatus;
 import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordRepository;
 import com.sidis.maintenanceservice.UseCase;
+import com.sidis.maintenanceservice.infrastructure.client.AircraftRestClientService;
 
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
@@ -14,9 +15,12 @@ import java.util.stream.Collectors;
 @UseCase
 public class MaintenanceReportService {
 
+    private final AircraftRestClientService aircraftClient;
     private final MaintenanceRecordRepository maintenanceRecordRepository;
 
-    public MaintenanceReportService(MaintenanceRecordRepository maintenanceRecordRepository) {
+
+    public MaintenanceReportService(AircraftRestClientService aircraftClient, MaintenanceRecordRepository maintenanceRecordRepository) {
+        this.aircraftClient = aircraftClient;
         this.maintenanceRecordRepository = maintenanceRecordRepository;
     }
 
@@ -27,7 +31,7 @@ public class MaintenanceReportService {
         return maintenanceRecordRepository.findByStatus(MaintenanceStatus.ONGOING);
     }
 
-    /*public List<MaintenanceCostReport> maintenanceCosts(String groupBy) {
+    public List<MaintenanceCostReport> maintenanceCosts(String groupBy) {
         Map<String, Double> totals = maintenanceRecordRepository.findAll()
                 .stream()
                 .collect(Collectors.groupingBy(
@@ -40,15 +44,15 @@ public class MaintenanceReportService {
                 .map(e -> new MaintenanceCostReport(e.getKey(), e.getValue()))
                 .sorted(Comparator.comparing(MaintenanceCostReport::group))
                 .toList();
-    }*/
+    }
 
-    /*public List<TurnaroundAverage> averageTurnaroundTimePerAircraftType() {
+    public List<TurnaroundAverage> averageTurnaroundTimePerAircraftType() {
         List<MaintenanceRecord> completed = maintenanceRecordRepository.findByStatus(MaintenanceStatus.COMPLETED);
 
         Map<String, List<Long>> daysPerType = completed.stream()
                 .filter(r -> r.getEndDate() != null)
                 .collect(Collectors.groupingBy(
-                        r -> r.getAircraft().getModel().getModelName(),
+                        r -> aircraftClient.findAircraftModelNameByRegistrationNumber(r.getAircraftRegistration()),
                         Collectors.mapping(
                                 r -> ChronoUnit.DAYS.between(r.getStartDate(), r.getEndDate()),
                                 Collectors.toList()
@@ -62,14 +66,14 @@ public class MaintenanceReportService {
                 ))
                 .sorted(Comparator.comparing(TurnaroundAverage::aircraftType))
                 .toList();
-    }*/
+    }
 
-    /*private String reportGroup(MaintenanceRecord record, String groupBy) {
+    private String reportGroup(MaintenanceRecord record, String groupBy) {
         if ("model".equalsIgnoreCase(groupBy)) {
-            return record.getAircraft().getModel().getModelName();
+            return aircraftClient.findAircraftModelNameByRegistrationNumber(record.getAircraftRegistration());
         }
-        return record.getAircraft().getRegistrationNumber();
-    }*/
+        return record.getAircraftRegistration();
+    }
 
     private Double recordCost(MaintenanceRecord record) {
         return record.getUsedParts()

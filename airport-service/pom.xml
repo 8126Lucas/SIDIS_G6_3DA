@@ -6,13 +6,12 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.aisafe</groupId>
+        <groupId>com.sidis</groupId>
         <artifactId>sidis-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <groupId>com.sidis</groupId>
     <artifactId>airport-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
 

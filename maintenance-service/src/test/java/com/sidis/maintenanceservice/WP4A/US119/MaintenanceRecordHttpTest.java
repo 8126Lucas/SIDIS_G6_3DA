@@ -53,12 +53,12 @@ class MaintenanceRecordHttpTest {
 
     /*@Test
     void shouldGetRecordByIdSuccessfully() throws Exception {
-        Aircraft aircraft = mock(Aircraft.class);
-        when(aircraft.getRegistrationNumber()).thenReturn("CS-TVA");
+//        Aircraft aircraft = mock(Aircraft.class);
+//        when(aircraft.getRegistrationNumber()).thenReturn("CS-TVA");
 
         MaintenanceTemplate template = new MaintenanceTemplate("Engine Check", 2.0, java.util.Map.of(), com.sidis.maintenanceservice.domain.MaintenanceType.INSPECTION, com.sidis.maintenanceservice.domain.MaintenanceAttribute.ENGINE);
 
-        MaintenanceRecord record = new MaintenanceRecord(aircraft, template, 2.0, "desc", LocalDate.of(2026,5,1));
+        MaintenanceRecord record = new MaintenanceRecord("CS-TVA", template, 2.0, "desc", LocalDate.of(2026,5,1));
 
         when(maintenanceRecordProgressService.findById(1L)).thenReturn(Optional.of(record));
 
@@ -77,7 +77,7 @@ class MaintenanceRecordHttpTest {
 
         MaintenanceTemplate template = new MaintenanceTemplate("Engine Check", 2.0, java.util.Map.of(), com.sidis.maintenanceservice.domain.MaintenanceType.INSPECTION, com.sidis.maintenanceservice.domain.MaintenanceAttribute.ENGINE);
 
-        MaintenanceRecord updated = new MaintenanceRecord(/*aircraft,*/ template, 2.0, "desc", LocalDate.of(2026,5,1));
+        MaintenanceRecord updated = new MaintenanceRecord("CS-TVA", template, 2.0, "desc", LocalDate.of(2026,5,1));
         // simulate status change
         updated.markAsOngoing();
 

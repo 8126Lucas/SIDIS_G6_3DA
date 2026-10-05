@@ -1,6 +1,6 @@
 package com.sidis.maintenanceservice.WP4B.US221;
 
-//import com.sidis.maintenanceservice.Aircraft.application.AircraftSearchService;
+
 import com.sidis.maintenanceservice.MaintenanceRecordController;
 import com.sidis.maintenanceservice.application.AddMaintenanceRecordUseCase;
 import com.sidis.maintenanceservice.application.AddMaintenanceTemplateUseCase;
@@ -10,8 +10,6 @@ import com.sidis.maintenanceservice.application.MaintenanceReportService;
 import com.sidis.maintenanceservice.application.MaintenanceRecordSearchService;
 import com.sidis.maintenanceservice.application.MaintenanceTemplateSearchService;
 import com.sidis.maintenanceservice.application.PartsInventoryService;
-//import com.sidis.maintenanceservice.authUsers.application.JwtService;
-//import com.sidis.maintenanceservice.authUsers.infrastructure.JwtAuthenticationFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -39,11 +37,8 @@ class TurnaroundAverageHttpTest {
     @MockBean private MaintenanceTemplateSearchService maintenanceTemplateSearchService;
     @MockBean private AddMaintenanceTemplateUseCase addMaintenanceTemplateUseCase;
     @MockBean private AddMaintenanceRecordUseCase addMaintenanceRecordUseCase;
-//    @MockBean private AircraftSearchService aircraftSearchService;
     @MockBean private MaintenanceRecordSearchService maintenanceRecordSearchService;
     @MockBean private PartsInventoryService partsInventoryService;
-//    @MockBean private JwtService jwtService;
-//    @MockBean private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     /*@Test
     void shouldReturnTurnaroundAverages() throws Exception {
@@ -60,9 +55,9 @@ class TurnaroundAverageHttpTest {
                 .andExpect(jsonPath("$[1].averageDays").value(7.5));
 
         verify(maintenanceReportService, times(1)).averageTurnaroundTimePerAircraftType();
-    }*/
+    }
 
-    /*@Test
+    @Test
     void shouldReturnEmptyListWhenNoData() throws Exception {
         when(maintenanceReportService.averageTurnaroundTimePerAircraftType()).thenReturn(List.of());
 
