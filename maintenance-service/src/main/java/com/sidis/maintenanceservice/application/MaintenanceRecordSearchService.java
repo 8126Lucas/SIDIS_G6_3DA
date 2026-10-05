@@ -18,8 +18,8 @@ public class MaintenanceRecordSearchService {
         this.maintenanceRecordRepository = maintenanceRecordRepository;
     }
 
-    /*public Page<MaintenanceRecord> findRecordsMatchingFilter(
-            Aircraft aircraft,
+    public Page<MaintenanceRecord> findRecordsMatchingFilter(
+            String aircraftRegistration,
             String attribute,
             LocalDate initialDate,
             LocalDate finalDate,
@@ -27,9 +27,9 @@ public class MaintenanceRecordSearchService {
 
         Specification<MaintenanceRecord> spec = Specification.where(null);
 
-        if (aircraft != null) {
+        if (!aircraftRegistration.isEmpty()) {
             spec = spec.and((root, query, cb) ->
-                    cb.equal(root.get("aircraft"), aircraft));
+                    cb.equal(root.get("aircraft"), aircraftRegistration));
         }
 
         if (attribute != null && !attribute.isBlank()) {
@@ -58,5 +58,5 @@ public class MaintenanceRecordSearchService {
         }
 
         return maintenanceRecordRepository.findAll(spec, pageable);
-    }*/
+    }
 }

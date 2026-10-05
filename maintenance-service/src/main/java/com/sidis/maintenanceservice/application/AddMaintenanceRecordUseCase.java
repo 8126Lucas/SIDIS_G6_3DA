@@ -1,9 +1,13 @@
 package com.sidis.maintenanceservice.application;
 
-//import com.sidis.maintenanceservice.Aircraft.domain.Aircraft;
 import com.sidis.maintenanceservice.domain.MaintenanceRecord;
+import com.sidis.maintenanceservice.domain.MaintenanceTemplate;
+import com.sidis.maintenanceservice.exceptions.ResourceNotFoundException;
 import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordRepository;
 import com.sidis.maintenanceservice.UseCase;
+import com.sidis.maintenanceservice.infrastructure.client.AircraftRestClientService;
+
+import java.time.LocalDate;
 
 
 /**
@@ -18,28 +22,20 @@ import com.sidis.maintenanceservice.UseCase;
 @UseCase
 public class AddMaintenanceRecordUseCase {
     private final MaintenanceRecordRepository maintenanceRecordRepository;
+    private final AircraftRestClientService aircraftClient;
 
-    public AddMaintenanceRecordUseCase(MaintenanceRecordRepository maintenanceRecordRepository) {
+    public AddMaintenanceRecordUseCase(MaintenanceRecordRepository maintenanceRecordRepository,
+                                       AircraftRestClientService aircraftClient) {
         this.maintenanceRecordRepository = maintenanceRecordRepository;
+        this.aircraftClient = aircraftClient;
     }
 
-    /**
-     * Looks up the model for the given modelName, creates a {@link com.sidis.maintenanceservice.domain.MaintenanceRecord}
-     *with the given {@link com.sidis.maintenanceservice.Aircraft.domain.Aircraft},manufacturer,name and persists it.
-     * @param aircraft, the aircraft to do the maintenance
-     * @param maintenanceTemplate, the Template of maintenance;
-     * @param description the description of the maintenance;
-     * @param startDate, the day of maintenance starts;
-     * @param durationHours the expected duration of the maintenance;
-     */
-    /*public void executeShort(Aircraft aircraft,MaintenanceTemplate maintenanceTemplate,Double durationHours, String description, LocalDate startDate) {
-        maintenanceRecordRepository.save(new MaintenanceRecord(aircraft,maintenanceTemplate,durationHours,description,startDate));
-    }*/
+    public void executeShort(String aircraftRegistration, MaintenanceTemplate maintenanceTemplate, Double durationHours, String description, LocalDate startDate) {
+        aircraftClient.findAircraftByRegistration(aircraftRegistration)
+                .orElseThrow(() -> new ResourceNotFoundException("Aircraft does not exist in hangar"));
+        maintenanceRecordRepository.save(new MaintenanceRecord(aircraftRegistration, maintenanceTemplate, durationHours, description, startDate));
+    }
 
-    /**
-     * Adds a record to persist
-     * @param maintenanceRecord the model object to be persisted
-     */
     public void execute(MaintenanceRecord maintenanceRecord) {
         maintenanceRecordRepository.save(maintenanceRecord);
     }

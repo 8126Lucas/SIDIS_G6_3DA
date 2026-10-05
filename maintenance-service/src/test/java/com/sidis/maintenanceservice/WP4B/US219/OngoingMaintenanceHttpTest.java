@@ -64,7 +64,7 @@ class OngoingMaintenanceHttpTest {
                 LocalDate.of(2018, 1, 1), 0.0, 0.0);*/
         MaintenanceTemplate template = new MaintenanceTemplate("Engine Check", 2.0,
                 Map.of(), MaintenanceType.INSPECTION, MaintenanceAttribute.ENGINE);
-        return new MaintenanceRecord(/*aircraft,*/ template, 6.0,
+        return new MaintenanceRecord("CS-TVA", template, 6.0,
                 "ongoing check", LocalDate.of(2026, 1, 1));
     }
 }

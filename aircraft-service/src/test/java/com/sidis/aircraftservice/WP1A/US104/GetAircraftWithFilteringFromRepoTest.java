@@ -6,7 +6,6 @@ import com.sidis.aircraftservice.Aircraft.application.AircraftLifeCycleUpdaterSe
 import com.sidis.aircraftservice.Aircraft.application.AircraftSearchService;
 import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
 import com.sidis.aircraftservice.Aircraft.domain.AircraftAvailability;
-import com.sidis.aircraftservice.Aircraft.infrastructure.CalculationsService;
 import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;

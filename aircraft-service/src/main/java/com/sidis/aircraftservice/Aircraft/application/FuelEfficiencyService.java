@@ -1,12 +1,11 @@
-/*
-
 package com.sidis.aircraftservice.Aircraft.application;
 
 import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftRepository;
+import com.sidis.aircraftservice.Aircraft.infrastructure.client.FlightRestClientService;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
-import com.sidis.aircraftservice.Flight.domain.Flight;
-import com.sidis.aircraftservice.Flight.infrastructure.FlightRepository;
-import com.sidis.aircraftservice.Route.domain.Route;
+//import com.sidis.aircraftservice.Flight.domain.Flight;
+//import com.sidis.aircraftservice.Flight.infrastructure.FlightRepository;
+//import com.sidis.aircraftservice.Route.domain.Route;
 import com.sidis.aircraftservice.UseCase;
 
 import java.util.Comparator;
@@ -18,11 +17,11 @@ import java.util.stream.Collectors;
 public class FuelEfficiencyService {
 
     private final AircraftRepository aircraftRepository;
-    private final FlightRepository flightRepository;
+    private final FlightRestClientService flightClient;
 
-    public FuelEfficiencyService(AircraftRepository aircraftRepository, FlightRepository flightRepository) {
+    public FuelEfficiencyService(AircraftRepository aircraftRepository, FlightRestClientService flightClient) {
         this.aircraftRepository = aircraftRepository;
-        this.flightRepository = flightRepository;
+        this.flightClient = flightClient;
     }
 
     public record AircraftFuelEfficiency(
@@ -64,7 +63,8 @@ public class FuelEfficiencyService {
                 .toList();
     }
 
-    public List<RouteFuelEfficiency> getFuelEfficiencyPerRoute() {
+    // Necessário esperar pela continuação do route-service e flight-service
+    /*public List<RouteFuelEfficiency> getFuelEfficiencyPerRoute() {
         Map<Route, List<Flight>> byRoute = flightRepository.findAll().stream()
                 .filter(f -> f.getAircraft() != null)
                 .collect(Collectors.groupingBy(Flight::getRoute));
@@ -101,6 +101,5 @@ public class FuelEfficiencyService {
                 })
                 .sorted(Comparator.comparing(RouteFuelEfficiency::routeId))
                 .toList();
-    }
+    }*/
 }
-*/

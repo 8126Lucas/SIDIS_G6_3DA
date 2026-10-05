@@ -1,6 +1,6 @@
 package com.sidis.maintenanceservice.WP4A.US117;
 
-//import com.sidis.maintenanceservice.Aircraft.application.AircraftSearchService;
+
 import com.sidis.maintenanceservice.MaintenanceRecordController;
 import com.sidis.maintenanceservice.application.AddMaintenanceRecordUseCase;
 import com.sidis.maintenanceservice.application.AddMaintenanceTemplateUseCase;
@@ -13,8 +13,6 @@ import com.sidis.maintenanceservice.application.PartsInventoryService;
 import com.sidis.maintenanceservice.domain.MaintenanceAttribute;
 import com.sidis.maintenanceservice.domain.MaintenanceTemplate;
 import com.sidis.maintenanceservice.domain.MaintenanceType;
-//import com.sidis.maintenanceservice.authUsers.application.JwtService;
-//import com.sidis.maintenanceservice.authUsers.infrastructure.JwtAuthenticationFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -44,11 +42,8 @@ class GetMaintenanceTemplateHttpTest {
     @MockBean private MaintenanceRecordProgressService maintenanceRecordProgressService;
     @MockBean private AddMaintenanceTemplateUseCase addMaintenanceTemplateUseCase;
     @MockBean private AddMaintenanceRecordUseCase addMaintenanceRecordUseCase;
-//    @MockBean private AircraftSearchService aircraftSearchService;
     @MockBean private MaintenanceRecordSearchService maintenanceRecordSearchService;
     @MockBean private PartsInventoryService partsInventoryService;
-//    @MockBean private JwtService jwtService;
-//    @MockBean private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Test
     void shouldGetTemplateByIdSuccessfully() throws Exception {

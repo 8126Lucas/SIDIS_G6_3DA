@@ -1,7 +1,5 @@
 package com.sidis.maintenanceservice.domain;
 
-//import com.sidis.maintenanceservice.Aircraft.domain.Aircraft;
-//import com.sidis.maintenanceservice.Users.domain.Collaborator;
 import jakarta.persistence.*;
 
 import java.time.LocalDate;
@@ -19,9 +17,8 @@ public class MaintenanceRecord {
     @Version
     private Long version;
 
-    /*@ManyToOne(optional = false)
-    @JoinColumn(name = "aircraft_id")
-    private Aircraft aircraft;*/
+    @Column(name = "aircraft_id")
+    private String aircraftRegistration;
 
     @ManyToOne
     @JoinColumn(name = "maintenance_template_id")
@@ -30,17 +27,11 @@ public class MaintenanceRecord {
     @Column(nullable = false)
     private String description;
 
-    /*@ManyToMany
-    @JoinTable(
-            name = "maintenance_technicians",
-            joinColumns = @JoinColumn(name = "maintenance_record_id"),
-            inverseJoinColumns = @JoinColumn(name = "technician_id")
-    )
-    private List<Collaborator> technicians = new ArrayList<>();*/
+    @Column
+    private List<String> techniciansUsername = new ArrayList<>();
 
-    /*@ManyToOne
-    @JoinColumn(name = "supervisor_id")
-    private Collaborator supervisor;*/
+    @Column(name = "supervisor_id")
+    private String supervisorUsername;
 
     @Column(nullable = false)
     private LocalDate startDate;
@@ -63,9 +54,9 @@ public class MaintenanceRecord {
     public MaintenanceRecord() {
     }
 
-    public MaintenanceRecord(/*Aircraft aircraft,*/MaintenanceTemplate maintenanceTemplate,
+    public MaintenanceRecord(String aircraftRegistration, MaintenanceTemplate maintenanceTemplate,
                              Double durationHours, String description, LocalDate startDate){
-        /*this.aircraft = aircraft;*/
+        this.aircraftRegistration = aircraftRegistration;
         this.maintenanceTemplate = maintenanceTemplate;
         this.durationHours = durationHours;
         this.description = description;
@@ -74,18 +65,18 @@ public class MaintenanceRecord {
     }
 
     public MaintenanceRecord(List<UsedPart> usedParts,Double durationHours,
-            LocalDate startDate,/*Collaborator supervisor,*/String description,
-            /*List<Collaborator> technicians,*/MaintenanceTemplate maintenanceTemplate/*,
-            Aircraft aircraft*/) {
+            LocalDate startDate,String supervisorUsername,String description,
+            List<String> techniciansUsername, MaintenanceTemplate maintenanceTemplate,
+            String aircraftRegistration) {
         this.status = MaintenanceStatus.INLINE;
         this.usedParts = usedParts != null ? usedParts : new ArrayList<>();
         this.durationHours = durationHours;
         this.startDate = startDate;
-//        this.supervisor = supervisor;
+        this.supervisorUsername = supervisorUsername;
         this.description = description;
-//        this.technicians = technicians != null ? technicians : new ArrayList<>();
+        this.techniciansUsername = techniciansUsername != null ? techniciansUsername : new ArrayList<>();
         this.maintenanceTemplate = maintenanceTemplate;
-//        this.aircraft = aircraft;
+        this.aircraftRegistration = aircraftRegistration;
     }
 
     public void updateDuration(Double realDuration) {
@@ -98,17 +89,17 @@ public class MaintenanceRecord {
         this.durationHours = realDuration;
     }
 
-    /*public void assignTechnician(Collaborator technician) {
-        if (technician == null) {
+    public void assignTechnician(String technicianUsername) {
+        if (technicianUsername == null) {
             throw new IllegalArgumentException(
                     "Technician cannot be null"
             );
         }
 
-        if (!technicians.contains(technician)) {
-            technicians.add(technician);
+        if (!techniciansUsername.contains(technicianUsername)) {
+            techniciansUsername.add(technicianUsername);
         }
-    }*/
+    }
 
     public void addUsedPart(UsedPart part) {
         if (part == null) {
@@ -158,21 +149,21 @@ public class MaintenanceRecord {
         return recordId;
     }
 
-    /*public Aircraft getAircraft() {
-        return aircraft;
-    }*/
+    public String getAircraftRegistration() {
+        return aircraftRegistration;
+    }
 
     public MaintenanceTemplate getMaintenanceTemplate() {
         return maintenanceTemplate;
     }
 
-    /*public List<Collaborator> getTechnicians() {
-        return technicians;
-    }*/
+    public List<String> getTechniciansUsername() {
+        return techniciansUsername;
+    }
 
-    /*public Collaborator getSupervisor() {
-        return supervisor;
-    }*/
+    public String getSupervisorUsername() {
+        return supervisorUsername;
+    }
 
     public MaintenanceStatus getStatus() {
         return status;

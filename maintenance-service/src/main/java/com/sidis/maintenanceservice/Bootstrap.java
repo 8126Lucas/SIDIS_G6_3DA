@@ -76,11 +76,11 @@ public class Bootstrap implements ApplicationRunner {
                 ),
                 24.0,
                 LocalDate.now().minusDays(10),
-                /*supervisor,*/
+                "supervisor",
                 "Completed",
-                /*List.of(tech),*/
-                engineInspection/*,
-                csTua*/
+                List.of("tech"),
+                engineInspection,
+                "CS-TUA"
         );
 
         r1.markAsCompleted(new DoneList(
@@ -114,11 +114,11 @@ public class Bootstrap implements ApplicationRunner {
                 ),
                 15.0,
                 LocalDate.now().minusDays(5),
-                /*supervisor,*/
+                "supervisor",
                 "Completed",
-                /*List.of(tech),*/
-                landingGearInspection/*,
-                dAbxa*/
+                List.of("tech"),
+                landingGearInspection,
+                "DA-BXA"
         );
         r2.markAsCompleted(new DoneList(
                 "Landing gear inspection completed. Tires replaced.",
@@ -149,11 +149,11 @@ public class Bootstrap implements ApplicationRunner {
                 List.of(),
                 8.0,
                 LocalDate.now().minusDays(2),
-                /*supervisor,*/
+                "supervisor",
                 "Completed",
-                /*List.of(tech),*/
-                avionicsCheck/*,
-                fHxka*/
+                List.of("tech"),
+                avionicsCheck,
+                "FH-XKA"
         );
 
         r3.markAsCompleted(new DoneList(
@@ -188,11 +188,11 @@ public class Bootstrap implements ApplicationRunner {
                 ),
                 40.0,
                 LocalDate.now(),
-                /*supervisor,*/
+                "supervisor",
                 "In Progress",
-                /*List.of(tech),*/
-                engineRepair/*,
-                csTua*/
+                List.of("tech"),
+                engineRepair,
+                "CS-TUA"
         );
 
         maintenanceRecordRepository.saveAll(
