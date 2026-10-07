@@ -31,6 +31,7 @@
         <module>flight-service</module>
         <module>maintenance-service</module>
         <module>APIgateway</module>
+        <module>discovery-service</module>
     </modules>
 
     <dependencyManagement>
