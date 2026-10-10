@@ -25,7 +25,7 @@ public class MaintenanceRecordSearchService {
             LocalDate finalDate,
             Pageable pageable) {
 
-        Specification<MaintenanceRecord> spec = Specification.where(null);
+        Specification<MaintenanceRecord> spec = Specification.allOf();
 
         if (!aircraftRegistration.isEmpty()) {
             spec = spec.and((root, query, cb) ->

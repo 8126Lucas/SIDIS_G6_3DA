@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -34,31 +34,31 @@ class AddAircraftHttpTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private AddAircraftUseCase addAircraftUseCase;
 
-    @MockBean
+    @MockitoBean
     private AircraftModelSearchService aircraftModelSearchService;
 
-    @MockBean
+    @MockitoBean
     private AircraftLifeCycleUpdaterService aircraftLifeCycleUpdaterService;
 
-    @MockBean
+    @MockitoBean
     private AircraftSearchService aircraftSearchService;
 
-/*    @MockBean
+/*    @MockitoBean
     private RouteSearchService routeSearchService;
 
-    @MockBean
+    @MockitoBean
     private FlightSearchService flightSearchService;
 
-    @MockBean
+    @MockitoBean
     private FuelEfficiencyService fuelEfficiencyService;
 
-    @MockBean
+    @MockitoBean
     private JwtService jwtService;
 
-    @MockBean
+    @MockitoBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 */
     @Test

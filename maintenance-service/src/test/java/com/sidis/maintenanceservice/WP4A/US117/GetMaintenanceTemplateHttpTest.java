@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -36,14 +36,14 @@ class GetMaintenanceTemplateHttpTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean private MaintenanceTemplateSearchService maintenanceTemplateSearchService;
-    @MockBean private MaintenanceReportService maintenanceReportService;
-    @MockBean private MaintenanceAlertService maintenanceAlertService;
-    @MockBean private MaintenanceRecordProgressService maintenanceRecordProgressService;
-    @MockBean private AddMaintenanceTemplateUseCase addMaintenanceTemplateUseCase;
-    @MockBean private AddMaintenanceRecordUseCase addMaintenanceRecordUseCase;
-    @MockBean private MaintenanceRecordSearchService maintenanceRecordSearchService;
-    @MockBean private PartsInventoryService partsInventoryService;
+    @MockitoBean private MaintenanceTemplateSearchService maintenanceTemplateSearchService;
+    @MockitoBean private MaintenanceReportService maintenanceReportService;
+    @MockitoBean private MaintenanceAlertService maintenanceAlertService;
+    @MockitoBean private MaintenanceRecordProgressService maintenanceRecordProgressService;
+    @MockitoBean private AddMaintenanceTemplateUseCase addMaintenanceTemplateUseCase;
+    @MockitoBean private AddMaintenanceRecordUseCase addMaintenanceRecordUseCase;
+    @MockitoBean private MaintenanceRecordSearchService maintenanceRecordSearchService;
+    @MockitoBean private PartsInventoryService partsInventoryService;
 
     @Test
     void shouldGetTemplateByIdSuccessfully() throws Exception {
