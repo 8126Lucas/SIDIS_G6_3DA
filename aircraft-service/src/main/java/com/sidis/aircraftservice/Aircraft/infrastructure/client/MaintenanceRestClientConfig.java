@@ -6,11 +6,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 
 @Configuration
-public class FlightRestClientConfig {
+public class MaintenanceRestClientConfig {
     @Bean
-    public RestClient flightRestClient(RestClient.Builder builder) {
+    public RestClient maintenanceRestClient(RestClient.Builder builder) {
         return builder
-                .baseUrl("https://FLIGHT-SERVICE")
+                .baseUrl("https://MAINTENANCE-SERVICE")
                 .build();
     }
 }

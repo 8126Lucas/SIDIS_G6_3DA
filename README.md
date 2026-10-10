@@ -4,8 +4,8 @@
 - Discovery Service (Eureka Server): 8761
 - API Gateway: 7979
 - Aircraft Service: 8081 - 8090
-- Airport Service: 8091 - 9000
-- Authentication Service: 9001 - 9010
-- Flight Service: 9011 - 9020
-- Maintenance Service: 9021 - 9030
-- Route Service: 9031 - 9040
+- Airport Service: 8091 - 8100
+- Authentication Service: 8101 - 8110
+- Flight Service: 8111 - 8120
+- Maintenance Service: 8121 - 8130
+- Route Service: 8131 - 8140

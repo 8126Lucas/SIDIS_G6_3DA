@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -26,17 +26,17 @@ class MaintenanceCostReportHttpTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean private MaintenanceReportService maintenanceReportService;
-    @MockBean private MaintenanceAlertService maintenanceAlertService;
-    @MockBean private MaintenanceRecordProgressService maintenanceRecordProgressService;
-    @MockBean private MaintenanceTemplateSearchService maintenanceTemplateSearchService;
-    @MockBean private AddMaintenanceTemplateUseCase addMaintenanceTemplateUseCase;
-    @MockBean private AddMaintenanceRecordUseCase addMaintenanceRecordUseCase;
-//    @MockBean private AircraftSearchService aircraftSearchService;
-    @MockBean private MaintenanceRecordSearchService maintenanceRecordSearchService;
-    @MockBean private PartsInventoryService partsInventoryService;
-//    @MockBean private JwtService jwtService;
-//    @MockBean private JwtAuthenticationFilter jwtAuthenticationFilter;
+    @MockitoBean private MaintenanceReportService maintenanceReportService;
+    @MockitoBean private MaintenanceAlertService maintenanceAlertService;
+    @MockitoBean private MaintenanceRecordProgressService maintenanceRecordProgressService;
+    @MockitoBean private MaintenanceTemplateSearchService maintenanceTemplateSearchService;
+    @MockitoBean private AddMaintenanceTemplateUseCase addMaintenanceTemplateUseCase;
+    @MockitoBean private AddMaintenanceRecordUseCase addMaintenanceRecordUseCase;
+//    @MockitoBean private AircraftSearchService aircraftSearchService;
+    @MockitoBean private MaintenanceRecordSearchService maintenanceRecordSearchService;
+    @MockitoBean private PartsInventoryService partsInventoryService;
+//    @MockitoBean private JwtService jwtService;
+//    @MockitoBean private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     /*@Test
     void shouldReturnMaintenanceCostReport() throws Exception {

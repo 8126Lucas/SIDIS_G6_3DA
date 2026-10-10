@@ -6,11 +6,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 
 @Configuration
-public class FlightRestClientConfig {
+public class GlobalRestClientConfig {
     @Bean
-    public RestClient flightRestClient(RestClient.Builder builder) {
-        return builder
-                .baseUrl("https://FLIGHT-SERVICE")
-                .build();
+    @LoadBalanced
+    public RestClient.Builder globalLoadBalancedBuilder() {
+        return RestClient.builder();
     }
 }

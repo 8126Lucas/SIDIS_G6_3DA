@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -30,15 +30,15 @@ class FuelEfficiencyHttpTest {
     @Autowired
     private MockMvc mockMvc;
 
-//    @MockBean private FuelEfficiencyService fuelEfficiencyService;
-    @MockBean private AddAircraftUseCase addAircraftUseCase;
-    @MockBean private AircraftModelSearchService aircraftModelSearchService;
-    @MockBean private AircraftLifeCycleUpdaterService aircraftLifeCycleUpdaterService;
-    @MockBean private AircraftSearchService aircraftSearchService;
-//    @MockBean private RouteSearchService routeSearchService;
-//    @MockBean private FlightSearchService flightSearchService;
-//    @MockBean private JwtService jwtService;
-//    @MockBean private JwtAuthenticationFilter jwtAuthenticationFilter;
+//    @MockitoBean private FuelEfficiencyService fuelEfficiencyService;
+    @MockitoBean private AddAircraftUseCase addAircraftUseCase;
+    @MockitoBean private AircraftModelSearchService aircraftModelSearchService;
+    @MockitoBean private AircraftLifeCycleUpdaterService aircraftLifeCycleUpdaterService;
+    @MockitoBean private AircraftSearchService aircraftSearchService;
+//    @MockitoBean private RouteSearchService routeSearchService;
+//    @MockitoBean private FlightSearchService flightSearchService;
+//    @MockitoBean private JwtService jwtService;
+//    @MockitoBean private JwtAuthenticationFilter jwtAuthenticationFilter;
 
 /*    @Test
     void shouldReturnFuelEfficiencyPerAircraft() throws Exception {
