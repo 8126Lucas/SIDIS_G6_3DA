@@ -12,7 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 
-@SpringBootTest
+@SpringBootTest(properties = "eureka.client.enabled=false")
 @AutoConfigureMockMvc(addFilters = false)
 class GetAircraftWithFilteringHttpTest {
 
