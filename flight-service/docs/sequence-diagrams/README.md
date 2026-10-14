@@ -1,0 +1,1 @@
+# Explicação detalhada dos 2 cenários dinâmicos

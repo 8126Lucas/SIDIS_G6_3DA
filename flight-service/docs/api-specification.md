@@ -1,0 +1,1 @@
+# Catálogo de endpoints REST e respostas

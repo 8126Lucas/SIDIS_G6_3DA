@@ -1,0 +1,1 @@
+# Domínio (DDD), Optimistic Locking e Bootstrap
