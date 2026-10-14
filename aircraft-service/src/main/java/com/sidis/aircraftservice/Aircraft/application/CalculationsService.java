@@ -5,6 +5,7 @@ package com.sidis.aircraftservice.Aircraft.application;
 //import com.sidis.aircraftservice.Flight.infrastructure.FlightRepository;
 import com.sidis.aircraftservice.Aircraft.HangarController;
 import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
+import com.sidis.aircraftservice.Aircraft.infrastructure.client.FlightClientDTO;
 import com.sidis.aircraftservice.Aircraft.infrastructure.client.FlightRestClientService;
 import org.springframework.stereotype.Service;
 
@@ -25,8 +26,7 @@ public class CalculationsService {
         this.flightClient = flightClient;
     }
 
-    // Esperar pela continuação do flight-service
-    /*public List<HangarController.UtilizationInfo> getUtilizationInfo() {
+    public List<HangarController.UtilizationInfo> getUtilizationInfo() {
 
         List<Aircraft> aircrafts = aircraftSearchService.findAll();
 
@@ -43,8 +43,8 @@ public class CalculationsService {
                                 .withDayOfMonth(monthDate.lengthOfMonth())
                                 .atTime(23, 59, 59);
 
-                        List<Flight> flights =
-                                flightSearchService
+                        List<FlightClientDTO> flights =
+                                flightClient
                                         .findByAircraftRegistrationNumberAndScheduledDepartureBetween(
                                                 aircraft.getRegistrationNumber(),
                                                 start,
@@ -74,5 +74,5 @@ public class CalculationsService {
                     return result.stream();
                 })
                 .toList();
-    }*/
+    }
 }
