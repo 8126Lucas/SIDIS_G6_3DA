@@ -62,7 +62,7 @@ flight_entity *-- route_ref : "Embeds"
 flight_entity --> flight_status : "Uses"
 
 ' Persistência na Base de Dados
-flight_repo --> flight_db : "Reads/Writes company_flights\n[JDBC/JPA]"
+flight_repo <--> flight_db : "Reads/Writes company_flights\n[JDBC/JPA]"
 
 ' Resposta de Erros
 exception_handler --> error_details : "Constructs and returns"

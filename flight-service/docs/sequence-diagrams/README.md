@@ -21,7 +21,7 @@ It encompasses two execution flows:
 * **Alternative Path (Error Handling):** Demonstrates how unhandled exceptions or invalid input queries are intercepted by the `GlobalExceptionHandler` and normalized into a standard `ErrorDetails` payload.
 
 ### Sequence Diagram
-![Scenario 1 - Query Flights & Route Utilization Report](scenario-1-query-flights.png)
+![Scenario 1 - Query Flights & Route Utilization Report](scenario-1-query-flights.svg)
 
 ### Key Message Flow Steps
 
@@ -50,7 +50,7 @@ Scenario 2 illustrates the write flow when scheduling a new flight. To enforce d
 * **`maintenance-service`:** Verifies that the aircraft is not currently undergoing maintenance during the scheduled timeframe.
 
 ### Sequence Diagram
-![Scenario 2 - Flight Scheduling & External Service Integration](scenario-2-schedule-flight.png)
+![Scenario 2 - Flight Scheduling & External Service Integration](scenario-2-schedule-flight.svg)
 
 ### Key Message Flow Steps
 
