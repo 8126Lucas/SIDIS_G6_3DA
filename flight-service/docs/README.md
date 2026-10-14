@@ -1,5 +1,3 @@
-# Índice geral da documentação do serviço
-
 # Flight Operations Service (`flight-service`) — Technical Documentation
 
 Welcome to the central documentation repository for the **Flight Operations Service** (`flight-service`), an essential component of the *AISafe Flight Management System*.
