@@ -1,6 +1,5 @@
 package com.sidis.routeservice;
 
-//import com.sidis.routeservice.application.RouteExportService;
 import com.sidis.routeservice.application.RouteService;
 import com.sidis.routeservice.domain.Route;
 import com.sidis.routeservice.domain.RouteHistory;
@@ -58,14 +57,14 @@ public class RouteController {
         return RouteHistoryResponse.from(routeService.getRouteHistory(routeId));
     }
 
-    /*
+
     @GetMapping("/from/{airportIataCode}")
     public List<RouteResponse> getRoutesFromAirport(@PathVariable String airportIataCode) {
         return routeService.getRoutesFromAirport(airportIataCode)
                 .stream()
                 .map(RouteResponse::from)
                 .toList();
-    }*/
+    }
 
     @GetMapping("/{routeId:\\d+}")
     public RouteResponse getRouteDetails(@PathVariable Long routeId) {
