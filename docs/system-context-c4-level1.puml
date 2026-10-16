@@ -1,0 +1,30 @@
+@startuml
+!include <C4/C4_Context>
+
+' Layout
+skinparam linetype ortho
+
+title Context Diagram (C4 - Level 1) - AISafe Flight Management System
+
+' Actors (System Users)
+Person(backoffice, "Backoffice Operator", "Manages aircraft models, airports, operator rules, and global data.")
+Person(atcc, "ATCC", "Air Transport Company Collaborator: Manages fleet instances, flight routes, and schedules.")
+Person(technician, "Maintenance Technician", "Creates and updates maintenance records and templates.")
+Person(supervisor, "Maintenance Supervisor", "Monitors ongoing maintenance activities and turnaround times.")
+
+' External Systems / Clients
+System_Ext(postman, "API Client (Postman)", "Tool used to simulate interactions with the system's endpoints.")
+
+' Central System
+System(aisafe, "AISafe Flight Management System", "Distributed system for fleet, airport, route, flight operations, and maintenance management.")
+
+' Relationships: Users -> Postman
+Rel(backoffice, postman, )
+Rel(atcc, postman, )
+Rel(technician, postman, )
+Rel(supervisor, postman, )
+
+' Relationships: Postman -> System
+Rel(postman, aisafe, "Sends REST requests & receives JSON", "HTTPS / REST")
+
+@enduml
