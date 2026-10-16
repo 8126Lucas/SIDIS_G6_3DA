@@ -84,8 +84,7 @@ public class RouteService {
     }
 
     /*
-    public Route updateRoute(Long routeId, String destinationIataCode,
-            Double estimatedFlightTimeHours, RouteStatus status) {
+    public Route updateRoute(Long routeId, String destinationIataCode,Double estimatedFlightTimeHours, RouteStatus status) {
         Route route = routeRepository.findByRouteId(routeId)
                 .orElseThrow(() -> new DomainException("Route does not exist"));
 
@@ -121,12 +120,11 @@ public class RouteService {
     }
     */
 
-    /*
+
     public List<Route> getRoutesFromAirport(String airportIataCode) {
         validateIataCode(airportIataCode);
-        findAirport(airportIataCode, "Airport does not exist");
         return routeRepository.findByOriginAirport_IataCode(airportIataCode);
-    }*/
+    }
 
     public Route getRouteDetails(Long routeId) {
         return routeRepository.findByRouteId(routeId)

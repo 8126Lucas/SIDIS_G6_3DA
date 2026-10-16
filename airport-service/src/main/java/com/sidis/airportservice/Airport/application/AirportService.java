@@ -8,30 +8,26 @@ import com.sidis.airportservice.Airport.domain.Contact;
 import com.sidis.airportservice.Airport.domain.Facilities;
 import com.sidis.airportservice.Airport.domain.Runway;
 import com.sidis.airportservice.Airport.infrastructure.AirportRepository;
-//import com.sidis.airportservice.Route.domain.Route;
-//import com.sidis.airportservice.Route.infrastructure.RouteRepository;
+import com.sidis.airportservice.Airport.infrastructure.client.RouteResponse;
+import com.sidis.airportservice.Airport.infrastructure.client.RouteRestClientService;
 import com.sidis.airportservice.UseCase;
 import com.sidis.airportservice.exceptions.DomainException;
 import jakarta.transaction.Transactional;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDate;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @UseCase
 @Transactional
 public class AirportService {
     private final AirportRepository airportRepository;
-    //private final RouteRepository routeRepository;
+    private final RouteRestClientService routeRepository;
 
-    public AirportService(AirportRepository airportRepository/*, RouteRepository routeRepository*/) {
+    public AirportService(AirportRepository airportRepository, RouteRestClientService routeRepository) {
         this.airportRepository = airportRepository;
-        //this.routeRepository = routeRepository;
+        this.routeRepository = routeRepository;
     }
 
     public record AirportRouteStatistic(Airport airport, long numberOfRoutes) {
@@ -107,27 +103,27 @@ public class AirportService {
         airport.updateDetails(name, operationalHours, contacts);
         return airportRepository.save(airport);
     }
-    /*
-    TODO: needs to be in the route service
-    public List<Route> findRoutesByAirport(String iataCode) {
+
+    public List<RouteResponse> findRoutesByAirport(String iataCode) {
         airportRepository.findByIataCode(iataCode)
                 .orElseThrow(() -> new DomainException("Airport does not exist"));
-        return routeRepository.findByOriginAirport_IataCodeOrDestinationAirport_IataCode(
-                iataCode, iataCode);
+        return routeRepository.getRoutesFromAirport(iataCode);
     }
 
     public List<AirportRouteStatistic> busiestAirports() {
-        List<Route> routes = routeRepository.findAll();
+        List<RouteResponse> routes = routeRepository.getRoutes();
         Map<Airport, Long> counts = new HashMap<>();
-        for (Route route : routes) {
-            counts.merge(route.getOriginAirport(), 1L, Long::sum);
-            counts.merge(route.getDestinationAirport(), 1L, Long::sum);
+        for (RouteResponse route : routes) {
+            airportRepository.findByIataCode(route.originAirportIata())
+                    .ifPresent(airport -> counts.merge(airport, 1L, Long::sum));
+            airportRepository.findByIataCode(route.destinationAirportIata())
+                    .ifPresent(airport -> counts.merge(airport, 1L, Long::sum));
         }
         return counts.entrySet().stream()
                 .map(e -> new AirportRouteStatistic(e.getKey(), e.getValue()))
                 .sorted(Comparator.comparingLong(AirportRouteStatistic::numberOfRoutes).reversed())
                 .collect(Collectors.toList());
-    }*/
+    }
 
     public Map<String, List<Airport>> groupAirportsBy(String criteria) {
         List<Airport> airports = airportRepository.findAll();
