@@ -1,14 +1,13 @@
 package com.sidis.routeservice;
 
-import com.sidis.routeservice.domain.*;
-import com.sidis.routeservice.infrastructure.RouteRepository;
+import com.sidis.routeservice.Route.domain.*;
+import com.sidis.routeservice.Route.infrastructure.RouteRepository;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.*;
 
 @Component
 public class Bootstrap implements ApplicationRunner {

@@ -1,0 +1,87 @@
+@startuml
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 180
+skinparam boxPadding 10
+skinparam participantPadding 10
+skinparam shadowing false
+
+title Sequence Diagram - Scenario 2: Flight Scheduling & External Service Integration
+
+autonumber
+
+actor "Client / Postman" as client
+participant "API Gateway\n<<Gateway>>" as gateway
+participant "FlightController\n<<REST Controller>>" as controller
+participant "Flight Operations Service\n<<Domain Logic>>" as service
+participant "Route Service\n<<External Microservice>>" as route_svc
+participant "Aircraft Service\n<<External Microservice>>" as aircraft_svc
+participant "Maintenance Service\n<<External Microservice>>" as maint_svc
+participant "FlightRepository\n<<JPA Repository>>" as repo
+database "H2 Database\n<<In-Memory DB>>" as db
+participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
+
+box "Flight Operations Service [Container]" #LightBlue
+    participant controller
+    participant service
+    participant repo
+    participant exception_handler
+end box
+
+== Flight Scheduling & External Validation Flow ==
+
+client -> gateway : POST /api/flights\n(RouteId, AircraftReg, DepartureTime)
+activate gateway
+
+gateway -> controller : Forward POST /api/flights
+activate controller
+
+controller -> service : scheduleFlight(flightData)
+activate service
+
+' External REST Validations
+group External REST Validations [RestClient]
+    service -> route_svc : GET /api/routes/{routeId}
+    activate route_svc
+    route_svc --> service : 200 OK (Route Details & Distance)
+    deactivate route_svc
+
+    service -> aircraft_svc : GET /api/hangar/aircraft/{registration}
+    activate aircraft_svc
+    aircraft_svc --> service : 200 OK (Aircraft Details & Max Range)
+    deactivate aircraft_svc
+
+    service -> maint_svc : GET /api/maintenance/records/ongoing
+    activate maint_svc
+    maint_svc --> service : 200 OK (Maintenance Status)
+    deactivate maint_svc
+end
+
+' Domain Rules & Persistence
+service -> service : Validate aircraft availability,\ncapacity & range vs route distance
+
+alt Validation Successful
+    service -> repo : save(flightEntity)
+    activate repo
+    repo -> db : INSERT INTO company_flights
+    activate db
+    db --> repo : Saved Flight Entity
+    deactivate db
+    repo --> service : Flight Entity
+    deactivate repo
+
+    service --> controller : Scheduled Flight DTO
+    controller --> gateway : 201 Created (Flight JSON Payload)
+    gateway --> client : 201 Created Response
+else Business Rule / Range Validation Failed
+    service -[#red]> exception_handler : throw DomainException("Aircraft range insufficient or in maintenance")
+    activate exception_handler
+    exception_handler --> controller : Error Response Payload
+    controller --> gateway : 409 Conflict / 400 Bad Request
+    deactivate controller
+    gateway --> client : 409 Conflict (ErrorDetails JSON)
+    deactivate exception_handler
+end
+deactivate service
+deactivate gateway
+
+@enduml

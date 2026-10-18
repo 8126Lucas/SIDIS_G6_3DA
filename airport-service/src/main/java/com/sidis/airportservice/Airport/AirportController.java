@@ -3,11 +3,10 @@ package com.sidis.airportservice.Airport;
 import com.sidis.airportservice.Airport.application.AirportService;
 import com.sidis.airportservice.Airport.domain.*;
 import com.sidis.airportservice.Airport.application.AirportCsvService;
-//import com.sidis.airportservice.Route.domain.*;
+import com.sidis.airportservice.Airport.infrastructure.client.route.RouteResponse;
 import com.sidis.airportservice.exceptions.DomainException;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
-//import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -92,9 +91,7 @@ public class AirportController {
 
     @PostMapping("/{iataCode}/certifications")
     @ResponseStatus(HttpStatus.CREATED)
-    public CertificationResponse addCertification(
-            @PathVariable String iataCode,
-            @Valid @RequestBody AddCertificationRequest request) {
+    public CertificationResponse addCertification(@PathVariable String iataCode,@Valid @RequestBody AddCertificationRequest request) {
         Certification certification = airportService.addCertification(
                 iataCode,
                 request.name(),
@@ -152,14 +149,12 @@ public class AirportController {
         );
         return AirportResponse.from(airport);
     }
-    /*
+
     @GetMapping("/{iataCode}/routes")
     public List<RouteResponse> getAirportRoutes(@PathVariable String iataCode) {
-        return airportService.findRoutesByAirport(iataCode)
-                .stream()
-                .map(RouteResponse::from)
-                .toList();
+        return airportService.findRoutesByAirport(iataCode);
     }
+
 
     @GetMapping("/busiest")
     public List<AirportRouteStatisticResponse> getBusiestAirports() {
@@ -167,7 +162,7 @@ public class AirportController {
                 .stream()
                 .map(AirportRouteStatisticResponse::from)
                 .toList();
-    }*/
+    }
 
     @GetMapping("/grouped")
     public Map<String, List<AirportResponse>> getGroupedAirports(
@@ -290,47 +285,7 @@ public class AirportController {
             return new ContactResponse(contact.getType(), contact.getValue());
         }
     }
-    /*
-    public record RouteResponse(Long routeId, String routeName, RouteStatus status,
-                               RouteType type, String originIataCode,
-                               String destinationIataCode, Double estimatedFlightTimeHours,
-                               RouteRequirementsResponse requirements,
-                               RouteHistoryResponse history) {
-        static RouteResponse from(Route route) {
-            return new RouteResponse(
-                    route.getRouteId(),
-                    route.getRouteName(),
-                    route.getStatus(),
-                    route.getType(),
-                    route.getOriginAirport().getIataCode(),
-                    route.getDestinationAirport().getIataCode(),
-                    route.getEstimatedFlightTimeHours(),
-                    RouteRequirementsResponse.from(route.getRouteRequirements()),
-                    RouteHistoryResponse.from(route.getRouteHistory())
-            );
-        }
-    }
 
-    record RouteRequirementsResponse(Double requiredRange, Integer requiredCapacity) {
-        static RouteRequirementsResponse from(RouteRequirements requirements) {
-            return new RouteRequirementsResponse(
-                    requirements.getRequiredRange(),
-                    requirements.getRequiredCapacity()
-            );
-        }
-    }
-
-    record RouteHistoryResponse(LocalDate routeBegin,
-                               LocalDate routeFinish,
-                               Integer routeUsage) {
-        static RouteHistoryResponse from(RouteHistory history) {
-            return new RouteHistoryResponse(
-                    history.getRouteBegin(),
-                    history.getRouteFinish(),
-                    history.getRouteUsage()
-            );
-        }
-    }
 
     record AirportRouteStatisticResponse(String iataCode, String name, Long numberOfRoutes) {
         static AirportRouteStatisticResponse from(AirportService.AirportRouteStatistic stat) {
@@ -340,5 +295,5 @@ public class AirportController {
                     stat.numberOfRoutes()
             );
         }
-    }*/
+    }
 }

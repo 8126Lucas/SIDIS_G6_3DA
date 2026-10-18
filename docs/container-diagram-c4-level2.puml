@@ -1,0 +1,70 @@
+@startuml
+!include <C4/C4_Container>
+
+' Aumento das margens e espaçamentos entre nós para evitar sobreposição
+skinparam nodesep 110
+skinparam ranksep 100
+skinparam linetype polyline
+
+title Container Diagram (C4 - Level 2) - AISafe Flight Management System
+
+' External Client / User
+System_Ext(postman, "API Client (Postman)", "Tool used to simulate HTTP/REST requests to system endpoints.")
+
+' System Boundary
+System_Boundary(aisafe_boundary, "AISafe Flight Management System") {
+
+    ' Entry Point & Infrastructure
+    Container(api_gateway, "API Gateway", "Spring Cloud Gateway (WebFlux)", "Single entry point on port 8443.\nRoutes external HTTPS requests to internal microservices.")
+    Container(discovery_service, "Discovery Service", "Spring Cloud Netflix Eureka", "Service registry on port 8761\nfor dynamic service lookup and load balancing.")
+
+    ' Security / Auth
+    Container(auth_service, "Auth Service", "Java 21, Spring Boot Security, JWT", "Handles user authentication, JWT token issuance,\nand user management on port 8101.")
+    ContainerDb(auth_db, "Auth DB", "H2 In-Memory", "Stores user accounts and security credentials.")
+
+    ' Core Business Services
+    Container(aircraft_service, "Aircraft Service", "Java 21, Spring Boot Web, JPA", "Manages aircraft models and fleet instances on port 8081.")
+    ContainerDb(aircraft_db, "Aircraft DB", "H2 In-Memory", "Stores aircraft models and operational specifications.")
+
+    Container(airport_service, "Airport Service", "Spring Boot Web, JPA, OpenCSV", "Manages airport registrations, runways,\nand certifications on port 8082.")
+    ContainerDb(airport_db, "Airport DB", "H2 In-Memory", "Stores airport profiles and runway data.")
+
+    Container(maintenance_service, "Maintenance Service", "Java 21, Spring Boot Web, JPA", "Manages maintenance records, templates,\nand checklists on port 8121.")
+    ContainerDb(maintenance_db, "Maintenance DB", "H2 In-Memory", "Stores maintenance templates and log entries.")
+
+    Container(route_service, "Route Service", "Spring Boot Web, JPA", "Manages flight route definitions and distance history on port 8086.")
+    ContainerDb(route_db, "Route DB", "H2 In-Memory", "Stores flight routes and network distance details.")
+
+    Container(flight_service, "Flight Operations Service", "Spring Boot Web", "Handles flight scheduling, route assignments,\nand real-time operations on port 8084.")
+}
+
+' External Client -> Gateway & Auth
+Rel_D(postman, api_gateway, "Sends REST requests\n[HTTPS/JSON]", "Port 8443")
+Rel_R(postman, auth_service, "Authenticates via /auth/login\n[HTTPS/JSON]", "Port 8101")
+
+' API Gateway Routing (Setas direcionadas para baixo com quebra de linha)
+Rel_D(api_gateway, airport_service, "Routes /api/airports/**\n[HTTP]", "Port 8082")
+Rel_D(api_gateway, route_service, "Routes /api/routes/**\n[HTTP]", "Port 8086")
+Rel_D(api_gateway, maintenance_service, "Routes /api/maintenance/**\n[HTTP]", "Port 8121")
+Rel_D(api_gateway, aircraft_service, "Routes /api/hangar/**\n[HTTP]", "Port 8081")
+
+' Service Discovery (Setas direcionadas estritamente para cima)
+Rel_U(auth_service, discovery_service, "Registers & Discovers", "Eureka")
+Rel_U(aircraft_service, discovery_service, "Registers & Discovers", "Eureka")
+Rel_U(airport_service, discovery_service, "Registers & Discovers", "Eureka")
+Rel_U(maintenance_service, discovery_service, "Registers & Discovers", "Eureka")
+Rel_U(route_service, discovery_service, "Registers & Discovers", "Eureka")
+Rel_U(flight_service, discovery_service, "Registers & Discovers", "Eureka")
+
+' Database Connections (Setas direcionadas para as bases de dados)
+Rel_D(auth_service, auth_db, "Reads/Writes", "JDBC / H2")
+Rel_D(aircraft_service, aircraft_db, "Reads/Writes", "JDBC / H2")
+Rel_D(airport_service, airport_db, "Reads/Writes", "JDBC / H2")
+Rel_D(maintenance_service, maintenance_db, "Reads/Writes", "JDBC / H2")
+Rel_D(route_service, route_db, "Reads/Writes", "JDBC / H2")
+
+' Inter-Service REST Calls
+Rel_R(maintenance_service, aircraft_service, "Validates aircraft status via RestClient\n[HTTPS / AIRCRAFT-SERVICE]")
+Rel_D(aircraft_service, flight_service, "Queries flight metrics via RestClient\n[HTTPS / FLIGHT-SERVICE]")
+
+@enduml

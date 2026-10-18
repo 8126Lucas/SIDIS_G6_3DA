@@ -1,0 +1,74 @@
+@startuml
+' Configurações visuais e layout
+skinparam linetype polyline
+skinparam nodesep 60
+skinparam ranksep 70
+skinparam shadowing false
+skinparam componentStyle uml2
+
+title Component Diagram (C4 - Level 3) - Flight Operations Service
+
+' Ingress e Sistemas Externos
+component "API Gateway\n<<Spring Cloud Gateway>>" as api_gateway
+database "H2 Database\n<<In-Memory>>" as flight_db
+component "Aircraft Service [Planned]\n<<Microservice>>" as aircraft_service
+component "Route Service [Planned]\n<<Microservice>>" as route_service
+
+' Fronteira do Container principal
+package "Flight Operations Service [Container]" {
+
+    ' Adaptador REST
+    component "FlightController\n<<Spring REST Controller>>" as flight_controller
+
+    ' Serviços de Aplicação
+    component "FlightSearchService\n<<Spring Service>>" as flight_search_svc
+    component "FlightUtilizationReportService\n<<Spring Service>>" as flight_report_svc
+
+    ' Startup Bootstrapper
+    component "Bootstrap\n<<ApplicationRunner>>" as bootstrapper
+
+    ' Repositório / Persistência
+    component "FlightRepository\n<<Spring Data JPA Repository>>" as flight_repo
+
+    ' Modelo de Domínio
+    component "Flight\n<<JPA Domain Entity>>" as flight_entity
+    component "AircraftReference\n<<Embeddable Value Object>>" as aircraft_ref
+    component "RouteReference\n<<Embeddable Value Object>>" as route_ref
+    component "FlightStatus\n<<Enum>>" as flight_status
+
+    ' Tratamento Transversal de Erros
+    component "GlobalExceptionHandler\n<<@ControllerAdvice>>" as exception_handler
+    component "ErrorDetails\n<<DTO Payload>>" as error_details
+}
+
+' Relações de Entrada
+api_gateway --> flight_controller : "Routes REST API requests\n[HTTPS/JSON]"
+
+' Relações do Controller com Serviços
+flight_controller --> flight_report_svc : "Delegates report generation"
+flight_controller ..> flight_search_svc : "Delegates flight queries\n[Planned/Inactive]"
+
+' Relações dos Serviços e Bootstrap com o Repositório
+flight_search_svc --> flight_repo : "Queries flight data"
+flight_report_svc --> flight_repo : "Queries route utilization data"
+bootstrapper --> flight_repo : "Checks and seeds initial flights"
+
+' Relações do Repositório com o Domínio
+flight_repo --> flight_entity : "Manages persistence"
+
+' Relações de Domínio (Value Objects)
+flight_entity *-- aircraft_ref : "Embeds"
+flight_entity *-- route_ref : "Embeds"
+flight_entity --> flight_status : "Uses"
+
+' Persistência na Base de Dados
+flight_repo <--> flight_db : "Reads/Writes company_flights\n[JDBC/JPA]"
+
+' Resposta de Erros
+exception_handler --> error_details : "Constructs and returns"
+
+' Chamadas Externas Planeadas (Seta pontilhada ..>)
+flight_controller ..> aircraft_service : "Planned REST Integration\n[Commented]"
+flight_controller ..> route_service : "Planned REST Integration\n[Commented]"
+
+@enduml

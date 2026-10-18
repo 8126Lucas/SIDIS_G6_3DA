@@ -1,12 +1,12 @@
 package com.sidis.routeservice;
 
-//import com.sidis.routeservice.application.RouteExportService;
-import com.sidis.routeservice.application.RouteService;
-import com.sidis.routeservice.domain.Route;
-import com.sidis.routeservice.domain.RouteHistory;
-import com.sidis.routeservice.domain.RouteRequirements;
-import com.sidis.routeservice.domain.RouteStatus;
-import com.sidis.routeservice.domain.RouteType;
+import com.sidis.routeservice.Route.application.RouteExportService;
+import com.sidis.routeservice.Route.application.RouteService;
+import com.sidis.routeservice.Route.domain.Route;
+import com.sidis.routeservice.Route.domain.RouteHistory;
+import com.sidis.routeservice.Route.domain.RouteRequirements;
+import com.sidis.routeservice.Route.domain.RouteStatus;
+import com.sidis.routeservice.Route.domain.RouteType;
 import com.sidis.routeservice.exceptions.DomainException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -20,14 +20,13 @@ import java.util.List;
 @RequestMapping("/api/routes")
 public class RouteController {
     private final RouteService routeService;
-    //private final RouteExportService routeExportService;
+    private final RouteExportService routeExportService;
 
-    public RouteController(RouteService routeService/*, RouteExportService routeExportService*/) {
+    public RouteController(RouteService routeService, RouteExportService routeExportService) {
         this.routeService = routeService;
-        //this.routeExportService = routeExportService;
+        this.routeExportService = routeExportService;
     }
 
-    /*
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public RouteResponse createRoute(@RequestBody CreateRouteRequest request) {
@@ -45,27 +44,27 @@ public class RouteController {
     }
 
     @PatchMapping("/{routeId}")
-    public RouteResponse updateRoute(@PathVariable Long routeId,
-            @RequestBody UpdateRouteRequest request) {
+    public RouteResponse updateRoute(@PathVariable Long routeId,@RequestBody UpdateRouteRequest request) {
         return RouteResponse.from(routeService.updateRoute(routeId,
                 request.destinationIataCode(),
                 request.estimatedFlightTimeHours(),
-                request.status()));
-    }*/
+                request.status(),
+                request.history()));
+    }
 
     @GetMapping("/{routeId}/history")
     public RouteHistoryResponse getRouteHistory(@PathVariable Long routeId) {
         return RouteHistoryResponse.from(routeService.getRouteHistory(routeId));
     }
 
-    /*
+
     @GetMapping("/from/{airportIataCode}")
     public List<RouteResponse> getRoutesFromAirport(@PathVariable String airportIataCode) {
         return routeService.getRoutesFromAirport(airportIataCode)
                 .stream()
                 .map(RouteResponse::from)
                 .toList();
-    }*/
+    }
 
     @GetMapping("/{routeId:\\d+}")
     public RouteResponse getRouteDetails(@PathVariable Long routeId) {
@@ -73,9 +72,7 @@ public class RouteController {
     }
 
     @GetMapping
-    public List<RouteResponse> searchRoutes(
-            @RequestParam(required = false) String origin,
-            @RequestParam(required = false) String destination) {
+    public List<RouteResponse> searchRoutes(@RequestParam(required = false) String origin,@RequestParam(required = false) String destination) {
         return routeService.searchRoutes(origin, destination)
                 .stream()
                 .map(RouteResponse::from)
@@ -83,8 +80,7 @@ public class RouteController {
     }
 
     @GetMapping("/active")
-    public List<RouteResponse> listActiveRoutes(
-            @RequestParam(defaultValue = "popularity") String sortBy) {
+    public List<RouteResponse> listActiveRoutes(@RequestParam(defaultValue = "popularity") String sortBy) {
         return routeService.listActiveRoutes(sortBy)
                 .stream()
                 .map(RouteResponse::from)
@@ -96,7 +92,7 @@ public class RouteController {
         return new TotalDistanceResponse(routeService.calculateTotalRouteDistance());
     }
 
-    /*
+
     // US228 — exportar rede de rotas em GeoJSON
     @GetMapping("/export/geojson")
     public ResponseEntity<String> exportGeoJson() {
@@ -111,12 +107,10 @@ public class RouteController {
         return ResponseEntity.ok()
                 .contentType(MediaType.valueOf("application/vnd.google-earth.kml+xml"))
                 .body(routeExportService.exportAsKml());
-    }*/
+    }
 
     @GetMapping("/alternatives")
-    public List<RouteResponse> searchAlternativeRoutes(
-            @RequestParam String origin,
-            @RequestParam String destination) {
+    public List<RouteResponse> searchAlternativeRoutes(@RequestParam String origin,@RequestParam String destination) {
         return routeService.searchAlternativeRoutes(origin, destination)
                 .stream()
                 .map(RouteResponse::from)
@@ -132,7 +126,7 @@ public class RouteController {
     }
 
     record UpdateRouteRequest(String destinationIataCode,
-            Double estimatedFlightTimeHours, RouteStatus status) {
+            Double estimatedFlightTimeHours, RouteStatus status, RouteHistory history) {
     }
 
     public record RouteResponse(Long routeId, String routeName, RouteStatus status,
@@ -141,7 +135,6 @@ public class RouteController {
             Double distanceKm,
             RouteRequirementsResponse routeRequirements,
             RouteHistoryResponse routeHistory) {
-
         public static RouteResponse from(Route route) {
             return new RouteResponse(route.getRouteId(), route.getRouteName(),
                     route.getStatus(), route.getType(),
