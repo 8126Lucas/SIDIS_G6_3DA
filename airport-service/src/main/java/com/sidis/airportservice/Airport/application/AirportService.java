@@ -8,7 +8,7 @@ import com.sidis.airportservice.Airport.domain.Contact;
 import com.sidis.airportservice.Airport.domain.Facilities;
 import com.sidis.airportservice.Airport.domain.Runway;
 import com.sidis.airportservice.Airport.infrastructure.AirportRepository;
-import com.sidis.airportservice.Airport.infrastructure.client.RouteResponse;
+import com.sidis.airportservice.Airport.infrastructure.client.route.RouteResponse;
 import com.sidis.airportservice.Airport.infrastructure.client.RouteRestClientService;
 import com.sidis.airportservice.UseCase;
 import com.sidis.airportservice.exceptions.DomainException;

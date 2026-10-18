@@ -1,5 +1,7 @@
 package com.sidis.airportservice.Airport.infrastructure.client;
 
+import com.sidis.airportservice.Airport.infrastructure.client.route.RouteClientDTO;
+import com.sidis.airportservice.Airport.infrastructure.client.route.RouteResponse;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;

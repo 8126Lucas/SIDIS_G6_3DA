@@ -3,7 +3,7 @@ package com.sidis.airportservice.Airport;
 import com.sidis.airportservice.Airport.application.AirportService;
 import com.sidis.airportservice.Airport.domain.*;
 import com.sidis.airportservice.Airport.application.AirportCsvService;
-import com.sidis.airportservice.Airport.infrastructure.client.RouteResponse;
+import com.sidis.airportservice.Airport.infrastructure.client.route.RouteResponse;
 import com.sidis.airportservice.exceptions.DomainException;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -91,9 +91,7 @@ public class AirportController {
 
     @PostMapping("/{iataCode}/certifications")
     @ResponseStatus(HttpStatus.CREATED)
-    public CertificationResponse addCertification(
-            @PathVariable String iataCode,
-            @Valid @RequestBody AddCertificationRequest request) {
+    public CertificationResponse addCertification(@PathVariable String iataCode,@Valid @RequestBody AddCertificationRequest request) {
         Certification certification = airportService.addCertification(
                 iataCode,
                 request.name(),

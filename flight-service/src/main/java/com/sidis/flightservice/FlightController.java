@@ -1,16 +1,12 @@
 package com.sidis.flightservice;
 
-//import com.example.AISafePSOFT_26.Aircraft.application.AircraftSearchService;
-
-import com.sidis.flightservice.domain.AircraftReference;
-import com.sidis.flightservice.application.FlightUtilizationReportService;
-
-import com.sidis.flightservice.domain.Flight;
-import com.sidis.flightservice.domain.FlightStatus;
-
-//import com.sidis.flightservice.application.RouteService;
+import com.sidis.flightservice.Flight.application.AircraftSearchService;
+import com.sidis.flightservice.Flight.application.FlightUtilizationReportService;
+import com.sidis.flightservice.Flight.application.RouteService;
+import com.sidis.flightservice.Flight.domain.Flight;
+import com.sidis.flightservice.Flight.domain.FlightStatus;
+import com.sidis.flightservice.Flight.infrastructure.client.aircraft.AircraftClientDTO;
 import com.sidis.flightservice.exceptions.DomainException;
-
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -23,22 +19,20 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/flights")
 public class FlightController {
-    //private final RouteService routeService;
-    //private final AircraftSearchService aircraftSearchService;
+    private final RouteService routeService;
+    private final AircraftSearchService aircraftSearchService;
     private final FlightUtilizationReportService flightUtilizationReportService;
 
-    public FlightController(/*RouteService routeService,
-            AircraftSearchService aircraftSearchService,*/
-            FlightUtilizationReportService flightUtilizationReportService) {
-        //this.routeService = routeService;
-        //this.aircraftSearchService = aircraftSearchService;
+    public FlightController(RouteService routeService,AircraftSearchService aircraftSearchService,FlightUtilizationReportService flightUtilizationReportService) {
+        this.routeService = routeService;
+        this.aircraftSearchService = aircraftSearchService;
         this.flightUtilizationReportService = flightUtilizationReportService;
     }
-    /*
+
     @PostMapping("/scheduled")
     @ResponseStatus(HttpStatus.CREATED)
     public FlightResponse scheduleFlight(@Valid @RequestBody ScheduleFlightRequest request) {
-        Aircraft aircraft = aircraftSearchService
+        AircraftClientDTO aircraft = aircraftSearchService
                 .spotAircraftInHangar(request.aircraftRegistrationNumber())
                 .orElseThrow(() -> new DomainException("Aircraft does not exist"));
 
@@ -47,8 +41,7 @@ public class FlightController {
     }
 
     @GetMapping("/aircraft/{registrationNumber}")
-    public List<FlightResponse> getScheduledFlightsForAircraft(
-            @PathVariable String registrationNumber) {
+    public List<FlightResponse> getScheduledFlightsForAircraft(@PathVariable String registrationNumber) {
         return routeService.getScheduledFlightsForAircraft(registrationNumber)
                 .stream()
                 .map(FlightResponse::from)
@@ -61,19 +54,12 @@ public class FlightController {
                 .stream()
                 .map(RouteUtilizationReportResponse::from)
                 .toList();
-    }*/
-
-    record ScheduleFlightRequest(
-            @NotNull Long routeId,
-            @NotBlank String aircraftRegistrationNumber,
-            @NotNull LocalDateTime scheduledDeparture,
-            @NotNull LocalDateTime scheduledArrival) {
     }
 
-    public record FlightResponse(Long flightId, Long routeId,
-            String aircraftRegistrationNumber, FlightStatus status,
-            LocalDateTime scheduledDeparture, LocalDateTime scheduledArrival) {
+    record ScheduleFlightRequest(@NotNull Long routeId, @NotBlank String aircraftRegistrationNumber, @NotNull LocalDateTime scheduledDeparture, @NotNull LocalDateTime scheduledArrival) {
+    }
 
+    public record FlightResponse(Long flightId, Long routeId, String aircraftRegistrationNumber, FlightStatus status, LocalDateTime scheduledDeparture, LocalDateTime scheduledArrival) {
         public static FlightResponse from(Flight flight) {
             return new FlightResponse(flight.getFlightId(),
                     flight.getRoute().getRouteId(),
@@ -84,9 +70,7 @@ public class FlightController {
         }
     }
 
-    public record RouteUtilizationReportResponse(Long routeId, String routeName,
-            String originIata, String destinationIata, Long flightCount) {
-
+    public record RouteUtilizationReportResponse(Long routeId, String routeName,String originIata, String destinationIata, Long flightCount) {
         public static RouteUtilizationReportResponse from(
                 FlightUtilizationReportService.RouteUtilizationReport report) {
             return new RouteUtilizationReportResponse(report.routeId(),
