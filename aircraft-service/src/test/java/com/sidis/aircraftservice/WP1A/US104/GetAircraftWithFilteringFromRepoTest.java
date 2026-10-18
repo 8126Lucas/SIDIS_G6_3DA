@@ -1,15 +1,14 @@
 package com.sidis.aircraftservice.WP1A.US104;
 
 import com.sidis.aircraftservice.Aircraft.HangarController;
-import com.sidis.aircraftservice.Aircraft.application.AddAircraftUseCase;
-import com.sidis.aircraftservice.Aircraft.application.AircraftLifeCycleUpdaterService;
-import com.sidis.aircraftservice.Aircraft.application.AircraftSearchService;
+import com.sidis.aircraftservice.Aircraft.application.*;
 import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
 import com.sidis.aircraftservice.Aircraft.domain.AircraftAvailability;
+import com.sidis.aircraftservice.Aircraft.infrastructure.client.FlightRestClientService;
 import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
-//import com.sidis.aircraftservice.Aircraft.application.FuelEfficiencyService;
+import com.sidis.aircraftservice.Aircraft.infrastructure.client.RouteRestClientService;
 //import com.sidis.aircraftservice.Flight.application.FlightSearchService;
 //import com.sidis.aircraftservice.Route.application.RouteSearchService;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,10 +41,11 @@ class GetAircraftWithFilteringFromRepoTest {
                 mock(AddAircraftUseCase.class),
                 mock(AircraftModelSearchService.class),
                 aircraftLifeCycleUpdaterService,
-                aircraftSearchService/*,
+                aircraftSearchService,
+                mock(RouteRestClientService.class),
                 mock(RouteSearchService.class),
-                mock(FlightSearchService.class),
-                mock(FuelEfficiencyService.class)*/
+                mock(FlightRestClientService.class),
+                mock(FuelEfficiencyService.class)
         );
     }
 

@@ -11,7 +11,7 @@ public class RouteRestClientService {
     private final RestClient routeClient;
 
     public RouteRestClientService(RestClient.Builder globalBuilder) {
-        this.routeClient = globalBuilder.baseUrl("http://ROUTE-SERVICE").build();
+        this.routeClient = globalBuilder.baseUrl("http://route-service").build();
     }
 
     public List<RouteClientDTO> getAllRoutes() {

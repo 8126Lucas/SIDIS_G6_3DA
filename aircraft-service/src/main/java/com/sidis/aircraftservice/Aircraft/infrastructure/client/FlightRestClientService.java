@@ -31,5 +31,5 @@ public class FlightRestClientService {
         return flights != null ? Arrays.asList(flights) : List.of();
     }
 
-    public List<FlightClientDTO> findByAircraftRegistrationNumberAndScheduledDepartureBetween(String aircraftRegistration, )
+    //public List<FlightClientDTO> findByAircraftRegistrationNumberAndScheduledDepartureBetween(String aircraftRegistration,)
 }

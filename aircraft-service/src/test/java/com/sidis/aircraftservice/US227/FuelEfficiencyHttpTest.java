@@ -23,7 +23,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(HangarController.class)
+@WebMvcTest(controllers = HangarController.class, properties = "eureka.client.enabled=false")
 @AutoConfigureMockMvc(addFilters = false)
 class FuelEfficiencyHttpTest {
 

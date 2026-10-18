@@ -1,10 +1,10 @@
 package com.sidis.aircraftservice.WP1A.US102;
 
 import com.sidis.aircraftservice.Aircraft.HangarController;
-import com.sidis.aircraftservice.Aircraft.application.AddAircraftUseCase;
-import com.sidis.aircraftservice.Aircraft.application.AircraftLifeCycleUpdaterService;
-import com.sidis.aircraftservice.Aircraft.application.AircraftSearchService;
+import com.sidis.aircraftservice.Aircraft.application.*;
 //import com.sidis.aircraftservice.Aircraft.application.FuelEfficiencyService;
+import com.sidis.aircraftservice.Aircraft.infrastructure.client.FlightRestClientService;
+import com.sidis.aircraftservice.Aircraft.infrastructure.client.RouteRestClientService;
 import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 //import com.sidis.aircraftservice.Flight.application.FlightSearchService;
@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -27,7 +28,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(HangarController.class)
+@WebMvcTest(controllers = HangarController.class, properties = "eureka.client.enabled=false")
 @AutoConfigureMockMvc(addFilters = false)
 class AddAircraftHttpTest {
 
@@ -46,16 +47,19 @@ class AddAircraftHttpTest {
     @MockitoBean
     private AircraftSearchService aircraftSearchService;
 
-/*    @MockitoBean
+    @MockitoBean
+    private RouteRestClientService routeClient;
+
+    @MockitoBean
     private RouteSearchService routeSearchService;
 
     @MockitoBean
-    private FlightSearchService flightSearchService;
+    private FlightRestClientService flightClient;
 
     @MockitoBean
     private FuelEfficiencyService fuelEfficiencyService;
 
-    @MockitoBean
+/*    @MockitoBean
     private JwtService jwtService;
 
     @MockitoBean

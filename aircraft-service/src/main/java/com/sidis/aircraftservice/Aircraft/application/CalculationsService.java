@@ -43,18 +43,18 @@ public class CalculationsService {
                                 .withDayOfMonth(monthDate.lengthOfMonth())
                                 .atTime(23, 59, 59);
 
-                        List<FlightClientDTO> flights =
+                        List<FlightClientDTO> flights /*=
                                 flightClient
                                         .findByAircraftRegistrationNumberAndScheduledDepartureBetween(
                                                 aircraft.getRegistrationNumber(),
                                                 start,
                                                 end
-                                        );
+                                        )*/;
 
-                        double flightHours = flights.stream()
+                        double flightHours = 0.0 /* flights.stream()
                                 .filter(f -> f.getFlightHours() != null)
                                 .mapToDouble(Flight::getFlightHours)
-                                .sum();
+                                .sum()*/;
 
                         double availableHours = ChronoUnit.HOURS.between(start, end);
 
