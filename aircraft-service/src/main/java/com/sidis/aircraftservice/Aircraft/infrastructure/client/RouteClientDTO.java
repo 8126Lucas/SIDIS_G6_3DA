@@ -5,5 +5,6 @@ public record RouteClientDTO (
     String routeName,
     String originAirportIata,
     String destinationAirportIata,
-    Double distanceKm
+    Double distanceKm,
+    Integer capacity
 ) {}

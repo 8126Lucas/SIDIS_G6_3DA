@@ -1,15 +1,15 @@
 package com.sidis.aircraftservice.Aircraft;
 
-import com.sidis.aircraftservice.Aircraft.application.AddAircraftUseCase;
-import com.sidis.aircraftservice.Aircraft.application.AircraftSearchService;
-//import com.sidis.aircraftservice.Aircraft.application.FuelEfficiencyService;
+import com.sidis.aircraftservice.Aircraft.application.*;
+import com.sidis.aircraftservice.Aircraft.application.FuelEfficiencyService;
 import com.sidis.aircraftservice.Aircraft.domain.*;
-import com.sidis.aircraftservice.Aircraft.application.AircraftLifeCycleUpdaterService;
+import com.sidis.aircraftservice.Aircraft.infrastructure.client.FlightRestClientService;
+import com.sidis.aircraftservice.Aircraft.infrastructure.client.RouteClientDTO;
+import com.sidis.aircraftservice.Aircraft.infrastructure.client.RouteRestClientService;
 import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 //import com.sidis.aircraftservice.Flight.application.FlightSearchService;
 //import com.sidis.aircraftservice.Route.RouteController;
-//import com.sidis.aircraftservice.Route.application.RouteSearchService;
 import com.sidis.aircraftservice.exceptions.DomainException;
 import com.sidis.aircraftservice.exceptions.ResourceNotFoundException;
 import jakarta.validation.Valid;
@@ -35,29 +35,31 @@ public class HangarController {
     private final AircraftModelSearchService aircraftModelSearchService;
     private final AircraftLifeCycleUpdaterService aircraftLifeCycleUpdaterService;
     private final AircraftSearchService aircraftSearchService;
-//    private final RouteSearchService routeSearchService;
+    private final RouteRestClientService routeClient;
+    private final RouteSearchService routeSearchService;
+    private final FlightRestClientService flightClient;
 //    private final FlightSearchService flightSearchService;
-//    private final FuelEfficiencyService fuelEfficiencyService;
+    private final FuelEfficiencyService fuelEfficiencyService;
 
     public HangarController(AddAircraftUseCase addAircraftUseCase,
                             AircraftModelSearchService aircraftModelSearchService,
                             AircraftLifeCycleUpdaterService aircraftLifeCycleUpdaterService,
-                            AircraftSearchService aircraftSearchService/*,*/
-//                            RouteSearchService routeSearchService,
+                            AircraftSearchService aircraftSearchService,
+                            RouteRestClientService routeClient,
+                            RouteSearchService routeSearchService,
+                            FlightRestClientService flightClient,
 //                            FlightSearchService flightSearchService,
-                            /*FuelEfficiencyService fuelEfficiencyService*/) {
+                            FuelEfficiencyService fuelEfficiencyService) {
         this.addAircraftUseCase = addAircraftUseCase;
         this.aircraftModelSearchService = aircraftModelSearchService;
         this.aircraftLifeCycleUpdaterService = aircraftLifeCycleUpdaterService;
         this.aircraftSearchService = aircraftSearchService;
-//        this.routeSearchService = routeSearchService;
+        this.routeClient = routeClient;
+        this.routeSearchService = routeSearchService;
+        this.flightClient = flightClient;
 //        this.flightSearchService = flightSearchService;
-//        this.fuelEfficiencyService = fuelEfficiencyService;
+        this.fuelEfficiencyService = fuelEfficiencyService;
     }
-
-    /**
-     * Adds a new aircraft model to the catalog.
-     */
     @PostMapping("/aircraft")
     @ResponseStatus(HttpStatus.CREATED)
     public void addAircraft(@Valid @RequestBody AddAircraftRequest request) {
@@ -77,9 +79,6 @@ public class HangarController {
         addAircraftUseCase.execute(aircraft);
     }
 
-    /**
-     * Selects an aircraft with a specific Id.
-     */
     @GetMapping("/aircraft/{registrationNumber}")
     public AircraftResponse getAircraft(@PathVariable String registrationNumber) {
         Aircraft aircraft = aircraftSearchService
@@ -92,9 +91,6 @@ public class HangarController {
         return AircraftResponse.from(aircraft);
     }
 
-    /**
-     * Get aircraft instance status
-     */
     @GetMapping("/aircraft/{registrationNumber}/status")
     public AircraftStatusResponse getAircraftStatus(@PathVariable String registrationNumber) {
         Aircraft aircraft = aircraftSearchService
@@ -107,9 +103,6 @@ public class HangarController {
         return new AircraftStatusResponse(aircraft.getStatus(),Instant.now().truncatedTo(ChronoUnit.MINUTES));
     }
 
-    /**
-    * Changes aircraft availability to the requested valid value.
-    */
     @PatchMapping("/aircraft/{registrationNumber}")
     public void changeAircraft(@PathVariable String registrationNumber,@Valid @RequestBody PatchAircraftAvailabilityRequest request) {
         if (!registrationNumber.equals(request.registrationNumber())) {
@@ -126,9 +119,6 @@ public class HangarController {
         aircraftLifeCycleUpdaterService.changeAvailability(aircraft,AircraftAvailability.valueOf(request.availability()));
     }
 
-    /**
-     * Gets an aircraft that passes in the chosen filtering
-     */
     @Transactional(readOnly = true)
     @GetMapping("/aircraft")
     public List<AircraftResponse> getAircraftsWithFiltering(@RequestParam(required = false) String model,
@@ -141,11 +131,8 @@ public class HangarController {
                 .map(AircraftResponse::from).toList();
     }
 
-    /**
-     * Returns a list of Routes that are compatible with the chosen aircraft
-     * */
-/*    @GetMapping("/aircraft/{registrationNumber}/compatible-routes")
-    public List<RouteController.RouteResponse> getCompatibleRoutes(@PathVariable String registrationNumber) {
+    @GetMapping("/aircraft/{registrationNumber}/compatible-routes")
+    public List<RouteClientDTO> getCompatibleRoutes(@PathVariable String registrationNumber) {
         Aircraft aircraft = aircraftSearchService
                 .spotAircraftInHangar(registrationNumber)
                 .orElseThrow(() ->
@@ -153,8 +140,9 @@ public class HangarController {
                                 "Aircraft does not exist in hangar"
                         )
                 );
-        return routeSearchService.findCompatibleRoutes(aircraft).stream().map(RouteController.RouteResponse::from).toList();
-    }*/
+        List<RouteClientDTO> routes = routeClient.getAllRoutes();
+        return routeSearchService.findCompatibleRoutes(aircraft, routes);
+    }
 
     /**
      * Gets all aircrafts grouped by their availability
@@ -188,7 +176,7 @@ public class HangarController {
      * Gets the summary of the fuel efficiency metrics per aircraft and per route.
      * Example Value for a real aircraft: 0.177 km/L <=> 5.65 L/km
      */
-/*    @GetMapping("/analytics/fuel-efficiency")
+    @GetMapping("/analytics/fuel-efficiency")
     public Map<String,Double> getFuelEfficiency(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "5") int size) {
         Map<String, Double> fuelEfficiency = aircraftSearchService.findAll().stream()
                 .collect(Collectors.toMap(
@@ -197,15 +185,21 @@ public class HangarController {
                                 / aircraft.getModel().getAircraftModelSpecs().getMaximumRange()* 100.0) / 100.0
                 ));
 
-        flightSearchService.findAll().forEach(flight -> {
+
+
+
+        flightClient.getAllFlights().forEach(flight -> {
+            Double fuelCapacity = 0.0;
+            Optional<Aircraft> aircraft = aircraftSearchService.spotAircraftInHangar(flight.aircraftRegistration());
+            if(aircraft.isPresent()) {fuelCapacity = aircraft.get().getModel().getAircraftModelSpecs().getFuelCapacity();}
+
             fuelEfficiency.put(
-                    "Flight "+flight.getFlightId().toString()+" :",
-                    Math.round(flight.getAircraft().getModel().getAircraftModelSpecs().getFuelCapacity()
-                            / flight.getRoute().getRouteRequirements().getRequiredRange()* 100.0) / 100.0
+                    "Flight "+ flight.id().toString()+ ":",
+                    Math.round(fuelCapacity / flight.range() * 100.0) / 100.0
             );
         });
         return fuelEfficiency;
-    }*/
+    }
 
     /**
      * Gets all Aircrafts and returns them in descending order
@@ -227,18 +221,18 @@ public class HangarController {
     /**
      * US227 — Fuel efficiency per aircraft: L/km based on model specs.
      */
-/*    @GetMapping("/analytics/fuel-efficiency/aircraft")
+    @GetMapping("/analytics/fuel-efficiency/aircraft")
     public List<FuelEfficiencyService.AircraftFuelEfficiency> getFuelEfficiencyPerAircraft() {
         return fuelEfficiencyService.getFuelEfficiencyPerAircraft();
-    }*/
+    }
 
     /**
      * US227 — Estimated fuel consumption per route, averaged across aircraft that flew it.
      */
-/*    @GetMapping("/analytics/fuel-efficiency/routes")
+    @GetMapping("/analytics/fuel-efficiency/routes")
     public List<FuelEfficiencyService.RouteFuelEfficiency> getFuelEfficiencyPerRoute() {
         return fuelEfficiencyService.getFuelEfficiencyPerRoute();
-    }*/
+    }
 
     /**
      * Gets all the aircrafts with the specified features

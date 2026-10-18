@@ -11,15 +11,15 @@ import java.util.Optional;
 
 @Component
 public class AircraftRestClientService {
-    private final RestClient aircraftRestClient;
+    private final RestClient aircraftClient;
 
-    public AircraftRestClientService(RestClient aircraftRestClient) {
-        this.aircraftRestClient = aircraftRestClient;
+    public AircraftRestClientService(RestClient.Builder globalBuilder) {
+        this.aircraftClient = globalBuilder.baseUrl("http://aircraft-service").build();
     }
 
     public List<AircraftClientDTO> findAll() {
         try {
-            return Collections.singletonList(aircraftRestClient.get()
+            return Collections.singletonList(aircraftClient.get()
                     .uri("/api/hangar/aircraft")
                     .retrieve()
                     .body(AircraftClientDTO.class));
@@ -30,7 +30,7 @@ public class AircraftRestClientService {
 
     public Optional<AircraftClientDTO> findAircraftByRegistration(String registrationNumber) {
         try {
-            AircraftClientDTO dto = aircraftRestClient.get()
+            AircraftClientDTO dto = aircraftClient.get()
                     .uri("/api/hangar/aircraft/{registrationNumber}", registrationNumber)
                     .retrieve()
                     .body(AircraftClientDTO.class);

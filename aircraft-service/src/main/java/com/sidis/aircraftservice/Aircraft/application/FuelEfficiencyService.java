@@ -1,7 +1,11 @@
 package com.sidis.aircraftservice.Aircraft.application;
 
+import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
 import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftRepository;
+import com.sidis.aircraftservice.Aircraft.infrastructure.client.FlightClientDTO;
 import com.sidis.aircraftservice.Aircraft.infrastructure.client.FlightRestClientService;
+import com.sidis.aircraftservice.Aircraft.infrastructure.client.RouteClientDTO;
+import com.sidis.aircraftservice.Aircraft.infrastructure.client.RouteRestClientService;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
 //import com.sidis.aircraftservice.Flight.domain.Flight;
 //import com.sidis.aircraftservice.Flight.infrastructure.FlightRepository;
@@ -18,10 +22,15 @@ public class FuelEfficiencyService {
 
     private final AircraftRepository aircraftRepository;
     private final FlightRestClientService flightClient;
+    private final RouteRestClientService routeClient;
 
-    public FuelEfficiencyService(AircraftRepository aircraftRepository, FlightRestClientService flightClient) {
+    public FuelEfficiencyService(AircraftRepository aircraftRepository,
+                                 FlightRestClientService flightClient,
+                                 RouteRestClientService routeClient) {
+
         this.aircraftRepository = aircraftRepository;
         this.flightClient = flightClient;
+        this.routeClient = routeClient;
     }
 
     public record AircraftFuelEfficiency(
@@ -63,20 +72,29 @@ public class FuelEfficiencyService {
                 .toList();
     }
 
-    // Necessário esperar pela continuação do route-service e flight-service
-    /*public List<RouteFuelEfficiency> getFuelEfficiencyPerRoute() {
-        Map<Route, List<Flight>> byRoute = flightRepository.findAll().stream()
-                .filter(f -> f.getAircraft() != null)
-                .collect(Collectors.groupingBy(Flight::getRoute));
+    public List<RouteFuelEfficiency> getFuelEfficiencyPerRoute() {
+        List<FlightClientDTO> allFlights = flightClient.getAllFlights();
 
-        return byRoute.entrySet().stream()
-                .map(e -> {
-                    Route route = e.getKey();
-                    List<Flight> flights = e.getValue();
+        Map<Long, List<FlightClientDTO>> flightsByRouteId = allFlights.stream()
+                .filter(f -> f.aircraftRegistration() != null)
+                .collect(Collectors.groupingBy(FlightClientDTO::routeId));
+
+        return flightsByRouteId.entrySet().stream()
+                .map(entry -> {
+                    Long routeId = entry.getKey();
+                    List<FlightClientDTO> flights = entry.getValue();
+
+                    RouteClientDTO route = routeClient.getRouteById(routeId);
 
                     double avgRate = flights.stream()
                             .mapToDouble(f -> {
-                                AircraftSpecs specs = f.getAircraft().getModel().getAircraftModelSpecs();
+                                Aircraft aircraft = aircraftRepository.findById(f.aircraftRegistration()).orElse(null);
+
+                                if (aircraft == null) {
+                                    return 0.0;
+                                }
+
+                                AircraftSpecs specs = aircraft.getModel().getAircraftModelSpecs();
                                 if (specs.getFuelCapacity() == null || specs.getMaximumRange() == null
                                         || specs.getMaximumRange() == 0) {
                                     return 0.0;
@@ -87,19 +105,19 @@ public class FuelEfficiencyService {
                             .orElse(0.0);
 
                     double avgRateRounded = Math.round(avgRate * 100.0) / 100.0;
-                    double estimatedFuel = Math.round(avgRateRounded * route.getDistanceKm() * 100.0) / 100.0;
+                    double estimatedFuel = Math.round(avgRateRounded * route.distanceKm() * 100.0) / 100.0;
 
                     return new RouteFuelEfficiency(
-                            route.getRouteId(),
-                            route.getRouteName(),
-                            route.getOriginAirport().getIataCode(),
-                            route.getDestinationAirport().getIataCode(),
-                            route.getDistanceKm(),
+                            route.routeId(),
+                            route.routeName(),
+                            route.originAirportIata(),
+                            route.destinationAirportIata(),
+                            route.distanceKm(),
                             avgRateRounded,
                             estimatedFuel
                     );
                 })
                 .sorted(Comparator.comparing(RouteFuelEfficiency::routeId))
                 .toList();
-    }*/
+    }
 }
