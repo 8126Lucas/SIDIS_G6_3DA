@@ -1,67 +1,70 @@
 # Flight Operations Service (`flight-service`) — Technical Documentation
 
-Welcome to the central documentation repository for the **Flight Operations Service** (`flight-service`), an essential component of the *AISafe Flight Management System*.
+This folder documents the behavior that is currently implemented in code for the `flight-service` microservice.
 
 ---
 
-## 1. Executive Summary & Service Responsibilities
+## 1. Scope and Responsibilities
 
-The `flight-service` is an independent, Spring Boot-based microservice designed to handle core flight operational management. Its primary domain boundaries include:
+The service is a Spring Boot microservice focused on flight scheduling and route-based reporting.
 
-* **Flight Schedule Management:** Maintaining current and upcoming flight schedules, status transitions (`SCHEDULED`, `DEPARTED`, `ARRIVED`, `CANCELED`), and operational timestamps.
-* **Operational Route Metrics:** Aggregating flight utilization statistics, accumulated flight hours, and route popularity analytics.
-* **Domain Isolation:** Decoupled architecture using Value Objects (`AircraftReference` and `RouteReference`) to prevent tight JPA/DB dependencies on external services.
-* **Concurrency Protection:** Multi-threaded write safety through Optimistic Locking (`@Version`).
+Current implemented responsibilities:
+
+* Create a scheduled flight using synchronous validations against external services.
+* Query scheduled flights for one aircraft registration.
+* Produce route utilization report grouped by route with flight count.
+* Return standardized API errors via `GlobalExceptionHandler`.
+
+Important implementation notes:
+
+* There is optimistic locking on `Flight` via `@Version`.
+* The utilization report currently aggregates `flightCount` per route (not accumulated flight hours).
+* There is no maintenance-service integration in the current code.
 
 ---
 
-## 2. Infrastructure & Network Configuration
+## 2. Runtime and Configuration
 
-| Resource / Parameter | Value / Range | Description |
+| Resource / Parameter | Current Value | Description |
 | :--- | :--- | :--- |
-| **Primary Instance Port** | `8111` | Default port for local execution |
-| **Allocated Port Range** | `8111 - 8120` | Reserved ports for additional instances/clones |
-| **API Gateway Port** | `7979` | Entry point for external REST routing |
-| **Service Discovery** | `8761` | Eureka Server registration |
-| **Database** | In-Memory H2 | Embedded storage for `company_flights` table |
+| Service Port | `8084` | Configured in `application.properties` |
+| API Prefix | `/api/flights` | Base mapping in `FlightController` |
+| Database | `H2 In-Memory` | `jdbc:h2:mem:flighttestdb` |
+| H2 Console Path | `/api/flight/h2-console` | Spring H2 console path |
+
+External client base URLs configured in code:
+
+* `route-service`: `http://route-service`
+* `aircraft-service`: `https://aircraft-service`
+* `airport-service`: `http://airport-service`
 
 ---
 
-## 3. Documentation Directory Index
+## 3. Documentation Index
 
-This `docs/` directory is structured into modular sections to cover architectural, behavioral, and functional aspects of the microservice:
+This `docs/` directory is organized as follows:
 
-### 📄 1. Architecture & Component View
-* **File:** `architecture-c4-level3.md`
-* **Focus:** C4 Level 3 Component Diagram in PlantUML. Detailed breakdown of internal controllers, services, JPA repositories, domain models, and external skeleton interfaces.
-
-### 📄 2. REST API Specification
-* **File:** `api-specification.md`
-* **Focus:** Catalog of all exposed endpoints (`GET /api/flights`, `GET /api/flights/utilization`, etc.), sample JSON payloads, query parameters, and `GlobalExceptionHandler` error schemas.
-
-### 📄 3. Domain Model, Concurrency & Resilience
-* **File:** `domain-and-resilience.md`
-* **Focus:** Deep dive into Domain-Driven Design (DDD) principles, Optimistic Locking strategy (`@Version`), data bootstrapping via `Bootstrap.java`, and fault tolerance.
-
-### 📁 4. Sequence Diagrams & Dynamic Views
-* **Folder:** `sequence-diagrams/`
-* **Focus:**
-  * `sequence-diagrams/README.md`: Functional walkthrough of runtime interactions.
-  * `scenario-1-query-flights.puml`: Sequence diagram for read flows and route utilization reports.
-  * `scenario-2-schedule-flight.puml`: Sequence diagram for write flows and external service validations (`aircraft-service`, `route-service`, `maintenance-service`).
+* `api-specification.md`: Real API contract implemented by controller and services.
+* `domain-and-resilience.md`: Domain model, scheduling rules, exception mapping, and concurrency notes.
+* `architecture/architecture-c4-level3.md`: Component-level architecture aligned with current classes.
+* `architecture/architecture-c4-level3.puml`: PlantUML source of the architecture diagram.
+* `sequence-diagrams/README.md`: Dynamic behavior narrative for read and write flows.
+* `sequence-diagrams/scenario-1-query-flights.puml`: Sequence for read/report flows.
+* `sequence-diagrams/scenario-2-schedule-flight.puml`: Sequence for scheduling flow.
 
 ---
 
-## 4. Quick Start & Execution Guide
+## 4. Quick Start
 
-### Local Standalone Run
-To run the service locally without full campus infrastructure:
+Run locally:
 
-    ./mvnw spring-boot:run -Dspring-boot.run.arguments="--server.port=8111"
+```bash
+./mvnw spring-boot:run
+```
 
-### Accessing H2 Console
-When running locally, the H2 Database console is available at:
-* **URL:** `http://localhost:8111/h2-console`
-* **JDBC URL:** `jdbc:h2:mem:flightdb`
-* **User:** `sa`
-* **Password:** *(empty)*
+Open H2 console:
+
+* URL: `http://localhost:8084/api/flight/h2-console`
+* JDBC URL: `jdbc:h2:mem:flighttestdb`
+* User: `sa`
+* Password: empty

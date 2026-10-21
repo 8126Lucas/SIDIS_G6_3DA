@@ -5,14 +5,14 @@ skinparam boxPadding 10
 skinparam participantPadding 10
 skinparam shadowing false
 
-title Sequence Diagram - Scenario 1: Query Flights & Route Utilization Report
+title Sequence Diagram - Scenario 1: Read Flows (As Implemented)
 
 autonumber
 
 actor "Client / Postman" as client
 participant "API Gateway\n<<Gateway>>" as gateway
 participant "FlightController\n<<REST Controller>>" as controller
-participant "FlightSearchService\n<<Application Service>>" as search_svc
+participant "RouteService\n<<UseCase>>" as route_svc
 participant "FlightUtilizationReportService\n<<Application Service>>" as report_svc
 participant "FlightRepository\n<<JPA Repository>>" as repo
 database "H2 Database\n<<In-Memory DB>>" as db
@@ -20,36 +20,36 @@ participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 
 box "Flight Operations Service [Container]" #LightBlue
     participant controller
-    participant search_svc
+    participant route_svc
     participant report_svc
     participant repo
     participant exception_handler
 end box
 
-== Flow A: Search Scheduled Flights ==
+== Flow A: Flights by Aircraft ==
 
-client -> gateway : GET /api/flights\n(Optional filters: aircraftRegistration, dates)
+client -> gateway : GET /api/flights/aircraft/{registrationNumber}
 activate gateway
 
-gateway -> controller : Forward GET /api/flights
+gateway -> controller : Forward GET /api/flights/aircraft/{registrationNumber}
 activate controller
 
-controller -> search_svc : getAllFlights() / searchByAircraft(...)
-activate search_svc
+controller -> route_svc : getScheduledFlightsForAircraft(registrationNumber)
+activate route_svc
 
-search_svc -> repo : findAll() / findByAircraftRegistrationNumber(...)
+route_svc -> repo : findByAircraftRegistrationNumber_RegistrationNumber(...)
 activate repo
 
-repo -> db : SELECT * FROM company_flights
+repo -> db : SELECT * FROM company_flights WHERE aircraft_registration = ?
 activate db
 db --> repo : List<Flight> entities
 deactivate db
 
-repo --> search_svc : List<Flight>
+repo --> route_svc : List<Flight>
 deactivate repo
 
-search_svc --> controller : List<FlightDTO>
-deactivate search_svc
+route_svc --> controller : List<Flight>
+deactivate route_svc
 
 controller --> gateway : 200 OK (JSON List of Flights)
 deactivate controller
@@ -59,13 +59,13 @@ deactivate gateway
 
 == Flow B: Route Utilization Report ==
 
-client -> gateway : GET /api/flights/utilization
+client -> gateway : GET /api/flights/reports/route-utilization
 activate gateway
 
-gateway -> controller : Forward GET /api/flights/utilization
+gateway -> controller : Forward GET /api/flights/reports/route-utilization
 activate controller
 
-controller -> report_svc : generateRouteUtilizationReport()
+controller -> report_svc : getRouteUtilizationReport()
 activate report_svc
 
 report_svc -> repo : findAll()
@@ -76,11 +76,11 @@ activate db
 db --> repo : List<Flight> entities
 deactivate db
 
-repo --> repo : Aggregate flight hours & route usage
+report_svc --> report_svc : Group by route and count flights
 repo --> report_svc : RouteUtilizationReport data
 deactivate repo
 
-report_svc --> controller : RouteUtilizationReport DTO
+report_svc --> controller : Report DTO list
 deactivate report_svc
 
 controller --> gateway : 200 OK (RouteUtilizationReport JSON)
@@ -91,10 +91,10 @@ deactivate gateway
 
 == Exception Handling Flow (Alternative Path) ==
 
-note over controller, exception_handler : If invalid query parameters or unhandled exception occurs
+note over controller, exception_handler : If invalid input or unhandled exception occurs
 controller -[#red]> exception_handler : Throws Exception / DomainException
 activate exception_handler
-exception_handler --> client : 400 Bad Request / 500 Internal Error (ErrorDetails JSON)
+exception_handler --> client : 400 / 409 / 500 (ErrorDetails JSON)
 deactivate exception_handler
 
 @enduml

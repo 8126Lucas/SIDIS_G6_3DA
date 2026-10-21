@@ -1,74 +1,72 @@
 @startuml
-' Configurações visuais e layout
 skinparam linetype polyline
 skinparam nodesep 60
 skinparam ranksep 70
 skinparam shadowing false
 skinparam componentStyle uml2
 
-title Component Diagram (C4 - Level 3) - Flight Operations Service
+title Component Diagram (C4 - Level 3) - Flight Operations Service (As Implemented)
 
-' Ingress e Sistemas Externos
 component "API Gateway\n<<Spring Cloud Gateway>>" as api_gateway
 database "H2 Database\n<<In-Memory>>" as flight_db
-component "Aircraft Service [Planned]\n<<Microservice>>" as aircraft_service
-component "Route Service [Planned]\n<<Microservice>>" as route_service
+component "Aircraft Service\n<<Microservice>>" as aircraft_service
+component "Route Service\n<<Microservice>>" as route_service
+component "Airport Service\n<<Microservice>>" as airport_service
 
-' Fronteira do Container principal
 package "Flight Operations Service [Container]" {
-
-    ' Adaptador REST
     component "FlightController\n<<Spring REST Controller>>" as flight_controller
 
-    ' Serviços de Aplicação
+    component "RouteService\n<<UseCase>>" as route_svc
+    component "AircraftSearchService\n<<Spring Service>>" as aircraft_search_svc
     component "FlightSearchService\n<<Spring Service>>" as flight_search_svc
     component "FlightUtilizationReportService\n<<Spring Service>>" as flight_report_svc
 
-    ' Startup Bootstrapper
+    component "RouteRestClientService\n<<RestClient Adapter>>" as route_client
+    component "AircraftRestClientService\n<<RestClient Adapter>>" as aircraft_client
+    component "AirportRestClientService\n<<RestClient Adapter>>" as airport_client
+
     component "Bootstrap\n<<ApplicationRunner>>" as bootstrapper
 
-    ' Repositório / Persistência
     component "FlightRepository\n<<Spring Data JPA Repository>>" as flight_repo
 
-    ' Modelo de Domínio
     component "Flight\n<<JPA Domain Entity>>" as flight_entity
     component "AircraftReference\n<<Embeddable Value Object>>" as aircraft_ref
     component "RouteReference\n<<Embeddable Value Object>>" as route_ref
     component "FlightStatus\n<<Enum>>" as flight_status
 
-    ' Tratamento Transversal de Erros
     component "GlobalExceptionHandler\n<<@ControllerAdvice>>" as exception_handler
     component "ErrorDetails\n<<DTO Payload>>" as error_details
 }
 
-' Relações de Entrada
 api_gateway --> flight_controller : "Routes REST API requests\n[HTTPS/JSON]"
 
-' Relações do Controller com Serviços
+flight_controller --> route_svc : "POST /scheduled"
+flight_controller --> aircraft_search_svc : "aircraft lookup"
 flight_controller --> flight_report_svc : "Delegates report generation"
-flight_controller ..> flight_search_svc : "Delegates flight queries\n[Planned/Inactive]"
+flight_controller --> route_svc : "GET /aircraft/{registration}"
+flight_controller ..> flight_search_svc : "utility service in codebase"
 
-' Relações dos Serviços e Bootstrap com o Repositório
+route_svc --> route_client : "Route lookup/update"
+route_svc --> airport_client : "Airport lookup"
+aircraft_search_svc --> aircraft_client : "Aircraft lookup"
+
+route_svc --> flight_repo : "save + overlap query"
 flight_search_svc --> flight_repo : "Queries flight data"
 flight_report_svc --> flight_repo : "Queries route utilization data"
 bootstrapper --> flight_repo : "Checks and seeds initial flights"
 
-' Relações do Repositório com o Domínio
 flight_repo --> flight_entity : "Manages persistence"
 
-' Relações de Domínio (Value Objects)
 flight_entity *-- aircraft_ref : "Embeds"
 flight_entity *-- route_ref : "Embeds"
 flight_entity --> flight_status : "Uses"
 
-' Persistência na Base de Dados
 flight_repo <--> flight_db : "Reads/Writes company_flights\n[JDBC/JPA]"
 
-' Resposta de Erros
 exception_handler --> error_details : "Constructs and returns"
 
-' Chamadas Externas Planeadas (Seta pontilhada ..>)
-flight_controller ..> aircraft_service : "Planned REST Integration\n[Commented]"
-flight_controller ..> route_service : "Planned REST Integration\n[Commented]"
+route_client --> route_service : "HTTP RestClient"
+aircraft_client --> aircraft_service : "HTTP RestClient"
+airport_client --> airport_service : "HTTP RestClient"
 
 @enduml

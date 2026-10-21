@@ -1,32 +1,57 @@
-# Flight Operations Service (`flight-service`) — C4 Level 3 Component Diagram
+# Flight Operations Service (`flight-service`) — C4 Level 3 Component View (As Implemented)
 
-This document describes the internal component architecture of the **Flight Operations Service** (`flight-service`) at C4 Level 3. It details how the internal controllers, domain services, JPA repositories, and external REST skeleton interfaces interact to deliver flight operational capabilities within the **AISafe Flight Management System**.
-
----
-
-## 1. System Context & Component Responsibilities
-
-The `flight-service` component manages flight schedules, status transitions, route utilization metrics, and operational checks against external services.
-
-* **`FlightController` / `FlightUtilizationController`:** Primary REST controllers handling inbound HTTP endpoints under `/api/flights/**`.
-* **`FlightService` (Domain Logic):** Core business logic layer responsible for optimistic locking, schedule validations, and metric aggregation.
-* **`FlightRepository`:** Spring Data JPA interface managing persistence for the `company_flights` table in the H2 Database.
-* **External REST Skeletons (`RestClient`):** Interfaces invoking external bounded contexts (`route-service`, `aircraft-service`, `maintenance-service`, and `airport-service`) for pre-flight validation.
+This document describes the current internal component architecture at C4 Level 3 based on implemented classes.
 
 ---
 
-## 2. Architecture Diagram
+## 1. Current Component Responsibilities
 
-![C4 Level 3 Architecture Diagram](architecture-c4-level3.svg)
+The `flight-service` currently exposes one controller and three main application services:
+
+* **`FlightController`**
+   * `POST /api/flights/scheduled`
+   * `GET /api/flights/aircraft/{registrationNumber}`
+   * `GET /api/flights/reports/route-utilization`
+* **`RouteService`**
+   * Scheduling orchestration and business-rule validation.
+   * Calls route and airport clients.
+   * Performs local overlap validation through repository.
+   * Updates route usage through route-service patch operation.
+* **`AircraftSearchService`**
+   * Aircraft lookup and filtering helpers.
+   * Used by controller in scheduling flow.
+* **`FlightUtilizationReportService`**
+   * Aggregates route utilization by counting flights grouped by route.
+* **`FlightRepository`**
+   * Spring Data JPA persistence for `Flight` entities.
+* **`GlobalExceptionHandler`**
+   * Cross-cutting HTTP error normalization (`ErrorDetails`).
+
+External integration clients:
+
+* `RouteRestClientService` -> `route-service`
+* `AircraftRestClientService` -> `aircraft-service`
+* `AirportRestClientService` -> `airport-service`
+
+Not present in current implementation:
+
+* `maintenance-service` integration.
+* A dedicated `FlightUtilizationController` (utilization is served by `FlightController`).
 
 ---
 
-## 3. Data Flow & Inter-Service Dependencies
+## 2. Architecture Diagram Source
 
-1. **Inbound Routing:** Requests sent to `/api/flights/**` enter through the `API Gateway`, which routes traffic directly to `Flight Operations Service` (Ports `8111-8120`).
-2. **Pre-Flight Validation:** When scheduling a flight, `Flight Operations Service` issues synchronous `RestClient` calls to:
-   * **`Route Service`:** To validate the route existence and total distance.
-   * **`Aircraft Service`:** To check aircraft range capacity and operational availability.
-   * **`Maintenance Service`:** To ensure no overlapping maintenance windows exist.
-   * **`Airport Service`:** To verify origin and destination airport specs.
-3. **Internal Calculations:** `Aircraft Service` queries accumulated flight metrics from `Flight Operations Service` to evaluate upcoming maintenance intervals.
+PlantUML source file:
+
+* `architecture-c4-level3.puml`
+
+---
+
+## 3. Data Flow and Dependencies
+
+1. Inbound requests arrive to `FlightController` under `/api/flights/**`.
+2. Scheduling flow (`POST /scheduled`) first resolves aircraft data through `AircraftSearchService`, then delegates to `RouteService`.
+3. `RouteService` performs synchronous calls to `route-service` and `airport-service`, validates business rules, updates route usage, and persists the `Flight`.
+4. Route utilization flow delegates to `FlightUtilizationReportService`, which reads all flights and groups by route (`flightCount`).
+5. Exceptions are transformed by `GlobalExceptionHandler` into `ErrorDetails` payloads.

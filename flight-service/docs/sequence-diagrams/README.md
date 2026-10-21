@@ -1,80 +1,88 @@
-# Explicação detalhada dos 2 cenários dinâmicos
+# Flight Operations Service — Sequence Diagrams and Dynamic Views (As Implemented)
 
-# Flight Operations Service — Sequence Diagrams & Dynamic Views
-
-This document describes the dynamic runtime behavior and message flows of the **Flight Operations Service** (`flight-service`) within the *AISafe Flight Management System*. 
-
-The interactions are divided into two primary execution scenarios:
-1. **Scenario 1:** Search/Querying Scheduled Flights and Route Utilization Metrics (Read Flow).
-2. **Scenario 2:** Flight Scheduling & External Service Integration (Planned Write/Validation Flow).
+This document describes runtime behavior aligned with the current code implementation.
 
 ---
 
-## 1. Scenario 1: Query Flights & Route Utilization Report
+## 1. Scenario 1: Read Flows
 
 ### Description
-Scenario 1 covers the read-only operations executed by client applications (e.g., Postman or frontend consoles) routed through the **API Gateway**. It illustrates how read requests are processed within the service boundary without external dependencies.
 
-It encompasses two execution flows:
-* **Flow A (Flight Search):** Retrieves all flights or filters flights by aircraft registration number and date range.
-* **Flow B (Route Utilization Report):** Aggregates flight data to generate route utilization metrics and total accumulated flight hours.
-* **Alternative Path (Error Handling):** Demonstrates how unhandled exceptions or invalid input queries are intercepted by the `GlobalExceptionHandler` and normalized into a standard `ErrorDetails` payload.
+Scenario 1 contains two read operations currently exposed by `FlightController`:
 
-### Sequence Diagram
-![Scenario 1 - Query Flights & Route Utilization Report](scenario-1-query-flights.svg)
+* **Flow A:** `GET /api/flights/aircraft/{registrationNumber}`
+* **Flow B:** `GET /api/flights/reports/route-utilization`
 
-### Key Message Flow Steps
+### Sequence Diagram Source
 
-#### Flow A — Query & Filter Flights
-1. **Client Request:** The client sends an HTTP `GET /api/flights` request (with optional query parameters like `aircraftRegistration` or `date`) to the **API Gateway**.
-2. **Gateway Forwarding:** The Gateway routes the request to `FlightController` on port `8084`.
-3. **Service Delegation:** `FlightController` delegates the read operation to `FlightSearchService`.
-4. **Data Retrieval:** `FlightSearchService` executes query methods on `FlightRepository` (`findAll()` or `findByAircraftRegistrationNumberAndScheduledDepartureBetween()`).
-5. **Database Execution:** `FlightRepository` reads records from the `company_flights` table in the **H2 In-Memory Database**.
-6. **Response Mapping:** Retrieved `Flight` entities are mapped into DTO payloads and returned as an HTTP `200 OK` response containing a JSON array.
+* `scenario-1-query-flights.puml`
 
-#### Flow B — Route Utilization Reporting
-1. **Client Request:** The client issues an HTTP `GET /api/flights/utilization` request.
-2. **Reporting Execution:** `FlightController` delegates the calculation to `FlightUtilizationReportService`.
-3. **Aggregation:** The report service queries `FlightRepository`, aggregates accumulated flight hours per route, and packages the results into a `RouteUtilizationReport` record.
-4. **Response Delivery:** The resulting metrics payload is returned to the client as HTTP `200 OK`.
+### Key Steps
+
+#### Flow A — Flights by Aircraft
+
+1. Client requests flights for one aircraft registration.
+2. Controller delegates to `RouteService.getScheduledFlightsForAircraft(...)`.
+3. Service queries `FlightRepository.findByAircraftRegistrationNumber_RegistrationNumber(...)`.
+4. Repository reads from `company_flights`.
+5. Controller maps entities to `FlightResponse` and returns `200 OK`.
+
+#### Flow B — Route Utilization
+
+1. Client requests route utilization report.
+2. Controller delegates to `FlightUtilizationReportService.getRouteUtilizationReport()`.
+3. Service loads all flights and groups by `RouteReference`.
+4. Service returns route metadata plus `flightCount` per route.
+5. Controller returns `200 OK`.
+
+Note:
+
+* The report currently aggregates flight count only, not accumulated flight hours.
 
 ---
 
-## 2. Scenario 2: Flight Scheduling & External Service Integration
+## 2. Scenario 2: Schedule Flight
 
 ### Description
-Scenario 2 illustrates the write flow when scheduling a new flight. To enforce domain integrity, the `flight-service` must coordinate synchronously with external microservices via HTTP REST calls (`RestClient`) before persisting new records:
-* **`route-service`:** Validates route existence and retrieves total route distance.
-* **`aircraft-service`:** Validates aircraft active status, passenger capacity, and maximum flight range.
-* **`maintenance-service`:** Verifies that the aircraft is not currently undergoing maintenance during the scheduled timeframe.
 
-### Sequence Diagram
-![Scenario 2 - Flight Scheduling & External Service Integration](scenario-2-schedule-flight.svg)
+Scenario 2 describes the implemented write flow in `POST /api/flights/scheduled`.
 
-### Key Message Flow Steps
+Synchronous external checks are performed against:
 
-1. **Scheduling Request:** The client sends an HTTP `POST /api/flights` payload containing `routeId`, `aircraftRegistrationNumber`, and `scheduledDeparture` timestamps.
-2. **External Validation Phase (`RestClient`):**
-   * `Flight Operations Service` performs a `GET /api/routes/{routeId}` call to **`route-service`**.
-   * Performs a `GET /api/hangar/aircraft/{registration}` call to **`aircraft-service`**.
-   * Performs a `GET /api/maintenance/records/ongoing` call to **`maintenance-service`**.
-3. **Domain Integrity Verification:** The service verifies that `aircraft.maxRange >= route.distance` and confirms no scheduling/maintenance overlaps exist.
-4. **Successful Persistence (Happy Path):**
-   * If all validations pass, the `Flight` entity is created and saved via `FlightRepository.save()`.
-   * An `INSERT` query is executed against the `company_flights` table in H2.
-   * The client receives an HTTP `201 Created` response containing the created flight resource.
-5. **Validation Failure (Alternative Path):**
-   * If any external service check fails or aircraft range is insufficient, a `DomainException` is thrown.
-   * `GlobalExceptionHandler` catches the exception and returns an HTTP `409 Conflict` or `400 Bad Request` with an `ErrorDetails` JSON object.
+* `aircraft-service`
+* `route-service`
+* `airport-service`
+
+Not currently used:
+
+* `maintenance-service`
+
+### Sequence Diagram Source
+
+* `scenario-2-schedule-flight.puml`
+
+### Key Steps
+
+1. Client sends `POST /api/flights/scheduled` with route and schedule data.
+2. Controller looks up aircraft through `AircraftSearchService`.
+3. Controller delegates scheduling to `RouteService`.
+4. `RouteService` fetches route and airports via RestClient adapters.
+5. Business rules are evaluated (active route, operational airports, available aircraft, range, no local overlap).
+6. Route usage is updated via route-service patch.
+7. New `Flight` is persisted and `201 Created` is returned.
+8. Rule violations throw `DomainException`, returned as `409 Conflict`.
 
 ---
 
-## 3. Resilience & Exception Handling Summary
+## 3. Exception and Resilience Summary
 
-| Exception Type | Trigger Cause | Handled By | HTTP Status Code |
-| :--- | :--- | :--- | :--- |
-| `ResourceNotFoundException` | Requested Flight ID or route reference does not exist | `GlobalExceptionHandler` | `404 Not Found` |
-| `DomainException` | Business rule violation (e.g., aircraft range shortfall or maintenance conflict) | `GlobalExceptionHandler` | `409 Conflict` |
-| `MethodArgumentNotValidException` | Malformed JSON or failed Bean Validation | `GlobalExceptionHandler` | `400 Bad Request` |
-| `OptimisticLockingFailureException` | Concurrent updates on the same `Flight` entity (`@Version` mismatch) | `GlobalExceptionHandler` | `409 Conflict` |
+| Exception Type | Current Mapping |
+| :--- | :--- |
+| `ResourceNotFoundException` | `404 Not Found` |
+| `MethodArgumentNotValidException` | `400 Bad Request` |
+| `HttpMessageNotReadableException` | `400 Bad Request` |
+| `IllegalArgumentException` | `400 Bad Request` |
+| `DomainException` | `409 Conflict` |
+| `Exception` | `500 Internal Server Error` |
+
+Optimistic locking exists (`@Version` on `Flight`), but there is no dedicated handler for `OptimisticLockingFailureException` in the current `GlobalExceptionHandler`.
