@@ -1,0 +1,139 @@
+@startuml
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 180
+skinparam boxPadding 10
+skinparam participantPadding 10
+skinparam shadowing false
+
+title Sequence Diagram - Scenario 2: Register Airport, Import CSV, and Change Status (As Implemented)
+
+autonumber
+
+actor "Client / Postman" as client
+participant "API Gateway\n<<Gateway>>" as gateway
+participant "AirportController\n<<REST Controller>>" as controller
+participant "AirportCsvService\n<<Application Service>>" as csv_svc
+participant "AirportService\n<<UseCase>>" as airport_uc
+participant "AirportRepository\n<<JPA Repository>>" as repo
+database "H2 Database\n<<In-Memory DB>>" as db
+participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
+
+box "Airport Service [Container]" #LightBlue
+    participant controller
+    participant csv_svc
+    participant airport_uc
+    participant repo
+    participant exception_handler
+end box
+
+== Flow A: Register Airport ==
+
+client -> gateway : POST /api/airports\n(iataCode, name, status, location, facilities, runways, certifications, contacts, photos)
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+controller -> controller : Build Airport aggregate\n(AirportStatus / RunwayStatus / ContactType.valueOf)
+
+alt unknown enum value
+    controller -[#red]> exception_handler : throw IllegalArgumentException
+    activate exception_handler
+    exception_handler --> client : 400 Bad Request (ErrorDetails JSON)
+    deactivate exception_handler
+else enums valid
+    controller -> airport_uc : execute(airport)
+    activate airport_uc
+    airport_uc -> airport_uc : validateIataCode ([A-Z]{3})
+    airport_uc -> repo : findByIataCode(iataCode)
+    activate repo
+    repo --> airport_uc : Optional<Airport>
+    deactivate repo
+
+    alt invalid IATA or airport already exists
+        airport_uc -[#red]> exception_handler : throw DomainException
+        activate exception_handler
+        exception_handler --> client : 409 Conflict (ErrorDetails JSON)
+        deactivate exception_handler
+    else new airport
+        airport_uc -> repo : save(airport)
+        activate repo
+        repo -> db : INSERT INTO company_registered_airports\n(+ runways, certifications, contacts, services, images)
+        db --> repo : persisted
+        repo --> airport_uc : Airport
+        deactivate repo
+        airport_uc --> controller : void
+        deactivate airport_uc
+        controller --> gateway : 201 Created
+        gateway --> client : 201 Created Response
+    end
+end
+deactivate controller
+deactivate gateway
+
+== Flow B: Import CSV ==
+
+client -> gateway : POST /api/airports/import\n(multipart file)
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+controller -> csv_svc : importFile(file.getInputStream())
+activate csv_svc
+csv_svc -> csv_svc : skip header and rows with < 15 columns,\nparse location, runways, certifications, contacts
+csv_svc --> controller : List<Airport>
+deactivate csv_svc
+
+loop for each airport
+    controller -> airport_uc : execute(airport) [own transaction]
+    activate airport_uc
+    airport_uc -> repo : findByIataCode / save
+    activate repo
+    repo -> db : SELECT / INSERT
+    repo --> airport_uc : Airport
+    deactivate repo
+    airport_uc --> controller : void
+    deactivate airport_uc
+end
+
+controller --> gateway : 200 OK
+deactivate controller
+gateway --> client : 200 OK Response
+deactivate gateway
+
+note right of airport_uc : A DomainException on any row returns 409;\nairports saved before it remain persisted
+
+== Flow C: Change Status ==
+
+client -> gateway : PATCH /api/airports/{iataCode}/status\n(status)
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+controller -> airport_uc : updateStatus(iataCode, AirportStatus.valueOf(status))
+activate airport_uc
+airport_uc -> repo : findByIataCode(iataCode)
+activate repo
+repo --> airport_uc : Optional<Airport>
+deactivate repo
+
+alt airport not found
+    airport_uc -[#red]> exception_handler : throw DomainException("Airport does not exist")
+    activate exception_handler
+    exception_handler --> client : 409 Conflict (ErrorDetails JSON)
+    deactivate exception_handler
+else airport found
+    airport_uc -> airport_uc : airport.changeStatus(status)
+    airport_uc -> repo : save(airport)
+    activate repo
+    repo -> db : UPDATE company_registered_airports SET status = ?, version = version + 1
+    repo --> airport_uc : Airport
+    deactivate repo
+    airport_uc --> controller : Airport
+    deactivate airport_uc
+    controller --> gateway : 200 OK (AirportResponse)
+    gateway --> client : 200 OK Response
+end
+deactivate controller
+deactivate gateway
+
+@enduml

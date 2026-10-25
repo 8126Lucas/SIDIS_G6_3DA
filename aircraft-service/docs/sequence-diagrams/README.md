@@ -96,7 +96,8 @@ Scenario 3 describes flows that depend on other microservices:
 
 Note:
 
-* `GET /api/routes` and `GET /api/flights` are not exposed by the target services in the current code; the resulting `RestClient` error is returned as `500`.
+* `GET /api/flights` is not exposed by `flight-service` in the current code; the resulting `RestClient` error is returned as `500`.
+* `GET /api/routes` is exposed by `route-service`, but `RouteClientDTO.capacity` is not part of its response; the `null` capacity makes Flow A fail with `500` whenever at least one route exists.
 
 ---
 

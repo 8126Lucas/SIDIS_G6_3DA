@@ -77,7 +77,8 @@ Synchronous `RestClient` integrations (Eureka load-balanced):
 
 Contract gaps in the current code:
 
-* `route-service` does not expose `GET /api/routes` nor `GET /api/routes/aircraft/{registration}`.
+* `route-service` exposes `GET /api/routes` and `GET /api/routes/{routeId}`, but not `GET /api/routes/aircraft/{registration}`.
+* `RouteClientDTO` expects `originAirportIata`, `destinationAirportIata`, `capacity`, while `route-service` returns `originIataCode`, `destinationIataCode` and `routeRequirements.requiredCapacity`; these fields are deserialized as `null` (a `null` `capacity` makes the compatible-routes filter throw `NullPointerException`).
 * `flight-service` does not expose `GET /api/flights`.
 * `FlightClientDTO` expects `id`, `aircraftRegistration`, `routeId`, `range`, while `flight-service` returns `flightId`, `aircraftRegistrationNumber`, `routeId` and no range.
 

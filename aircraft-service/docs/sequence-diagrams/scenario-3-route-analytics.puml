@@ -108,6 +108,6 @@ deactivate controller
 gateway --> client : 200 OK Response
 deactivate gateway
 
-note over route_client, flight_api : GET /api/routes and GET /api/flights are not exposed by the target services\nin the current code; RestClient errors propagate as 500 (ErrorDetails)
+note over route_client, flight_api : GET /api/flights is not exposed by flight-service in the current code (RestClient error -> 500).\nGET /api/routes exists, but RouteClientDTO.capacity is not in its response; the null capacity\nmakes the compatible-routes filter throw NullPointerException (500, ErrorDetails)
 
 @enduml

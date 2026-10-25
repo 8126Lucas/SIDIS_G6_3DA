@@ -258,7 +258,7 @@ Notes:
 
 * Capacity comes from the aircraft `SeatingPack`, or falls back to the model `standardSeatingCapacity`.
 * In `RouteSearchService`, the fallback to model `maximumRange` is overwritten by `meanRange`; since `meanRange` starts at `0.0`, only zero-distance routes match unless `meanRange` was updated.
-* The client calls `GET /api/routes`, which is not exposed by `route-service` (see `domain-and-resilience.md`).
+* The client calls `GET /api/routes`, which `route-service` exposes, but `RouteClientDTO` does not match its response: `capacity` is always `null` (the route-service exposes `routeRequirements.requiredCapacity`), so `route.capacity() <= capacity` throws `NullPointerException` (`500`) whenever at least one route exists (see `domain-and-resilience.md`).
 
 ---
 

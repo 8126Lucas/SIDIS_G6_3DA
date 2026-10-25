@@ -68,7 +68,3 @@ Open H2 console:
 * JDBC URL: `jdbc:h2:mem:flighttestdb`
 * User: `sa`
 * Password: empty
-
-Open Swagger UI:
-
-* URL: `http://localhost:8081/api/swagger-ui`
