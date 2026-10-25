@@ -1,15 +1,18 @@
 package com.sidis.aircraftservice.AircraftCatalog;
 
 import com.sidis.aircraftservice.Aircraft.application.AircraftSearchService;
+import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
 import com.sidis.aircraftservice.AircraftCatalog.application.AddModelUseCase;
 import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
 import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelUpdater;
+import com.sidis.aircraftservice.AircraftCatalog.application.FlightSearchService;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
 
 //import com.sidis.aircraftservice.Flight.application.FlightSearchService;
 import com.sidis.aircraftservice.exceptions.DomainException;
 import com.sidis.aircraftservice.exceptions.ResourceNotFoundException;
+import com.sidis.aircraftservice.infrastructure.client.FlightClientDTO;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
@@ -25,14 +28,14 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/catalog")
 public class ModelCatalogController {
     private final AircraftModelSearchService aircraftModelSearchService;
-//    private final FlightSearchService flightSearchService;
+    private final FlightSearchService flightSearchService;
     private final AircraftSearchService aircraftSearchService;
     private final AddModelUseCase addModelUseCase;
     private final AircraftModelUpdater aircraftModelUpdater;
 
-    public ModelCatalogController(AircraftModelSearchService aircraftModelSearchService, /* FlightSearchService flightSearchService,*/ AircraftSearchService aircraftSearchService, AddModelUseCase addModelUseCase, AircraftModelUpdater aircraftModelUpdater) {
+    public ModelCatalogController(AircraftModelSearchService aircraftModelSearchService, FlightSearchService flightSearchService, AircraftSearchService aircraftSearchService, AddModelUseCase addModelUseCase, AircraftModelUpdater aircraftModelUpdater) {
         this.aircraftModelSearchService = aircraftModelSearchService;
-//        this.flightSearchService = flightSearchService;
+        this.flightSearchService = flightSearchService;
         this.aircraftSearchService = aircraftSearchService;
         this.addModelUseCase = addModelUseCase;
         this.aircraftModelUpdater = aircraftModelUpdater;
@@ -79,14 +82,15 @@ public class ModelCatalogController {
      * or by thr flight hours, this is defined by
      * @param mode
      */
-/*    @GetMapping("/rankings")
+    @GetMapping("/rankings")
     public List<ModelResponse> getModelRanking(@RequestParam String mode) {
-        if (mode.equals("assignments")) {
-            Map<AircraftModel, Long> ranking = flightSearchService.findMostAssignedAircraftToFly().stream()
+        if ("assignments".equals(mode)) {
+            Map<AircraftModel, Long> ranking = flightSearchService.findMostAssignedAircraftToFly().entrySet().stream()
                     .collect(Collectors.groupingBy(
                             entry -> entry.getKey().getModel(),
                             Collectors.summingLong(Map.Entry::getValue)
                     ));
+
             return ranking.entrySet().stream()
                     .sorted(Map.Entry.<AircraftModel, Long>comparingByValue().reversed())
                     .limit(5)
@@ -94,13 +98,12 @@ public class ModelCatalogController {
                     .toList();
         }
 
-        if (mode.equals("flight-hours")) {
-            Map<AircraftModel, Double> ranking =
-                    aircraftSearchService.findMostUsedModelsByFlyingAircraftHours().stream()
-                            .collect(Collectors.toMap(
-                                    Map.Entry::getKey,
-                                    Map.Entry::getValue
-                            ));
+        if ("flight-hours".equals(mode)) {
+            Map<AircraftModel, Double> ranking = aircraftSearchService.findMostUsedModelsByFlyingAircraftHours().stream()
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            Map.Entry::getValue
+                    ));
             return ranking.entrySet().stream()
                     .sorted(Map.Entry.<AircraftModel, Double>comparingByValue().reversed())
                     .limit(5)
@@ -109,7 +112,7 @@ public class ModelCatalogController {
         }
         return List.of();
     }
-*/
+
     /**
      * Request body for PATCH /catalog/model/{modelName}
      */

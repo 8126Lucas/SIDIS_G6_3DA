@@ -2,10 +2,10 @@ package com.sidis.aircraftservice.Aircraft.application;
 
 import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
 import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftRepository;
-import com.sidis.aircraftservice.Aircraft.infrastructure.client.FlightClientDTO;
-import com.sidis.aircraftservice.Aircraft.infrastructure.client.FlightRestClientService;
-import com.sidis.aircraftservice.Aircraft.infrastructure.client.RouteClientDTO;
-import com.sidis.aircraftservice.Aircraft.infrastructure.client.RouteRestClientService;
+import com.sidis.aircraftservice.infrastructure.client.FlightClientDTO;
+import com.sidis.aircraftservice.infrastructure.client.FlightRestClientService;
+import com.sidis.aircraftservice.infrastructure.client.RouteClientDTO;
+import com.sidis.aircraftservice.infrastructure.client.RouteRestClientService;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
 //import com.sidis.aircraftservice.Flight.domain.Flight;
 //import com.sidis.aircraftservice.Flight.infrastructure.FlightRepository;
