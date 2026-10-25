@@ -1,0 +1,113 @@
+@startuml
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 180
+skinparam boxPadding 10
+skinparam participantPadding 10
+skinparam shadowing false
+
+title Sequence Diagram - Scenario 3: Inter-Service Route Analytics (As Implemented)
+
+autonumber
+
+actor "Client / Postman" as client
+participant "API Gateway\n<<Gateway>>" as gateway
+participant "HangarController\n<<REST Controller>>" as controller
+participant "AircraftSearchService\n<<Application Service>>" as search_svc
+participant "RouteSearchService\n<<Application Service>>" as route_search
+participant "FuelEfficiencyService\n<<UseCase>>" as fuel_uc
+participant "RouteRestClientService\n<<RestClient Adapter>>" as route_client
+participant "FlightRestClientService\n<<RestClient Adapter>>" as flight_client
+participant "AircraftRepository\n<<JPA Repository>>" as repo
+participant "Route Service\n<<External Microservice>>" as route_api
+participant "Flight Service\n<<External Microservice>>" as flight_api
+
+box "Aircraft Service [Container]" #LightBlue
+    participant controller
+    participant search_svc
+    participant route_search
+    participant fuel_uc
+    participant route_client
+    participant flight_client
+    participant repo
+end box
+
+== Flow A: Compatible Routes (US203) ==
+
+client -> gateway : GET /api/hangar/aircraft/{registrationNumber}/compatible-routes
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+controller -> search_svc : spotAircraftInHangar(registrationNumber)
+activate search_svc
+search_svc -> repo : findById(registrationNumber)
+repo --> search_svc : Optional<Aircraft>
+search_svc --> controller : Aircraft (or 404)
+deactivate search_svc
+
+controller -> route_client : getAllRoutes()
+activate route_client
+route_client -> route_api : GET /api/routes
+activate route_api
+route_api --> route_client : RouteClientDTO[]
+deactivate route_api
+route_client --> controller : List<RouteClientDTO>
+deactivate route_client
+
+controller -> route_search : findCompatibleRoutes(aircraft, routes)
+activate route_search
+route_search -> route_search : keep capacity <= seats\nand distanceKm <= range
+route_search --> controller : List<RouteClientDTO>
+deactivate route_search
+
+controller --> gateway : 200 OK (compatible routes)
+deactivate controller
+gateway --> client : 200 OK Response
+deactivate gateway
+
+== Flow B: Fuel Efficiency per Route (US227) ==
+
+client -> gateway : GET /api/hangar/analytics/fuel-efficiency/routes
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+controller -> fuel_uc : getFuelEfficiencyPerRoute()
+activate fuel_uc
+
+fuel_uc -> flight_client : getAllFlights()
+activate flight_client
+flight_client -> flight_api : GET /api/flights
+activate flight_api
+flight_api --> flight_client : FlightClientDTO[]
+deactivate flight_api
+flight_client --> fuel_uc : List<FlightClientDTO>
+deactivate flight_client
+
+fuel_uc -> fuel_uc : group flights by routeId
+
+loop for each routeId
+    fuel_uc -> route_client : getRouteById(routeId)
+    activate route_client
+    route_client -> route_api : GET /api/routes/{routeId}
+    route_api --> route_client : RouteClientDTO
+    route_client --> fuel_uc : RouteClientDTO
+    deactivate route_client
+
+    loop for each flight of the route
+        fuel_uc -> repo : findById(aircraftRegistration)
+        repo --> fuel_uc : Optional<Aircraft>
+    end
+    fuel_uc -> fuel_uc : avg(fuelCapacity / maxRange) x distanceKm
+end
+
+fuel_uc --> controller : List<RouteFuelEfficiency>
+deactivate fuel_uc
+controller --> gateway : 200 OK (JSON list)
+deactivate controller
+gateway --> client : 200 OK Response
+deactivate gateway
+
+note over route_client, flight_api : GET /api/routes and GET /api/flights are not exposed by the target services\nin the current code; RestClient errors propagate as 500 (ErrorDetails)
+
+@enduml

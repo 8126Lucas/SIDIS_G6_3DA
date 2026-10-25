@@ -1,0 +1,99 @@
+@startuml
+skinparam linetype polyline
+skinparam nodesep 60
+skinparam ranksep 70
+skinparam shadowing false
+skinparam componentStyle uml2
+
+title Component Diagram (C4 - Level 3) - Aircraft Service (As Implemented)
+
+component "API Gateway\n<<Spring Cloud Gateway>>" as api_gateway
+database "H2 Database\n<<In-Memory>>" as aircraft_db
+component "Route Service\n<<Microservice>>" as route_service
+component "Flight Service\n<<Microservice>>" as flight_service
+
+package "Aircraft Service [Container]" {
+    component "ModelCatalogController\n<<Spring REST Controller>>" as catalog_controller
+    component "HangarController\n<<Spring REST Controller>>" as hangar_controller
+    component "HangarViewController\n<<Spring MVC Controller>>" as view_controller
+
+    component "AddModelUseCase\n<<UseCase>>" as add_model_uc
+    component "AircraftModelUpdater\n<<Spring Service>>" as model_updater
+    component "AircraftModelSearchService\n<<Spring Service>>" as model_search_svc
+
+    component "AddAircraftUseCase\n<<UseCase>>" as add_aircraft_uc
+    component "AircraftSearchService\n<<Spring Service>>" as aircraft_search_svc
+    component "AircraftLifeCycleUpdaterService\n<<Spring Service>>" as lifecycle_svc
+    component "RouteSearchService\n<<Spring Service>>" as route_search_svc
+    component "FuelEfficiencyService\n<<UseCase>>" as fuel_uc
+    component "CalculationsService\n<<Spring Service>>" as calc_svc
+
+    component "RouteRestClientService\n<<RestClient Adapter>>" as route_client
+    component "FlightRestClientService\n<<RestClient Adapter>>" as flight_client
+
+    component "Bootstrap\n<<ApplicationRunner>>" as bootstrapper
+
+    component "AircraftModelRepository\n<<Spring Data JPA Repository>>" as model_repo
+    component "AircraftRepository\n<<Spring Data JPA Repository>>" as aircraft_repo
+
+    component "AircraftModel\n<<JPA Domain Entity>>" as model_entity
+    component "AircraftSpecs\n<<Embeddable Value Object>>" as specs_vo
+    component "Aircraft\n<<JPA Aggregate Root>>" as aircraft_entity
+    component "SeatingPack\n<<Embeddable Value Object>>" as seating_vo
+    component "InstalledComponent\n<<JPA Entity>>" as component_entity
+    component "AircraftCertification\n<<JPA Entity>>" as cert_entity
+    component "AircraftAvailability\n<<Enum>>" as availability_enum
+
+    component "GlobalExceptionHandler\n<<@RestControllerAdvice>>" as exception_handler
+    component "ErrorDetails\n<<DTO Payload>>" as error_details
+}
+
+api_gateway --> hangar_controller : "Routes /api/hangar/**\n[HTTPS/JSON]"
+
+catalog_controller --> add_model_uc : "POST /model"
+catalog_controller --> model_search_svc : "model lookup"
+catalog_controller --> model_updater : "PATCH /model/{modelName}"
+
+hangar_controller --> model_search_svc : "model lookup"
+hangar_controller --> lifecycle_svc : "availability change"
+hangar_controller --> add_aircraft_uc : "POST /aircraft"
+hangar_controller --> aircraft_search_svc : "queries + analytics"
+hangar_controller --> route_search_svc : "compatible routes"
+hangar_controller --> route_client : "GET all routes"
+hangar_controller --> flight_client : "legacy fuel efficiency"
+hangar_controller --> fuel_uc : "US227 fuel metrics"
+
+view_controller --> calc_svc : "utilization data"
+calc_svc --> aircraft_search_svc : "findAll"
+calc_svc ..> flight_client : "injected, call commented out"
+
+fuel_uc --> aircraft_repo : "aircraft specs"
+fuel_uc --> flight_client : "all flights"
+fuel_uc --> route_client : "route by id"
+
+add_model_uc --> model_repo : "save"
+model_search_svc --> model_repo : "findByModelName"
+add_aircraft_uc --> aircraft_repo : "save"
+aircraft_search_svc --> aircraft_repo : "findById / Specification / countByStatus"
+bootstrapper --> model_repo : "Seeds catalog"
+bootstrapper --> aircraft_repo : "Seeds fleet"
+
+model_repo --> model_entity : "Manages persistence"
+aircraft_repo --> aircraft_entity : "Manages persistence"
+
+model_entity *-- specs_vo : "Embeds"
+aircraft_entity --> model_entity : "ManyToOne"
+aircraft_entity *-- seating_vo : "Embeds"
+aircraft_entity *-- component_entity : "OneToMany"
+aircraft_entity *-- cert_entity : "OneToMany"
+aircraft_entity --> availability_enum : "Uses"
+
+model_repo <--> aircraft_db : "aircraft_models_catalog\n[JDBC/JPA]"
+aircraft_repo <--> aircraft_db : "company_aircrafts\n[JDBC/JPA]"
+
+exception_handler --> error_details : "Constructs and returns"
+
+route_client --> route_service : "HTTP RestClient"
+flight_client --> flight_service : "HTTP RestClient"
+
+@enduml
