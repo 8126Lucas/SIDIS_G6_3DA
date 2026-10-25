@@ -16,7 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 
-@Service
+@Service("applicationCalculationsService")
 public class CalculationsService {
     private final AircraftSearchService aircraftSearchService;
     private final FlightRestClientService flightClient;
