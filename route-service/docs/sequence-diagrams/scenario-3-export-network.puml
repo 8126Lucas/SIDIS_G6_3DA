@@ -1,0 +1,89 @@
+@startuml
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 180
+skinparam boxPadding 10
+skinparam participantPadding 10
+skinparam shadowing false
+
+title Sequence Diagram - Scenario 3: Network Export and Total Distance (As Implemented)
+
+autonumber
+
+actor "Client / Postman" as client
+participant "API Gateway\n<<Gateway>>" as gateway
+participant "RouteController\n<<REST Controller>>" as controller
+participant "RouteExportService\n<<UseCase>>" as export_uc
+participant "RouteService\n<<UseCase>>" as route_uc
+participant "RouteRepository\n<<JPA Repository>>" as repo
+database "H2 Database\n<<In-Memory DB>>" as db
+participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
+
+box "Route Service [Container]" #LightBlue
+    participant controller
+    participant export_uc
+    participant route_uc
+    participant repo
+    participant exception_handler
+end box
+
+== Flow A / B: GeoJSON and KML Export (US228) ==
+
+client -> gateway : GET /api/routes/export/geojson\n(or /export/kml)
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+controller -> export_uc : exportAsGeoJson() / exportAsKml()
+activate export_uc
+export_uc -> repo : findAll()
+activate repo
+repo -> db : SELECT * FROM company_routes
+activate db
+db --> repo : Route rows
+deactivate db
+repo --> export_uc : List<Route>
+deactivate repo
+
+loop for each route
+    export_uc -> export_uc : origin / destination AirportLocation\n-> LineString (lon, lat)
+end
+
+alt every route has AirportLocation
+    export_uc --> controller : GeoJSON FeatureCollection / KML Document (String)
+    deactivate export_uc
+    controller --> gateway : 200 OK (application/geo+json\nor application/vnd.google-earth.kml+xml)
+    gateway --> client : 200 OK Response
+else a route has no AirportLocation (all seeded routes)
+    export_uc -[#red]> exception_handler : NullPointerException
+    activate exception_handler
+    exception_handler --> client : 500 Internal Server Error (ErrorDetails JSON)
+    deactivate exception_handler
+end
+deactivate controller
+deactivate gateway
+
+== Flow C: Total Distance ==
+
+client -> gateway : GET /api/routes/total-distance
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+controller -> route_uc : calculateTotalRouteDistance()
+activate route_uc
+route_uc -> repo : findAll()
+activate repo
+repo -> db : SELECT * FROM company_routes
+db --> repo : Route rows
+repo --> route_uc : List<Route>
+deactivate repo
+route_uc -> route_uc : sum(distanceKm, null -> 0.0)
+route_uc --> controller : Double
+deactivate route_uc
+
+controller --> gateway : 200 OK ({"totalDistanceKm": ...})
+deactivate controller
+gateway --> client : 200 OK Response
+deactivate gateway
+
+@enduml

@@ -1,0 +1,138 @@
+@startuml
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 180
+skinparam boxPadding 10
+skinparam participantPadding 10
+skinparam shadowing false
+
+title Sequence Diagram - Scenario 2: Create and Update Route (As Implemented)
+
+autonumber
+
+actor "Client / Postman" as client
+participant "API Gateway\n<<Gateway>>" as gateway
+participant "RouteController\n<<REST Controller>>" as controller
+participant "RouteService\n<<UseCase>>" as route_uc
+participant "AirportRestClientService\n<<RestClient Adapter>>" as airport_client
+participant "RouteRepository\n<<JPA Repository>>" as repo
+database "H2 Database\n<<In-Memory DB>>" as db
+participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
+participant "Airport Service\n<<External Microservice>>" as airport_api
+
+box "Route Service [Container]" #LightBlue
+    participant controller
+    participant route_uc
+    participant airport_client
+    participant repo
+    participant exception_handler
+end box
+
+== Flow A: Create Route ==
+
+client -> gateway : POST /api/routes\n(routeName, originIataCode, destinationIataCode,\nestimatedFlightTimeHours, type, requirements)
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+alt requirements missing
+    controller -[#red]> exception_handler : throw DomainException("Route requirements are required")
+    activate exception_handler
+    exception_handler --> client : 409 Conflict (ErrorDetails JSON)
+    deactivate exception_handler
+else requirements present
+    controller -> route_uc : createRoute(...)
+    activate route_uc
+    route_uc -> route_uc : validate IATA codes, origin != destination,\nflight time > 0
+    route_uc -> repo : findByRouteName(routeName)
+    activate repo
+    repo --> route_uc : Optional<Route>
+    deactivate repo
+
+    alt validation fails or name exists
+        route_uc -[#red]> exception_handler : throw DomainException
+        activate exception_handler
+        exception_handler --> client : 409 Conflict (ErrorDetails JSON)
+        deactivate exception_handler
+    else valid
+        loop origin and destination
+            route_uc -> airport_client : findAirportByIataCode(iata)
+            activate airport_client
+            airport_client -> airport_api : GET /api/airports/{iataCode}
+            activate airport_api
+            airport_api --> airport_client : AirportResponse (status, location, ...)\nor 409 if missing
+            deactivate airport_api
+            airport_client --> route_uc : AirportClientDTO (airportLocation = null)
+            deactivate airport_client
+        end
+
+        alt airport missing (409 from airport-service)
+            airport_client -[#red]> exception_handler : HttpClientErrorException
+            activate exception_handler
+            exception_handler --> client : 500 Internal Server Error
+            deactivate exception_handler
+        else airport not OPERATIONAL
+            route_uc -[#red]> exception_handler : throw DomainException("Airport is not operational")
+            activate exception_handler
+            exception_handler --> client : 409 Conflict (ErrorDetails JSON)
+            deactivate exception_handler
+        else both OPERATIONAL
+            route_uc -> route_uc : fromDTOtoAirportReference(dto)
+            route_uc -[#red]> exception_handler : NullPointerException (airportLocation is null)
+            activate exception_handler
+            exception_handler --> client : 500 Internal Server Error (ErrorDetails JSON)
+            deactivate exception_handler
+            note right of route_uc : Intended path (not reachable today):\nnew Route(ACTIVE, distanceKm = 1.0)\n-> save -> 201 Created
+        end
+    end
+    deactivate route_uc
+end
+deactivate controller
+deactivate gateway
+
+== Flow B: Update Route ==
+
+client -> gateway : PATCH /api/routes/{routeId}\n(destinationIataCode?, estimatedFlightTimeHours?, status?)
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+controller -> route_uc : updateRoute(routeId, destination, flightTime, status, history)
+activate route_uc
+route_uc -> repo : findByRouteId(routeId)
+activate repo
+repo --> route_uc : Optional<Route>
+deactivate repo
+
+alt route not found
+    route_uc -[#red]> exception_handler : throw DomainException("Route does not exist")
+    activate exception_handler
+    exception_handler --> client : 409 Conflict (ErrorDetails JSON)
+    deactivate exception_handler
+else route found
+    opt destinationIataCode present
+        route_uc -> airport_client : findAirportByIataCode(destination)
+        airport_client -> airport_api : GET /api/airports/{iataCode}
+        airport_api --> airport_client : AirportResponse
+        airport_client --> route_uc : AirportClientDTO
+        route_uc -> route_uc : changeDestination(...)\n[same NullPointerException -> 500 as Flow A]
+    end
+    opt estimatedFlightTimeHours present
+        route_uc -> route_uc : updateEstimatedFlightTime(...)\n[<= 0 -> IllegalArgumentException -> 400]
+    end
+    opt status present
+        route_uc -> route_uc : activateRoute / suspendRoute / retireRoute + endRoute(today)\n[invalid transition -> IllegalStateException -> 500]
+    end
+    route_uc -> repo : save(route)
+    activate repo
+    repo -> db : UPDATE company_routes SET ..., version = version + 1
+    repo --> route_uc : Route
+    deactivate repo
+    route_uc --> controller : Route
+    deactivate route_uc
+    controller --> gateway : 200 OK (RouteResponse)
+    gateway --> client : 200 OK Response
+end
+deactivate controller
+deactivate gateway
+
+@enduml
