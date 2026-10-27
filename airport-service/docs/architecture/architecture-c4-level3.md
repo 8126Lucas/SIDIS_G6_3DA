@@ -30,13 +30,8 @@ External integration clients:
 
 * `RouteRestClientService` -> `route-service`
 
-Not present in current implementation:
-
-* Security configuration (no security dependency in this service).
-* OpenAPI / Swagger documentation.
-* Endpoints to update or remove runways, certifications, or airports.
-
 ---
+
 
 ## 2. Architecture Diagram Source
 
