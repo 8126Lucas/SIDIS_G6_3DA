@@ -237,8 +237,11 @@ public class HangarController {
     /**
      * Gets all the aircrafts with the specified features
      */
-    @GetMapping("/aicraft-features")
+    @GetMapping("/aircraft-features")
     public List<AircraftResponse> getAircraftsWithFeatures(@RequestBody GetFeaturesRequest request) {
+        if (request.features() == null || request.features().isEmpty()) {
+            throw new IllegalArgumentException("Feature list cannot be empty!");
+        }
         return aircraftSearchService.findAircraftWithFeature(request.features())
                 .stream()
                 .map(AircraftResponse::from)

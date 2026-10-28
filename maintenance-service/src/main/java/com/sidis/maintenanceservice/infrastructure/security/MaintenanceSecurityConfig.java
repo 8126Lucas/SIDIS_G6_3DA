@@ -19,7 +19,6 @@ import java.io.IOException;
 @Configuration
 @EnableWebSecurity
 public class MaintenanceSecurityConfig {
-
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http

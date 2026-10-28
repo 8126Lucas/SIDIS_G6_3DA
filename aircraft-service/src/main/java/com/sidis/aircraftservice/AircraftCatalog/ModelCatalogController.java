@@ -47,6 +47,9 @@ public class ModelCatalogController {
     @PostMapping("/model")
     @ResponseStatus(HttpStatus.CREATED)
     public void addModel(@Valid @RequestBody AddModelRequest request) {
+        if (request.specs() == null) {
+            throw new IllegalArgumentException("Object 'specs' is mandatory in the request body.");
+        }
         AircraftSpecs specs = new AircraftSpecs(request.specs().fuelCapacityLiters(),request.specs().maximumRangeKm(),
                 request.specs().cruisingSpeedKph(),request.specs().standardSeatingCapacity());
 
