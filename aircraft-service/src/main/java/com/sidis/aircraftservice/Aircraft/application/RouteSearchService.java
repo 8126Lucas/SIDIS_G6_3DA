@@ -1,7 +1,7 @@
 package com.sidis.aircraftservice.Aircraft.application;
 
 import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
-import com.sidis.aircraftservice.Aircraft.infrastructure.client.RouteClientDTO;
+import com.sidis.aircraftservice.infrastructure.client.RouteClientDTO;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;

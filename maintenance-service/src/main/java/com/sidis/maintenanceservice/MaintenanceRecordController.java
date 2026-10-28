@@ -13,6 +13,8 @@ import com.sidis.maintenanceservice.domain.MaintenanceTemplate;
 import com.sidis.maintenanceservice.domain.MaintenanceType;
 import com.sidis.maintenanceservice.exceptions.DomainException;
 import com.sidis.maintenanceservice.exceptions.ResourceNotFoundException;
+import com.sidis.maintenanceservice.infrastructure.client.AircraftClientDTO;
+import com.sidis.maintenanceservice.infrastructure.client.AircraftRestClientService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -31,7 +33,7 @@ public class MaintenanceRecordController {
 
     private final AddMaintenanceTemplateUseCase addMaintenanceTemplateUseCase;
     private final AddMaintenanceRecordUseCase addMaintenanceRecordUseCase;
-//    private final AircraftSearchService aircraftSearchService;
+    private final AircraftRestClientService aircraftClient;
     private final MaintenanceTemplateSearchService maintenanceTemplateSearchService;
     private final MaintenanceRecordProgressService maintenanceRecordProgressService;
     private final MaintenanceReportService maintenanceReportService;
@@ -41,7 +43,7 @@ public class MaintenanceRecordController {
 
     public MaintenanceRecordController(AddMaintenanceTemplateUseCase addMaintenanceTemplateUseCase,
                                        AddMaintenanceRecordUseCase addMaintenanceRecordUseCase,
-                                       /*AircraftSearchService aircraftSearchService,*/
+                                       AircraftRestClientService aircraftClient,
                                        MaintenanceTemplateSearchService maintenanceTemplateSearchService,
                                        MaintenanceRecordProgressService maintenanceRecordProgressService,
                                        MaintenanceReportService maintenanceReportService,
@@ -50,7 +52,7 @@ public class MaintenanceRecordController {
                                        PartsInventoryService partsInventoryService) {
         this.addMaintenanceTemplateUseCase = addMaintenanceTemplateUseCase;
         this.addMaintenanceRecordUseCase = addMaintenanceRecordUseCase;
-//        this.aircraftSearchService = aircraftSearchService;
+        this.aircraftClient = aircraftClient;
         this.maintenanceTemplateSearchService = maintenanceTemplateSearchService;
         this.maintenanceRecordProgressService = maintenanceRecordProgressService;
         this.maintenanceReportService = maintenanceReportService;
@@ -93,21 +95,21 @@ public class MaintenanceRecordController {
     // WP3 — criar registo curto
     @PostMapping("/record")
     public void addRecord(@Valid @RequestBody AddRecordShortRequest request) {
-        /*Aircraft aircraft = aircraftSearchService
-                .spotAircraftInHangar(request.registrationNumber())
+        AircraftClientDTO aircraftDto = aircraftClient
+                .findAircraftByRegistration(request.registrationNumber())
                 .orElseThrow(() -> new ResourceNotFoundException("Aircraft does not exist in hangar"));
-*/
+
         MaintenanceTemplate maintenanceTemplate = maintenanceTemplateSearchService
                 .findByTemplateId(request.templateId())
                 .orElseThrow(() -> new ResourceNotFoundException("Maintenance Template does not exist"));
 
-        /*addMaintenanceRecordUseCase.executeShort(
-                aircraft,
+        addMaintenanceRecordUseCase.executeShort(
+                aircraftDto.aircraftRegistration(),
                 maintenanceTemplate,
                 request.durationHours(),
                 request.description(),
                 request.startDate()
-        );*/
+        );
     }
 
     // US119 — obter registo por id
@@ -131,13 +133,13 @@ public class MaintenanceRecordController {
     }
 
     // US221 — tempo médio de manutenção por tipo de aeronave
-    /*@GetMapping("/turnaround-average")
+    @GetMapping("/turnaround-average")
     public List<TurnaroundAverageResponse> turnaroundAverage() {
         return maintenanceReportService.averageTurnaroundTimePerAircraftType()
                 .stream()
                 .map(t -> new TurnaroundAverageResponse(t.aircraftType(), t.averageDays()))
                 .toList();
-    }*/
+    }
 
     // US219 - atividades de manutencao em curso na frota
     @GetMapping("/ongoing")
@@ -149,17 +151,17 @@ public class MaintenanceRecordController {
     }
 
     // US220 - custos de manutencao por aeronave ou modelo
-    /*@GetMapping("/reports/costs")
+    @GetMapping("/reports/costs")
     public List<MaintenanceCostReportResponse> maintenanceCosts(
             @RequestParam(defaultValue = "aircraft") String groupBy) {
         return maintenanceReportService.maintenanceCosts(groupBy)
                 .stream()
                 .map(r -> new MaintenanceCostReportResponse(r.group(), r.totalCost()))
                 .toList();
-    }*/
+    }
 
     // US222 — alertas de manutenção por horas de voo ou dias de calendário
-    /*@GetMapping("/alerts")
+    @GetMapping("/alerts")
     public List<MaintenanceAlertResponse> maintenanceAlerts(
             @RequestParam(defaultValue = "180") int calendarDaysThreshold,
             @RequestParam(defaultValue = "500") double flightHoursThreshold) {
@@ -174,7 +176,7 @@ public class MaintenanceRecordController {
                         a.alertReason()
                 ))
                 .toList();
-    }*/
+    }
 
     @PatchMapping("/records/{id}")
     public void updateRecord(@PathVariable Long id,@RequestBody ChangeAttributeRequest request) {
@@ -187,7 +189,7 @@ public class MaintenanceRecordController {
     }
 
     @GetMapping("/records")
-    public /*List<MaintenanceRecordResponse>*/ void getRecordsWithFiltering(
+    public List<MaintenanceRecordResponse> getRecordsWithFiltering(
             @RequestParam(required = false) String aircraft,
             @RequestParam(required = false) String attribute,
             @RequestParam(required = false)
@@ -201,19 +203,16 @@ public class MaintenanceRecordController {
 
         Pageable pageable = PageRequest.of(page, size);
 
-//        Aircraft aircraftObj = null;
+        if (aircraft != null) {
+            aircraftClient
+                    .findAircraftByRegistration(aircraft)
+                    .orElseThrow(() -> new DomainException("Aircraft does not exist"));
+        }
 
-        /*if (aircraft != null) {
-            aircraftObj = aircraftSearchService
-                    .spotAircraftInHangar(aircraft)
-                    .orElseThrow(() ->
-                            new DomainException("Aircraft does not exist"));
-        }*/
-
-        /*return maintenanceRecordSearchService
-                .findRecordsMatchingFilter(aircraftObj, attribute, initialDate, finalDate, pageable)
+        return maintenanceRecordSearchService
+                .findRecordsMatchingFilter(aircraft, attribute, initialDate, finalDate, pageable)
                 .map(MaintenanceRecordResponse::from)
-                .toList();*/
+                .toList();
     }
 
     // US226 — inventário de peças usadas em manutenção
@@ -282,7 +281,7 @@ public class MaintenanceRecordController {
         static MaintenanceRecordResponse from(MaintenanceRecord r) {
             return new MaintenanceRecordResponse(
                     r.getRecordId(),
-                    /*r.getAircraft().getRegistrationNumber(),*/ null,
+                    r.getAircraftRegistration(),
                     MaintenanceTemplateResponse.from(r.getMaintenanceTemplate()),
                     r.getDurationHours(),
                     r.getDescription(),

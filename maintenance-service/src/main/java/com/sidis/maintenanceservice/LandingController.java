@@ -11,6 +11,6 @@ public class LandingController {
 
     @GetMapping("/welcome")
     public String welcome() {
-        return "Welcome to the AISafePSOFT_26";
+        return "Welcome to the SIDIS_G6_3DA";
     }
 }

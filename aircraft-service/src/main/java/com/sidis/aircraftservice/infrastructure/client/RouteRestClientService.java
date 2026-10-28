@@ -1,4 +1,4 @@
-package com.sidis.aircraftservice.Aircraft.infrastructure.client;
+package com.sidis.aircraftservice.infrastructure.client;
 
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;

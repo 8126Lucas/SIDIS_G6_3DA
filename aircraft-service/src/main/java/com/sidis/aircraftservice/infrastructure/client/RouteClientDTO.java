@@ -1,4 +1,4 @@
-package com.sidis.aircraftservice.Aircraft.infrastructure.client;
+package com.sidis.aircraftservice.infrastructure.client;
 
 public record RouteClientDTO (
     Long routeId,

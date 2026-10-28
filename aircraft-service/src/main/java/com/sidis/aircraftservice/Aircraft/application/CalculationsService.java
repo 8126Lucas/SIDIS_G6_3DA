@@ -5,8 +5,8 @@ package com.sidis.aircraftservice.Aircraft.application;
 //import com.sidis.aircraftservice.Flight.infrastructure.FlightRepository;
 import com.sidis.aircraftservice.Aircraft.HangarController;
 import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
-import com.sidis.aircraftservice.Aircraft.infrastructure.client.FlightClientDTO;
-import com.sidis.aircraftservice.Aircraft.infrastructure.client.FlightRestClientService;
+import com.sidis.aircraftservice.infrastructure.client.FlightClientDTO;
+import com.sidis.aircraftservice.infrastructure.client.FlightRestClientService;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -16,7 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 
-@Service
+@Service("applicationCalculationsService")
 public class CalculationsService {
     private final AircraftSearchService aircraftSearchService;
     private final FlightRestClientService flightClient;
@@ -32,44 +32,37 @@ public class CalculationsService {
 
         return aircrafts.stream()
                 .flatMap(aircraft -> {
+                    List<FlightClientDTO> allAircraftFlights = flightClient
+                            .getFlightsByAircraft(aircraft.getRegistrationNumber());
 
                     List<HangarController.UtilizationInfo> result = new ArrayList<>();
+
                     for (int i = 11; i >= 0; i--) {
                         LocalDate monthDate = LocalDate.now().minusMonths(i);
-                        LocalDateTime start = monthDate
-                                .withDayOfMonth(1)
-                                .atStartOfDay();
-                        LocalDateTime end = monthDate
-                                .withDayOfMonth(monthDate.lengthOfMonth())
-                                .atTime(23, 59, 59);
-
-                        List<FlightClientDTO> flights /*=
-                                flightClient
-                                        .findByAircraftRegistrationNumberAndScheduledDepartureBetween(
-                                                aircraft.getRegistrationNumber(),
-                                                start,
-                                                end
-                                        )*/;
-
-                        double flightHours = 0.0 /* flights.stream()
-                                .filter(f -> f.getFlightHours() != null)
-                                .mapToDouble(Flight::getFlightHours)
-                                .sum()*/;
+                        LocalDateTime start = monthDate.withDayOfMonth(1).atStartOfDay();
+                        LocalDateTime end = monthDate.withDayOfMonth(monthDate.lengthOfMonth()).atTime(23, 59, 59);
+                        double flightHours = allAircraftFlights.stream()
+                                .filter(f -> f.departure() != null &&
+                                        !LocalDateTime.parse(f.departure()).isBefore(start) &&
+                                        !LocalDateTime.parse(f.departure()).isAfter(end))
+                                .filter(f -> f.flightHours() != null)
+                                .mapToDouble(FlightClientDTO::flightHours)
+                                .sum();
 
                         double availableHours = ChronoUnit.HOURS.between(start, end);
-
                         double utilizationRate = 0;
 
                         if (availableHours > 0) {
-                            utilizationRate =(flightHours / availableHours) * 100;
+                            utilizationRate = (flightHours / availableHours) * 100;
                         }
 
+                        double utilizationRateRounded = Math.round(utilizationRate * 100.0) / 100.0;
+
                         result.add(new HangarController.UtilizationInfo(
-                                        aircraft.getRegistrationNumber(),
-                                        monthDate,
-                                        utilizationRate
-                                )
-                        );
+                                aircraft.getRegistrationNumber(),
+                                monthDate,
+                                utilizationRateRounded
+                        ));
                     }
                     return result.stream();
                 })
