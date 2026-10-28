@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -116,5 +117,15 @@ public class GlobalExceptionHandler {
                 ),
                 status
         );
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorDetails> handleOptimisticLocking(ObjectOptimisticLockingFailureException ex, HttpServletRequest request) {
+        return buildError(HttpStatus.CONFLICT, "Conflict", "The record was modified by another user.", request.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorDetails> handleIllegalState(IllegalStateException ex, HttpServletRequest request) {
+        return buildError(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request.getRequestURI(), null);
     }
 }

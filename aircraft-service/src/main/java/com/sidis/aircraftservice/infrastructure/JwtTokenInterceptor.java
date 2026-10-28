@@ -10,11 +10,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 
 public class JwtTokenInterceptor implements ClientHttpRequestInterceptor {
-
     @Override
     public ClientHttpResponse intercept(HttpRequest request, byte[] body, ClientHttpRequestExecution execution) throws IOException {
-        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        request.getHeaders().add("X-Gateway-Secret", "sidis-g6-secret");
 
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attributes != null) {
             HttpServletRequest servletRequest = attributes.getRequest();
             String authHeader = servletRequest.getHeader("Authorization");
