@@ -5,83 +5,98 @@ skinparam boxPadding 10
 skinparam participantPadding 10
 skinparam shadowing false
 
-title Sequence Diagram - Scenario 2: Flight Scheduling & External Service Integration
+title Sequence Diagram - Scenario 2: Flight Scheduling (As Implemented)
 
 autonumber
 
 actor "Client / Postman" as client
 participant "API Gateway\n<<Gateway>>" as gateway
 participant "FlightController\n<<REST Controller>>" as controller
-participant "Flight Operations Service\n<<Domain Logic>>" as service
-participant "Route Service\n<<External Microservice>>" as route_svc
+participant "AircraftSearchService\n<<Application Service>>" as aircraft_search
+participant "RouteService\n<<UseCase>>" as route_svc
+participant "Route Service\n<<External Microservice>>" as route_api
 participant "Aircraft Service\n<<External Microservice>>" as aircraft_svc
-participant "Maintenance Service\n<<External Microservice>>" as maint_svc
+participant "Airport Service\n<<External Microservice>>" as airport_svc
 participant "FlightRepository\n<<JPA Repository>>" as repo
 database "H2 Database\n<<In-Memory DB>>" as db
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 
 box "Flight Operations Service [Container]" #LightBlue
     participant controller
-    participant service
+    participant aircraft_search
+    participant route_svc
     participant repo
     participant exception_handler
 end box
 
 == Flight Scheduling & External Validation Flow ==
 
-client -> gateway : POST /api/flights\n(RouteId, AircraftReg, DepartureTime)
+client -> gateway : POST /api/flights/scheduled\n(routeId, aircraftRegistrationNumber, scheduled times)
 activate gateway
 
-gateway -> controller : Forward POST /api/flights
+gateway -> controller : Forward POST /api/flights/scheduled
 activate controller
 
-controller -> service : scheduleFlight(flightData)
-activate service
+controller -> aircraft_search : spotAircraftInHangar(registration)
+activate aircraft_search
+
+aircraft_search -> aircraft_svc : GET /api/hangar/aircraft/{registration}
+activate aircraft_svc
+aircraft_svc --> aircraft_search : 200 OK (Aircraft details)
+deactivate aircraft_svc
+
+aircraft_search --> controller : Optional<AircraftClientDTO>
+deactivate aircraft_search
+
+controller -> route_svc : scheduleFlight(routeId, aircraft, departure, arrival)
+activate route_svc
 
 ' External REST Validations
 group External REST Validations [RestClient]
-    service -> route_svc : GET /api/routes/{routeId}
-    activate route_svc
-    route_svc --> service : 200 OK (Route Details & Distance)
-    deactivate route_svc
+    route_svc -> route_api : GET /api/routes/{routeId}
+    activate route_api
+    route_api --> route_svc : 200 OK (Route details)
+    deactivate route_api
 
-    service -> aircraft_svc : GET /api/hangar/aircraft/{registration}
-    activate aircraft_svc
-    aircraft_svc --> service : 200 OK (Aircraft Details & Max Range)
-    deactivate aircraft_svc
+    route_svc -> airport_svc : GET /api/airports/{originIata}
+    activate airport_svc
+    airport_svc --> route_svc : 200 OK (Origin airport)
+    deactivate airport_svc
 
-    service -> maint_svc : GET /api/maintenance/records/ongoing
-    activate maint_svc
-    maint_svc --> service : 200 OK (Maintenance Status)
-    deactivate maint_svc
+    route_svc -> airport_svc : GET /api/airports/{destinationIata}
+    activate airport_svc
+    airport_svc --> route_svc : 200 OK (Destination airport)
+    deactivate airport_svc
 end
 
 ' Domain Rules & Persistence
-service -> service : Validate aircraft availability,\ncapacity & range vs route distance
+route_svc -> route_svc : Validate dates, route status, airports,\naircraft availability, range, and local overlap
 
 alt Validation Successful
-    service -> repo : save(flightEntity)
+    route_svc -> route_api : PATCH /api/routes/{routeId} (route usage update)
+
+    route_svc -> repo : save(flightEntity)
     activate repo
     repo -> db : INSERT INTO company_flights
     activate db
     db --> repo : Saved Flight Entity
     deactivate db
-    repo --> service : Flight Entity
+    repo --> route_svc : Flight Entity
     deactivate repo
 
-    service --> controller : Scheduled Flight DTO
+    route_svc --> controller : Scheduled Flight entity
     controller --> gateway : 201 Created (Flight JSON Payload)
     gateway --> client : 201 Created Response
-else Business Rule / Range Validation Failed
-    service -[#red]> exception_handler : throw DomainException("Aircraft range insufficient or in maintenance")
+else Business Rule Validation Failed
+    route_svc -[#red]> exception_handler : throw DomainException(...)
     activate exception_handler
     exception_handler --> controller : Error Response Payload
-    controller --> gateway : 409 Conflict / 400 Bad Request
+    controller --> gateway : 409 Conflict
     deactivate controller
     gateway --> client : 409 Conflict (ErrorDetails JSON)
     deactivate exception_handler
 end
-deactivate service
+deactivate route_svc
 deactivate gateway
 
 @enduml

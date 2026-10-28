@@ -1,0 +1,116 @@
+@startuml
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 180
+skinparam boxPadding 10
+skinparam participantPadding 10
+skinparam shadowing false
+
+title Sequence Diagram - Scenario 1: Read and Grouping Flows (As Implemented)
+
+autonumber
+
+actor "Client / Postman" as client
+participant "API Gateway\n<<Gateway>>" as gateway
+participant "AirportController\n<<REST Controller>>" as controller
+participant "AirportService\n<<UseCase>>" as airport_uc
+participant "AirportRepository\n<<JPA Repository>>" as repo
+database "H2 Database\n<<In-Memory DB>>" as db
+participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
+
+box "Airport Service [Container]" #LightBlue
+    participant controller
+    participant airport_uc
+    participant repo
+    participant exception_handler
+end box
+
+== Flow A: Airport by IATA Code ==
+
+client -> gateway : GET /api/airports/{iataCode}
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+controller -> airport_uc : getAirportByIata(iataCode)
+activate airport_uc
+airport_uc -> repo : findByIataCode(iataCode)
+activate repo
+repo -> db : SELECT * FROM company_registered_airports WHERE iata_code = ?
+activate db
+db --> repo : Airport row
+deactivate db
+repo --> airport_uc : Optional<Airport>
+deactivate repo
+airport_uc --> controller : Optional<Airport>
+deactivate airport_uc
+
+alt Airport found
+    controller --> gateway : 200 OK (AirportResponse JSON)
+    gateway --> client : 200 OK Response
+else Airport not found
+    controller -[#red]> exception_handler : throw DomainException("Airport does not exist")
+    activate exception_handler
+    exception_handler --> client : 409 Conflict (ErrorDetails JSON)
+    deactivate exception_handler
+end
+deactivate controller
+deactivate gateway
+
+== Flow B: Filtered Search ==
+
+client -> gateway : GET /api/airports?city=&country=&name=
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+controller -> airport_uc : searchAirports(city, country, name)
+activate airport_uc
+airport_uc -> airport_uc : Build JPA Specification (exact match, AND)
+airport_uc -> repo : findAll(spec)
+activate repo
+repo -> db : SELECT ... WHERE <filters>
+activate db
+db --> repo : Airport rows
+deactivate db
+repo --> airport_uc : List<Airport>
+deactivate repo
+airport_uc --> controller : List<Airport>
+deactivate airport_uc
+
+controller --> gateway : 200 OK (List<AirportResponse>)
+deactivate controller
+gateway --> client : 200 OK Response
+deactivate gateway
+
+== Flow C: Grouped Airports ==
+
+client -> gateway : GET /api/airports/grouped?by=country|city
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+controller -> airport_uc : groupAirportsBy(by)
+activate airport_uc
+airport_uc -> repo : findAll()
+activate repo
+repo -> db : SELECT * FROM company_registered_airports
+db --> repo : Airport rows
+repo --> airport_uc : List<Airport>
+deactivate repo
+
+alt by is country or city
+    airport_uc -> airport_uc : groupingBy(country | city)
+    airport_uc --> controller : Map<String, List<Airport>>
+    deactivate airport_uc
+    controller --> gateway : 200 OK (Map<String, List<AirportResponse>>)
+    gateway --> client : 200 OK Response
+else unknown criteria (and at least one airport)
+    airport_uc -[#red]> exception_handler : throw DomainException("Unknown grouping criteria")
+    activate exception_handler
+    exception_handler --> client : 409 Conflict (ErrorDetails JSON)
+    deactivate exception_handler
+end
+deactivate controller
+deactivate gateway
+
+@enduml

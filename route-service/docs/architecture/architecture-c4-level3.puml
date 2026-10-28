@@ -1,0 +1,73 @@
+@startuml
+skinparam linetype polyline
+skinparam nodesep 60
+skinparam ranksep 70
+skinparam shadowing false
+skinparam componentStyle uml2
+
+title Component Diagram (C4 - Level 3) - Route Service (As Implemented)
+
+component "API Gateway\n<<Spring Cloud Gateway>>" as api_gateway
+database "H2 Database\n<<In-Memory>>" as route_db
+component "Airport Service\n<<Microservice>>" as airport_service
+component "Aircraft Service\n<<Microservice>>" as aircraft_service
+component "Flight Service\n<<Microservice>>" as flight_service
+
+package "Route Service [Container]" {
+    component "RouteController\n<<Spring REST Controller>>" as route_controller
+
+    component "RouteService\n<<UseCase>>" as route_uc
+    component "RouteExportService\n<<UseCase>>" as export_uc
+    component "RouteSearchService\n<<Spring Service>>" as route_search_svc
+
+    component "AirportRestClientService\n<<RestClient Adapter>>" as airport_client
+    component "AircraftRestClientService\n<<RestClient Adapter>>" as aircraft_client
+    component "FlightRestClientService\n<<RestClient Adapter>>" as flight_client
+
+    component "Bootstrap\n<<ApplicationRunner>>" as bootstrapper
+
+    component "RouteRepository\n<<Spring Data JPA Repository>>" as route_repo
+
+    component "Route\n<<JPA Aggregate Root>>" as route_entity
+    component "AirportReference\n<<Embeddable Value Object>>" as airport_ref_vo
+    component "AirportLocation\n<<Embeddable Value Object>>" as location_vo
+    component "RouteHistory\n<<Embeddable Value Object>>" as history_vo
+    component "RouteRequirements\n<<Embeddable Value Object>>" as requirements_vo
+    component "RouteStatus / RouteType\n<<Enum>>" as route_enums
+
+    component "GlobalExceptionHandler\n<<@RestControllerAdvice>>" as exception_handler
+    component "ErrorDetails\n<<DTO Payload>>" as error_details
+}
+
+api_gateway --> route_controller : "Routes /api/routes/**\n[HTTPS/JSON]"
+aircraft_service --> route_controller : "GET /api/routes, /{routeId}"
+airport_service --> route_controller : "GET /api/routes, /from/{iata}"
+flight_service --> route_controller : "GET /api/routes, /from/{iata}, /{routeId}"
+
+route_controller --> route_uc : "create, update, queries,\ntotal distance"
+route_controller --> export_uc : "GeoJSON / KML (US228)"
+
+route_uc --> route_repo : "findByRouteId / Specification / save"
+route_uc --> airport_client : "airport by IATA"
+route_uc ..> flight_client : "injected, no calls"
+export_uc --> route_repo : "findAll"
+route_search_svc --> route_repo : "findAll (not used)"
+bootstrapper --> route_repo : "Seeds routes"
+
+route_repo --> route_entity : "Manages persistence"
+
+route_entity *-- airport_ref_vo : "Embeds origin / destination"
+airport_ref_vo *-- location_vo : "Embeds (optional)"
+route_entity *-- history_vo : "Embeds"
+route_entity *-- requirements_vo : "Embeds"
+route_entity --> route_enums : "Uses"
+
+route_repo <--> route_db : "company_routes\n[JDBC/JPA]"
+
+exception_handler --> error_details : "Constructs and returns"
+
+airport_client --> airport_service : "HTTP RestClient"
+aircraft_client ..> aircraft_service : "HTTPS RestClient (not injected)"
+flight_client ..> flight_service : "HTTP RestClient (no methods)"
+
+@enduml

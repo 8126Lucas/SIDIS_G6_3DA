@@ -1,0 +1,66 @@
+@startuml
+skinparam linetype polyline
+skinparam nodesep 60
+skinparam ranksep 70
+skinparam shadowing false
+skinparam componentStyle uml2
+
+title Component Diagram (C4 - Level 3) - Airport Service (As Implemented)
+
+component "API Gateway\n<<Spring Cloud Gateway>>" as api_gateway
+database "H2 Database\n<<In-Memory>>" as airport_db
+component "Route Service\n<<Microservice>>" as route_service
+component "Flight Service\n<<Microservice>>" as flight_service
+
+package "Airport Service [Container]" {
+    component "AirportController\n<<Spring REST Controller>>" as airport_controller
+
+    component "AirportService\n<<UseCase>>" as airport_uc
+    component "AirportCsvService\n<<Spring Service>>" as csv_svc
+
+    component "RouteRestClientService\n<<RestClient Adapter>>" as route_client
+
+    component "Bootstrap\n<<ApplicationRunner>>" as bootstrapper
+
+    component "AirportRepository\n<<Spring Data JPA Repository>>" as airport_repo
+
+    component "Airport\n<<JPA Aggregate Root>>" as airport_entity
+    component "AirportLocation\n<<Embeddable Value Object>>" as location_vo
+    component "Facilities\n<<Embeddable Value Object>>" as facilities_vo
+    component "Contact\n<<Embeddable Value Object>>" as contact_vo
+    component "Runway\n<<JPA Entity>>" as runway_entity
+    component "Certification\n<<JPA Entity>>" as cert_entity
+    component "AirportStatus\n<<Enum>>" as status_enum
+
+    component "GlobalExceptionHandler\n<<@RestControllerAdvice>>" as exception_handler
+    component "ErrorDetails\n<<DTO Payload>>" as error_details
+}
+
+api_gateway --> airport_controller : "Routes /api/airports/**\n[HTTPS/JSON]"
+flight_service --> airport_controller : "GET /api/airports/{iataCode}"
+route_service --> airport_controller : "GET /api/airports/{iataCode}"
+
+airport_controller --> airport_uc : "register, queries, updates,\ncertifications, analytics"
+airport_controller --> csv_svc : "POST /import (parse)"
+airport_controller ..> airport_uc : "execute(airport) per CSV row"
+
+airport_uc --> airport_repo : "findByIataCode / Specification / save"
+airport_uc --> route_client : "routes from airport / all routes"
+bootstrapper --> airport_repo : "Seeds airports"
+
+airport_repo --> airport_entity : "Manages persistence"
+
+airport_entity *-- location_vo : "Embeds"
+airport_entity *-- facilities_vo : "Embeds"
+airport_entity *-- contact_vo : "ElementCollection"
+airport_entity *-- runway_entity : "OneToMany"
+airport_entity *-- cert_entity : "OneToMany"
+airport_entity --> status_enum : "Uses"
+
+airport_repo <--> airport_db : "company_registered_airports\n[JDBC/JPA]"
+
+exception_handler --> error_details : "Constructs and returns"
+
+route_client --> route_service : "HTTP RestClient"
+
+@enduml
