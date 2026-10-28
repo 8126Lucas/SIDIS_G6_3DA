@@ -1,0 +1,110 @@
+@startuml
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 180
+skinparam boxPadding 10
+skinparam participantPadding 10
+skinparam shadowing false
+
+title Sequence Diagram - Scenario 1: Read and Analytics Flows (As Implemented)
+
+autonumber
+
+actor "Client / Postman" as client
+participant "API Gateway\n<<Gateway>>" as gateway
+participant "HangarController\n<<REST Controller>>" as controller
+participant "AircraftSearchService\n<<Application Service>>" as search_svc
+participant "AircraftRepository\n<<JPA Repository>>" as repo
+database "H2 Database\n<<In-Memory DB>>" as db
+participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
+
+box "Aircraft Service [Container]" #LightBlue
+    participant controller
+    participant search_svc
+    participant repo
+    participant exception_handler
+end box
+
+== Flow A: Aircraft by Registration (US103) ==
+
+client -> gateway : GET /api/hangar/aircraft/{registrationNumber}
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+controller -> search_svc : spotAircraftInHangar(registrationNumber)
+activate search_svc
+search_svc -> repo : findById(registrationNumber)
+activate repo
+repo -> db : SELECT * FROM company_aircrafts WHERE registration_number = ?
+activate db
+db --> repo : Aircraft row
+deactivate db
+repo --> search_svc : Optional<Aircraft>
+deactivate repo
+search_svc --> controller : Optional<Aircraft>
+deactivate search_svc
+
+alt Aircraft found
+    controller --> gateway : 200 OK (AircraftResponse JSON)
+    gateway --> client : 200 OK Response
+else Aircraft not found
+    controller -[#red]> exception_handler : throw ResourceNotFoundException
+    activate exception_handler
+    exception_handler --> client : 404 Not Found (ErrorDetails JSON)
+    deactivate exception_handler
+end
+deactivate controller
+deactivate gateway
+
+== Flow B: Filtered Search (US104) ==
+
+client -> gateway : GET /api/hangar/aircraft?model=&status=&manufacturingDate=&page=&size=
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+controller -> search_svc : findAircraftsMatchingFilter(model, status, date, pageable)
+activate search_svc
+search_svc -> search_svc : Build JPA Specification
+search_svc -> repo : findAll(spec, pageable)
+activate repo
+repo -> db : SELECT ... WHERE <filters> LIMIT/OFFSET
+activate db
+db --> repo : Aircraft rows
+deactivate db
+repo --> search_svc : Page<Aircraft>
+deactivate repo
+search_svc --> controller : Page<Aircraft>
+deactivate search_svc
+
+controller --> gateway : 200 OK (List<AircraftResponse>)
+deactivate controller
+gateway --> client : 200 OK Response
+deactivate gateway
+
+== Flow C: Status Summary (US205) ==
+
+client -> gateway : GET /api/hangar/analytics/status-summary
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+loop for each AircraftAvailability
+    controller -> search_svc : countByAvailability(status)
+    activate search_svc
+    search_svc -> repo : countByStatus(status)
+    activate repo
+    repo -> db : SELECT COUNT(*) FROM company_aircrafts WHERE status = ?
+    db --> repo : count
+    repo --> search_svc : long
+    deactivate repo
+    search_svc --> controller : long
+    deactivate search_svc
+end
+
+controller --> gateway : 200 OK (Map<AircraftAvailability, Long>)
+deactivate controller
+gateway --> client : 200 OK Response
+deactivate gateway
+
+@enduml

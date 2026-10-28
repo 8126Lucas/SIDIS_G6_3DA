@@ -1,0 +1,120 @@
+@startuml
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 180
+skinparam boxPadding 10
+skinparam participantPadding 10
+skinparam shadowing false
+
+title Sequence Diagram - Scenario 2: Register Aircraft and Change Availability (As Implemented)
+
+autonumber
+
+actor "Client / Postman" as client
+participant "API Gateway\n<<Gateway>>" as gateway
+participant "HangarController\n<<REST Controller>>" as controller
+participant "AircraftModelSearchService\n<<Application Service>>" as model_search
+participant "AircraftLifeCycleUpdaterService\n<<Application Service>>" as lifecycle
+participant "AddAircraftUseCase\n<<UseCase>>" as add_uc
+participant "AircraftSearchService\n<<Application Service>>" as aircraft_search
+participant "AircraftModelRepository\n<<JPA Repository>>" as model_repo
+participant "AircraftRepository\n<<JPA Repository>>" as aircraft_repo
+database "H2 Database\n<<In-Memory DB>>" as db
+participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
+
+box "Aircraft Service [Container]" #LightBlue
+    participant controller
+    participant model_search
+    participant lifecycle
+    participant add_uc
+    participant aircraft_search
+    participant model_repo
+    participant aircraft_repo
+    participant exception_handler
+end box
+
+== Register Aircraft (US102) ==
+
+client -> gateway : POST /api/hangar/aircraft\n(registrationNumber, modelName, manufacturingDate, hours, availability)
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+controller -> model_search : spotAircraftInCatalog(modelName)
+activate model_search
+model_search -> model_repo : findByModelName(modelName)
+activate model_repo
+model_repo -> db : SELECT * FROM aircraft_models_catalog WHERE model_name = ?
+db --> model_repo : model row
+model_repo --> model_search : Optional<AircraftModel>
+deactivate model_repo
+model_search --> controller : Optional<AircraftModel>
+deactivate model_search
+
+alt Model not found
+    controller -[#red]> exception_handler : throw ResourceNotFoundException
+    activate exception_handler
+    exception_handler --> client : 404 Not Found (ErrorDetails JSON)
+    deactivate exception_handler
+else Model found
+    controller -> controller : new Aircraft(...) [status = INACTIVE]
+    controller -> lifecycle : changeAvailability(aircraft, availability)
+    activate lifecycle
+    alt availability is IN_FLIGHT or unknown
+        lifecycle -[#red]> exception_handler : throw IllegalArgumentException
+        activate exception_handler
+        exception_handler --> client : 400 Bad Request (ErrorDetails JSON)
+        deactivate exception_handler
+    else AVAILABLE / MAINTENANCE / INACTIVE
+        lifecycle --> controller : status applied
+        deactivate lifecycle
+        controller -> add_uc : execute(aircraft)
+        activate add_uc
+        add_uc -> aircraft_repo : save(aircraft)
+        activate aircraft_repo
+        aircraft_repo -> db : INSERT INTO company_aircrafts (+ features, components, certifications)
+        db --> aircraft_repo : persisted
+        aircraft_repo --> add_uc : Aircraft
+        deactivate aircraft_repo
+        add_uc --> controller : void
+        deactivate add_uc
+        controller --> gateway : 201 Created
+        gateway --> client : 201 Created Response
+    end
+end
+deactivate controller
+deactivate gateway
+
+== Change Availability (US105) ==
+
+client -> gateway : PATCH /api/hangar/aircraft/{registrationNumber}\n(registrationNumber, availability)
+activate gateway
+gateway -> controller : Forward request
+activate controller
+
+alt path and body registration differ
+    controller -[#red]> exception_handler : throw DomainException("Non matching info")
+    activate exception_handler
+    exception_handler --> client : 409 Conflict (ErrorDetails JSON)
+    deactivate exception_handler
+else registrations match
+    controller -> aircraft_search : spotAircraftInHangar(registrationNumber)
+    activate aircraft_search
+    aircraft_search -> aircraft_repo : findById(registrationNumber)
+    aircraft_repo --> aircraft_search : Optional<Aircraft>
+    aircraft_search --> controller : Optional<Aircraft>
+    deactivate aircraft_search
+
+    controller -> lifecycle : changeAvailability(aircraft, availability)
+    activate lifecycle
+    lifecycle -> lifecycle : activate / sendToMaintenance / retire
+    lifecycle -> db : UPDATE company_aircrafts SET status = ?, version = version + 1\n(on transaction commit)
+    lifecycle --> controller : void
+    deactivate lifecycle
+
+    controller --> gateway : 200 OK
+    gateway --> client : 200 OK Response
+end
+deactivate controller
+deactivate gateway
+
+@enduml
