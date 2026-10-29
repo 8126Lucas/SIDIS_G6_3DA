@@ -13,6 +13,9 @@ Scenario 1 contains local read operations exposed by `HangarController`:
 * **Flow A:** `GET /api/hangar/aircraft/{registrationNumber}` (US103)
 * **Flow B:** `GET /api/hangar/aircraft?model=&status=&manufacturingDate=` (US104)
 * **Flow C:** `GET /api/hangar/analytics/status-summary` (US205)
+* **Flow D:** rejected requests (gateway `401`, `gatewaySecretFilter` `403`)
+
+In every flow the API Gateway first validates the JWT and forwards the request with `X-Gateway-Secret` and `X-User-Name`; `gatewaySecretFilter` lets it through before the controller runs.
 
 ### Sequence Diagram Source
 
@@ -40,6 +43,12 @@ Scenario 1 contains local read operations exposed by `HangarController`:
 1. Client requests the summary.
 2. For each `AircraftAvailability`, the controller calls `countByAvailability(...)`.
 3. Repository executes `countByStatus(...)`; controller returns the map as `200 OK`.
+
+#### Flow D — Rejected Requests
+
+1. A request without a valid `Authorization: Bearer` header is stopped by the gateway with `401` (empty body).
+2. A direct call to the service port without `X-Gateway-Secret` is stopped by `gatewaySecretFilter` with `403` and the plain-text body `Unauthorized Access! Please use the API Gateway!`.
+3. Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` are not checked.
 
 ---
 
@@ -82,13 +91,13 @@ Scenario 3 describes flows that depend on other microservices:
 #### Flow A — Compatible Routes
 
 1. Controller loads the aircraft locally (`404` if missing).
-2. `RouteRestClientService` calls `GET /api/routes` on `route-service`.
-3. `RouteSearchService` keeps routes with `capacity <= aircraftCapacity` and `distanceKm <= aircraftRange`.
+2. `RouteRestClientService` calls `GET /api/routes` on `route-service`; `JwtTokenInterceptor` adds `X-Gateway-Secret` and copies the `Authorization` header.
+3. `RouteSearchService` keeps routes with `routeRequirements.requiredCapacity <= aircraftCapacity` and `distanceKm <= aircraftRange`.
 4. Controller returns `200 OK`.
 
 #### Flow B — Fuel Efficiency per Route
 
-1. `FuelEfficiencyService` calls `GET /api/flights` on `flight-service`.
+1. `FuelEfficiencyService` calls `GET /api/flights` on `flight-service` (through `JwtTokenInterceptor`).
 2. Flights are grouped by `routeId`.
 3. For each route, `GET /api/routes/{routeId}` is called on `route-service`.
 4. The average L/km of the aircraft that flew the route is multiplied by `distanceKm`.
@@ -97,7 +106,8 @@ Scenario 3 describes flows that depend on other microservices:
 Note:
 
 * `GET /api/flights` is not exposed by `flight-service` in the current code; the resulting `RestClient` error is returned as `500`.
-* `GET /api/routes` is exposed by `route-service`, but `RouteClientDTO.capacity` is not part of its response; the `null` capacity makes Flow A fail with `500` whenever at least one route exists.
+* Even with that endpoint, `FlightClientDTO.aircraftRegistration` does not match `flight-service`'s `aircraftRegistrationNumber`, so the aircraft lookups would miss and the average would be `0.0`.
+* Flow A now reads capacity from `routeRequirements.requiredCapacity`; `originAirportIata` and `destinationAirportIata` are still `null` in the response.
 
 ---
 
@@ -110,6 +120,8 @@ Note:
 | `HttpMessageNotReadableException` | `400 Bad Request` |
 | `IllegalArgumentException` | `400 Bad Request` |
 | `DomainException` | `409 Conflict` |
+| `ObjectOptimisticLockingFailureException` | `409 Conflict` |
+| `IllegalStateException` | `409 Conflict` |
 | `Exception` | `500 Internal Server Error` |
 
-Optimistic locking exists (`@Version` on `Aircraft`), but there is no dedicated handler for `OptimisticLockingFailureException` in the current `GlobalExceptionHandler`. Downstream `RestClient` failures are not handled separately.
+Optimistic locking exists (`@Version` on `Aircraft`) and conflicts map to `409`. Downstream `RestClient` failures are not handled separately (`500`). The `403` from `gatewaySecretFilter` and the `401` from the gateway are not `ErrorDetails` payloads.

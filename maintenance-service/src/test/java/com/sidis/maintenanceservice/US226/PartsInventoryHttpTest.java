@@ -2,6 +2,7 @@ package com.sidis.maintenanceservice.US226;
 
 //import com.sidis.maintenanceservice.Aircraft.application.AircraftSearchService;
 import com.sidis.maintenanceservice.MaintenanceRecordController;
+import com.sidis.maintenanceservice.infrastructure.client.AircraftRestClientService;
 import com.sidis.maintenanceservice.application.*;
 //import com.sidis.maintenanceservice.authUsers.application.JwtService;
 //import com.sidis.maintenanceservice.authUsers.infrastructure.JwtAuthenticationFilter;
@@ -34,6 +35,7 @@ class PartsInventoryHttpTest {
     @MockitoBean private AddMaintenanceRecordUseCase addMaintenanceRecordUseCase;
 //    @MockitoBean private AircraftSearchService aircraftSearchService;
     @MockitoBean private MaintenanceRecordSearchService maintenanceRecordSearchService;
+    @MockitoBean private AircraftRestClientService aircraftRestClientService;
 //    @MockitoBean private JwtService jwtService;
 //    @MockitoBean private JwtAuthenticationFilter jwtAuthenticationFilter;
 

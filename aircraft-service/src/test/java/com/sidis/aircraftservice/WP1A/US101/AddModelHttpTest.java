@@ -5,7 +5,7 @@ import com.sidis.aircraftservice.AircraftCatalog.ModelCatalogController;
 import com.sidis.aircraftservice.AircraftCatalog.application.AddModelUseCase;
 import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
 import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelUpdater;
-//import com.sidis.aircraftservice.Flight.application.FlightSearchService;
+import com.sidis.aircraftservice.AircraftCatalog.application.FlightSearchService;
 //import com.sidis.aircraftservice.authUsers.application.JwtService;
 //import com.sidis.aircraftservice.authUsers.infrastructure.JwtAuthenticationFilter;
 
@@ -43,8 +43,8 @@ class AddModelHttpTest {
     @MockitoBean
     private AircraftModelUpdater aircraftModelUpdater;
 
-//    @MockitoBean
-//    private FlightSearchService flightSearchService;
+    @MockitoBean
+    private FlightSearchService flightSearchService;
 
     @MockitoBean
     private AircraftSearchService aircraftSearchService;

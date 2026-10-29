@@ -1,0 +1,144 @@
+@startuml
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 180
+skinparam boxPadding 10
+skinparam participantPadding 10
+skinparam shadowing false
+
+title Sequence Diagram - Scenario 2: Register Template, Register Record and Advance Status (As Implemented)
+
+autonumber
+
+actor "Client / Postman" as client
+participant "API Gateway\n<<Gateway>>" as gateway
+participant "MaintenanceRecordController\n<<REST Controller>>" as controller
+participant "AddMaintenanceTemplateUseCase\n<<UseCase>>" as add_template_uc
+participant "MaintenanceTemplateSearchService\n<<Application Service>>" as template_search
+participant "AddMaintenanceRecordUseCase\n<<UseCase>>" as add_record_uc
+participant "MaintenanceRecordProgressService\n<<UseCase>>" as progress_svc
+participant "AircraftRestClientService\n<<RestClient Adapter>>" as aircraft_client
+participant "MaintenanceTemplateRepository\n<<JPA Repository>>" as template_repo
+participant "MaintenanceRecordRepository\n<<JPA Repository>>" as record_repo
+participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
+participant "Aircraft Service\n<<External Microservice>>" as aircraft_api
+
+box "Maintenance Service [Container]" #LightBlue
+    participant controller
+    participant add_template_uc
+    participant template_search
+    participant add_record_uc
+    participant progress_svc
+    participant aircraft_client
+    participant template_repo
+    participant record_repo
+    participant exception_handler
+end box
+
+== Register Template (US115) ==
+
+client -> gateway : POST /api/maintenance/templates\n(name, expectedDuration, templateChecklist, operation, attribute)
+activate gateway
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
+activate controller
+
+alt Bean validation fails or operation/attribute unknown
+    controller -[#red]> exception_handler : MethodArgumentNotValidException / IllegalArgumentException
+    activate exception_handler
+    exception_handler --> client : 400 Bad Request (ErrorDetails JSON)
+    deactivate exception_handler
+else Valid request
+    controller -> add_template_uc : execute(name, duration, checklist, type, attribute)
+    activate add_template_uc
+    add_template_uc -> template_repo : save(new MaintenanceTemplate)
+    template_repo --> add_template_uc : MaintenanceTemplate (with templateId)
+    add_template_uc --> controller : MaintenanceTemplate
+    deactivate add_template_uc
+    controller --> gateway : 200 OK (MaintenanceTemplateResponse)
+    gateway --> client : 200 OK Response
+end
+deactivate controller
+deactivate gateway
+
+== Register Record (US116) ==
+
+client -> gateway : POST /api/maintenance/record\n(registrationNumber, templateId, durationHours, description, startDate)
+activate gateway
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
+activate controller
+
+controller -> aircraft_client : findAircraftByRegistration(registrationNumber)
+activate aircraft_client
+aircraft_client -> aircraft_api : GET /api/hangar/aircraft/{registrationNumber}\n(+ X-Gateway-Secret, Authorization via JwtTokenInterceptor)
+activate aircraft_api
+aircraft_api --> aircraft_client : AircraftResponse (registrationNumber, modelName, ...) or 404
+deactivate aircraft_api
+aircraft_client --> controller : Optional<AircraftClientDTO>\n(aircraftRegistration = null: field name mismatch)
+deactivate aircraft_client
+
+alt Aircraft 404
+    controller -[#red]> exception_handler : throw ResourceNotFoundException("Aircraft does not exist in hangar")
+    activate exception_handler
+    exception_handler --> client : 404 Not Found (ErrorDetails JSON)
+    deactivate exception_handler
+else Aircraft found
+    controller -> template_search : findByTemplateId(templateId)
+    activate template_search
+    template_search --> controller : Optional<MaintenanceTemplate> (404 if empty)
+    deactivate template_search
+
+    controller -> add_record_uc : executeShort(aircraftDto.aircraftRegistration() = null, template, ...)
+    activate add_record_uc
+    add_record_uc -> aircraft_client : findAircraftByRegistration(null)
+    activate aircraft_client
+    aircraft_client -> aircraft_api : GET /api/hangar/aircraft/
+    aircraft_api --[#red]> aircraft_client : error (path does not match single-aircraft endpoint)
+    aircraft_client -[#red]> exception_handler : RestClient exception (not caught)
+    deactivate aircraft_client
+    deactivate add_record_uc
+    activate exception_handler
+    exception_handler --> client : 500 Internal Server Error (ErrorDetails JSON)
+    deactivate exception_handler
+end
+deactivate controller
+deactivate gateway
+
+note over add_record_uc, record_repo : If the second lookup succeeded, record_repo.save(new MaintenanceRecord(...))\nwould store status INLINE with aircraftRegistration = null and return 200 (empty body).
+
+== Advance Status (US119) ==
+
+client -> gateway : PATCH /api/maintenance/records/{id}/status\n{ "status": "ONGOING" }
+activate gateway
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
+activate controller
+
+controller -> progress_svc : advanceStatus(id, MaintenanceStatus.valueOf(status))
+activate progress_svc
+progress_svc -> record_repo : findByRecordId(id)
+record_repo --> progress_svc : Optional<MaintenanceRecord>
+
+alt Record not found
+    progress_svc -[#red]> exception_handler : throw DomainException("Maintenance record does not exist")
+    activate exception_handler
+    exception_handler --> client : 409 Conflict
+    deactivate exception_handler
+else status == ONGOING
+    progress_svc -> progress_svc : record.markAsOngoing()
+    progress_svc -> record_repo : save(record) [version + 1]
+    record_repo --> progress_svc : MaintenanceRecord
+    progress_svc --> controller : MaintenanceRecord
+    controller --> gateway : 200 OK (MaintenanceRecordResponse)
+    gateway --> client : 200 OK Response
+else status == COMPLETED or INLINE
+    progress_svc -[#red]> exception_handler : throw DomainException\n("Use the complete endpoint..." / "Invalid status transition")
+    activate exception_handler
+    exception_handler --> client : 409 Conflict
+    deactivate exception_handler
+end
+deactivate progress_svc
+deactivate controller
+deactivate gateway
+
+@enduml

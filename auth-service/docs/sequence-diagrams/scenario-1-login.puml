@@ -1,0 +1,88 @@
+@startuml
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 180
+skinparam boxPadding 10
+skinparam participantPadding 10
+skinparam shadowing false
+
+title Sequence Diagram - Scenario 1: Login (As Implemented)
+
+autonumber
+
+actor "Client / Postman" as client
+participant "API Gateway\n<<Gateway>>" as gateway
+participant "SecurityFilterChain\n<<Spring Security>>" as security
+participant "AuthController\n<<REST Controller>>" as controller
+participant "AuthenticateCollaboratorUseCase\n<<UseCase>>" as auth_uc
+participant "CollaboratorRepository\n<<JPA Repository>>" as repo
+database "H2 Database\n<<In-Memory DB>>" as db
+participant "PasswordEncoder\n<<BCrypt>>" as encoder
+participant "JwtService\n<<Spring Service>>" as jwt_service
+participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
+
+box "Auth Service [Container]" #LightBlue
+    participant security
+    participant controller
+    participant auth_uc
+    participant repo
+    participant encoder
+    participant jwt_service
+    participant exception_handler
+end box
+
+client -> gateway : POST /api/auth/login\n{ username, password }
+activate gateway
+gateway -> security : Forward request (no JWT filter on /api/auth/**)
+activate security
+security -> security : POST /api/auth/login is permitAll
+security -> controller : request
+activate controller
+
+alt username or password blank
+    controller -[#red]> exception_handler : MethodArgumentNotValidException
+    activate exception_handler
+    exception_handler --> client : 400 Bad Request (ErrorDetails, validationErrors)
+    deactivate exception_handler
+else valid body
+    controller -> auth_uc : execute(LoginRequest)
+    activate auth_uc
+    auth_uc -> repo : findByUsername(username)
+    activate repo
+    repo -> db : SELECT * FROM company_colaborators WHERE username = ?
+    db --> repo : row (or none)
+    repo --> auth_uc : Optional<Collaborator>
+    deactivate repo
+
+    alt collaborator not found
+        auth_uc -[#red]> exception_handler : throw InvalidCredentialsException
+        activate exception_handler
+        exception_handler --> client : 409 Conflict ("Invalid credentials")
+        deactivate exception_handler
+    else collaborator found
+        auth_uc -> encoder : matches(password, hash)
+        activate encoder
+        encoder --> auth_uc : boolean
+        deactivate encoder
+        alt password does not match
+            auth_uc -[#red]> exception_handler : throw InvalidCredentialsException
+            activate exception_handler
+            exception_handler --> client : 409 Conflict ("Invalid credentials")
+            deactivate exception_handler
+        else password matches
+            auth_uc -> jwt_service : generateToken(collaborator)
+            activate jwt_service
+            jwt_service -> jwt_service : sub = collaboratorId, roles,\niat, exp = iat + 1h, sign HS384
+            jwt_service --> auth_uc : token
+            deactivate jwt_service
+            auth_uc --> controller : TokenResponse(token)
+            controller --> gateway : 200 OK { "token": "..." }
+            gateway --> client : 200 OK Response
+        end
+    end
+    deactivate auth_uc
+end
+deactivate controller
+deactivate security
+deactivate gateway
+
+@enduml
