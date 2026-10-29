@@ -44,7 +44,7 @@ public class MaintenanceAlertService {
         for (AircraftClientDTO aircraft : allAircraft) {
             Optional<MaintenanceRecord> lastMaintenance = completedRecords.stream()
                     .filter(r -> r.getAircraftRegistration()
-                            .equals(aircraft.aircraftRegistration()))
+                            .equals(aircraft.registrationNumber()))
                     .max(Comparator.comparing(MaintenanceRecord::getEndDate));
 
             List<String> reasons = new ArrayList<>();
@@ -67,7 +67,7 @@ public class MaintenanceAlertService {
                 Long daysSince = lastDate != null ? ChronoUnit.DAYS.between(lastDate, today) : null;
 
                 alerts.add(new MaintenanceAlert(
-                        aircraft.aircraftRegistration(),
+                        aircraft.registrationNumber(),
                         aircraft.modelName(),
                         aircraft.totalFlightHours(),
                         lastDate,

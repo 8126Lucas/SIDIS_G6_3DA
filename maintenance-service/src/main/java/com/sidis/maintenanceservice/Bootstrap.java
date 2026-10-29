@@ -89,7 +89,7 @@ public class Bootstrap implements ApplicationRunner {
                         "Check oil", true,
                         "Inspect motor", true,
                         "Verify pressure systems", true
-                )),     LocalDate.of(2003, 3, 1));
+                )),     LocalDate.now().minusDays(5));
 
         // ================= LANDING GEAR =================
 
@@ -118,7 +118,7 @@ public class Bootstrap implements ApplicationRunner {
                 "Completed",
                 List.of("tech"),
                 landingGearInspection,
-                "DA-BXA"
+                "D-ABXA"
         );
         r2.markAsCompleted(new DoneList(
                 "Landing gear inspection completed. Tires replaced.",
@@ -127,7 +127,7 @@ public class Bootstrap implements ApplicationRunner {
                         "Check brake assemblies", true,
                         "Verify hydraulic actuators", true
                 )
-        ),LocalDate.of(2013, 4, 12));
+        ),LocalDate.now().minusDays(2));
 
         // ================= AVIONICS =================
 
@@ -153,7 +153,7 @@ public class Bootstrap implements ApplicationRunner {
                 "Completed",
                 List.of("tech"),
                 avionicsCheck,
-                "FH-XKA"
+                "F-HXKA"
         );
 
         r3.markAsCompleted(new DoneList(
@@ -163,7 +163,7 @@ public class Bootstrap implements ApplicationRunner {
                         "Inspect flight computer", true,
                         "Verify communication systems", true
                 )
-        ),LocalDate.of(2023, 9, 21));
+        ),LocalDate.now().minusDays(1));
 
         // ================= ENGINE REPAIR =================
 

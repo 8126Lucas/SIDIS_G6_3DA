@@ -19,10 +19,11 @@ public class AircraftRestClientService {
 
     public List<AircraftClientDTO> findAll() {
         try {
-            return Collections.singletonList(aircraftClient.get()
+            return aircraftClient.get()
                     .uri("/api/hangar/aircraft")
                     .retrieve()
-                    .body(AircraftClientDTO.class));
+                    .body(new org.springframework.core.ParameterizedTypeReference<
+                            List<AircraftClientDTO>>() {});
         } catch (HttpClientErrorException e) {
             return new ArrayList<>();
         }

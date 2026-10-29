@@ -104,7 +104,7 @@ public class MaintenanceRecordController {
                 .orElseThrow(() -> new ResourceNotFoundException("Maintenance Template does not exist"));
 
         addMaintenanceRecordUseCase.executeShort(
-                aircraftDto.aircraftRegistration(),
+                aircraftDto.registrationNumber(),
                 maintenanceTemplate,
                 request.durationHours(),
                 request.description(),
