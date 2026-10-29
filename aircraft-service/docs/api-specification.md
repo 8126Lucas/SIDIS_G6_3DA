@@ -6,18 +6,33 @@ This document reflects the current implementation in `HangarController`, `ModelC
 
 ## 1. General Service Configuration
 
-* **Base URL (local):** `http://localhost:8081`
+* **Base URL (via API Gateway):** `https://localhost:7979`
+* **Base URL (service, local):** `http://localhost:8081`
 * **API Prefixes:** `/api/hangar`, `/api/catalog`
 * **Content-Type:** `application/json`
+
+### 1.1. Required Headers
+
+| Header | Where it is checked | Effect when missing / invalid |
+| :--- | :--- | :--- |
+| `Authorization: Bearer <JWT>` | API Gateway (`JwtAuthentication` filter) | `401 Unauthorized` (empty body) from the gateway |
+| `X-Gateway-Secret: sidis-g6-secret` | `AircraftSecurityConfig.gatewaySecretFilter` | `403 Forbidden`, body `Unauthorized Access! Please use the API Gateway!` |
+
+* The gateway adds `X-Gateway-Secret` and `X-User-Name` after validating the JWT, so clients only send `Authorization`.
+* The service itself does not validate the JWT and does not read `X-User-Name`; all requests that pass the secret filter are `permitAll()`.
+* Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` skip the secret filter.
 
 ---
 
 ## 2. Implemented Endpoints Summary
 
+All endpoints additionally return `403` when `X-Gateway-Secret` is missing (and `401` at the gateway when the JWT is missing or invalid).
+
 | Method | Endpoint Path | Description | User Story | Status Codes |
 | :--- | :--- | :--- | :--- | :--- |
 | `POST` | `/api/catalog/model` | Add an aircraft model to the catalog | US101, US202 | `201`, `400`, `500` |
 | `PATCH` | `/api/catalog/model/{modelName}` | Update an aircraft model | US201 | `200`, `404`, `409`, `500` |
+| `GET` | `/api/catalog/rankings?mode=` | Top 5 models by assignments or flight hours | US204 | `200`, `500` |
 | `POST` | `/api/hangar/aircraft` | Register a new aircraft in the hangar | US102 | `201`, `400`, `404`, `500` |
 | `GET` | `/api/hangar/aircraft/{registrationNumber}` | Get one aircraft | US103 | `200`, `404` |
 | `GET` | `/api/hangar/aircraft` | List aircraft with optional filters and paging | US104 | `200`, `400` |
@@ -30,13 +45,9 @@ This document reflects the current implementation in `HangarController`, `ModelC
 | `GET` | `/api/hangar/analytics/fuel-efficiency/aircraft` | Fuel consumption (L/km) per aircraft | US227 | `200` |
 | `GET` | `/api/hangar/analytics/fuel-efficiency/routes` | Estimated fuel per route | US227 | `200`, `500` |
 | `GET` | `/api/hangar/analytics/fuel-efficiency` | Legacy combined fuel efficiency map | — | `200`, `500` |
-| `GET` | `/api/hangar/aicraft-features` | Aircraft having all requested features | — | `200`, `500` |
-| `GET` | `/api/hangar/view/utilization` | Thymeleaf utilization page | — | `500` |
-| `GET` | `/api/welcome` | Landing message | — | `200` |
-
-Not implemented:
-
-* `GET /api/catalog/rankings?mode=assignments|flight-hours` (US204) is commented out in `ModelCatalogController`.
+| `GET` | `/api/hangar/aircraft-features` | Aircraft having all requested features | — | `200`, `400` |
+| `GET` | `/api/hangar/view/utilization` | Thymeleaf utilization page (placeholder) | — | `200`, `500` |
+| `GET` | `/api/welcome` | Landing message (not routed by the gateway) | — | `200` |
 
 ---
 
@@ -74,7 +85,7 @@ Empty body.
 Notes:
 
 * `modelName` is the assigned `@Id` and `AircraftModel` has no `@Version`, so `save(...)` performs a merge: posting an existing `modelName` overwrites that model instead of being rejected.
-* If `specs` is omitted, the controller dereferences `null` and the request ends in `500`.
+* If `specs` is omitted, the controller throws `IllegalArgumentException` (`"Object 'specs' is mandatory in the request body."`) → `400`.
 * `fuelCapacityLiters`, `maximumRangeKm`, and `cruisingSpeedKph` are `nullable = false` columns; missing values fail at persistence (`500`).
 
 ---
@@ -113,6 +124,39 @@ Validations:
 Note:
 
 * `specs` is always dereferenced; sending only `modelImage` or `manufacturer` without `specs` ends in `500`.
+
+---
+
+### 3.2.1. Model Rankings (US204)
+
+* **Endpoint:** `GET /api/catalog/rankings?mode={assignments|flight-hours}`
+* **Description:** Returns the top 5 models, ordered descending.
+  * `assignments`: loads all flights from `flight-service` through `FlightSearchService`, counts flights per aircraft registration, and sums the counts per model.
+  * `flight-hours`: sums `totalFlightHours` of the hangar aircraft per model (local data only).
+  * Any other `mode` value returns an empty list.
+
+#### Response Example (`200 OK`, `mode=flight-hours`)
+
+```json
+[
+  {
+    "modelName": "737-800",
+    "modelImage": ["b737-800-front.jpg", "b737-800-side.jpg", "b737-800-cabin.jpg"],
+    "manufacturer": "Boeing",
+    "specs": {
+      "fuelCapacityLiters": 70500.0,
+      "maximumRangeKm": 5436.0,
+      "cruisingSpeedKph": 842.0,
+      "standardSeatingCapacity": 189
+    }
+  }
+]
+```
+
+Notes:
+
+* `mode` is a required `@RequestParam`; omitting it raises `MissingServletRequestParameterException`, which falls into the generic handler (`500`).
+* `mode=assignments` calls `GET /api/flights`, which `flight-service` does not expose, so it ends in `500`. Even with that endpoint, `FlightClientDTO.aircraftRegistration` does not match `flight-service`'s `aircraftRegistrationNumber`, so every flight would be filtered out and the result would be empty.
 
 ---
 
@@ -171,7 +215,7 @@ Notes:
 }
 ```
 
-This endpoint is also consumed by `flight-service` during flight scheduling.
+This endpoint is also consumed by `flight-service` (flight scheduling) and `maintenance-service` (record creation and filtering). Only `maintenance-service` sends `X-Gateway-Secret` (see `domain-and-resilience.md`, section 4).
 
 ---
 
@@ -246,10 +290,12 @@ Validations:
   {
     "routeId": 101,
     "routeName": "OPO-LIS",
-    "originAirportIata": "OPO",
-    "destinationAirportIata": "LIS",
+    "originAirportIata": null,
+    "destinationAirportIata": null,
     "distanceKm": 274.0,
-    "capacity": 150
+    "routeRequirements": {
+      "requiredCapacity": 150
+    }
   }
 ]
 ```
@@ -257,8 +303,9 @@ Validations:
 Notes:
 
 * Capacity comes from the aircraft `SeatingPack`, or falls back to the model `standardSeatingCapacity`.
+* Route capacity is read from `routeRequirements.requiredCapacity` (`RouteClientDTO.capacity()`), which now matches `route-service`'s response.
 * In `RouteSearchService`, the fallback to model `maximumRange` is overwritten by `meanRange`; since `meanRange` starts at `0.0`, only zero-distance routes match unless `meanRange` was updated.
-* The client calls `GET /api/routes`, which `route-service` exposes, but `RouteClientDTO` does not match its response: `capacity` is always `null` (the route-service exposes `routeRequirements.requiredCapacity`), so `route.capacity() <= capacity` throws `NullPointerException` (`500`) whenever at least one route exists (see `domain-and-resilience.md`).
+* `originAirportIata` and `destinationAirportIata` are always `null`, because `route-service` returns `originIataCode` and `destinationIataCode`.
 
 ---
 
@@ -362,8 +409,8 @@ The timestamp is `Instant.now()` truncated to minutes.
   {
     "routeId": 101,
     "routeName": "OPO-LIS",
-    "originIata": "OPO",
-    "destinationIata": "LIS",
+    "originIata": null,
+    "destinationIata": null,
     "distanceKm": 274.0,
     "avgFuelConsumptionLitPerKm": 12.97,
     "estimatedFuelLiters": 3553.78
@@ -373,15 +420,16 @@ The timestamp is `Instant.now()` truncated to minutes.
 
 Note:
 
-* Depends on `GET /api/flights` in `flight-service`, which is not exposed in the current code.
+* Depends on `GET /api/flights` in `flight-service`, which is not exposed in the current code (`500`).
+* Even with that endpoint, `FlightClientDTO` expects `aircraftRegistration`, so every aircraft lookup would miss and `avgFuelConsumptionLitPerKm` would be `0.0`.
 
 ---
 
 ### 3.13. Other Endpoints
 
-* `GET /api/hangar/analytics/fuel-efficiency`: legacy map mixing per-aircraft L/km and `"Flight {id}:"` entries; `page`/`size` are accepted but not used. Also depends on `GET /api/flights`.
-* `GET /api/hangar/aicraft-features` (path spelled `aicraft`): GET with a JSON body `{"features": ["Wi-Fi"]}`; an empty or missing list makes the service return `null`, which ends in `500`.
-* `GET /api/hangar/view/utilization`: returns the `utilization` Thymeleaf view, but no template exists in `src/main/resources`.
+* `GET /api/hangar/analytics/fuel-efficiency`: legacy map mixing per-aircraft L/km and `"Flight {id}:"` entries; `page`/`size` are accepted but not used. Also depends on `GET /api/flights` (`500`).
+* `GET /api/hangar/aircraft-features`: GET with a JSON body `{"features": ["Wi-Fi"]}`; an empty or missing list throws `IllegalArgumentException` (`"Feature list cannot be empty!"`) → `400`.
+* `GET /api/hangar/view/utilization`: `CalculationsService` calls `GET /api/flights/aircraft/{registration}` on `flight-service` for every aircraft and builds 12 months of utilization (`flightHours / hoursInMonth × 100`, rounded to 2 decimals). The `utilization.html` template is a placeholder ("in progress") that does not render `utilizationData`. Because `FlightClientDTO` expects `departure` and `flightHours` (not returned by `flight-service`), every rate is `0.0`. Any downstream failure ends in `500`.
 
 ---
 
@@ -409,8 +457,11 @@ Error payload model: `ErrorDetails`
 | `HttpMessageNotReadableException` | `400 Bad Request` |
 | `IllegalArgumentException` | `400 Bad Request` |
 | `DomainException` | `409 Conflict` |
+| `ObjectOptimisticLockingFailureException` | `409 Conflict` (`"The record was modified by another user."`) |
+| `IllegalStateException` | `409 Conflict` |
 | `Exception` | `500 Internal Server Error` |
 
-Note:
+Notes:
 
-* There is no dedicated handler for `OptimisticLockingFailureException` or for `RestClient` errors from downstream services; both map to `500`.
+* There is no dedicated handler for `RestClient` errors from downstream services; they map to `500`.
+* The `403` from the gateway secret filter is written directly by the filter as plain text, not as `ErrorDetails`.

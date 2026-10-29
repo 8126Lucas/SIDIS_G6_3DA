@@ -8,15 +8,18 @@ This document describes the current internal component architecture at C4 Level 
 
 The `aircraft-service` currently exposes three controllers and the following main application services:
 
+* **`AircraftSecurityConfig`**
+   * Stateless `SecurityFilterChain` with `gatewaySecretFilter`, which rejects requests without `X-Gateway-Secret` (`403`).
 * **`ModelCatalogController`** (`/api/catalog`)
    * `POST /model`
    * `PATCH /model/{modelName}`
+   * `GET /rankings?mode=` (US204).
 * **`HangarController`** (`/api/hangar`)
    * Aircraft CRUD-like operations under `/aircraft/**`.
    * Analytics under `/analytics/**`.
-   * Feature search under `/aicraft-features`.
+   * Feature search under `/aircraft-features`.
 * **`HangarViewController`** (`/api/hangar/view`)
-   * `GET /utilization` (Thymeleaf view).
+   * `GET /utilization` (Thymeleaf view, placeholder template).
 * **`AddModelUseCase`** / **`AircraftModelUpdater`** / **`AircraftModelSearchService`**
    * Catalog persistence, updates, and lookup by `modelName`.
 * **`AddAircraftUseCase`**
@@ -27,6 +30,8 @@ The `aircraft-service` currently exposes three controllers and the following mai
    * Availability transitions on the `Aircraft` aggregate.
 * **`RouteSearchService`**
    * Compatible-route filtering by capacity and range.
+* **`FlightSearchService`**
+   * Flight counts per aircraft from `flight-service`, used by the model ranking.
 * **`FuelEfficiencyService`**
    * Fuel metrics per aircraft and per route.
 * **`CalculationsService`**
@@ -36,17 +41,13 @@ The `aircraft-service` currently exposes three controllers and the following mai
 * **`GlobalExceptionHandler`**
    * Cross-cutting HTTP error normalization (`ErrorDetails`).
 * **`UseCaseLoggingAdvice`**
-   * AOP logging for `@UseCase` classes.
+   * AOP logging intended for `@UseCase` classes (pointcut currently matches no class).
 
 External integration clients:
 
 * `RouteRestClientService` -> `route-service`
 * `FlightRestClientService` -> `flight-service`
-
-Not present in current implementation:
-
-* Model ranking endpoint (US204).
-* Security configuration (`SecurityFilterChain`) despite the security dependency.
+* Both are built from the shared `GlobalRestClientConfig` builder, which adds `JwtTokenInterceptor` (`X-Gateway-Secret` + `Authorization` propagation).
 
 ---
 
@@ -60,9 +61,10 @@ PlantUML source file:
 
 ## 3. Data Flow and Dependencies
 
-1. Inbound requests arrive through the API Gateway for `/api/hangar/**`; `/api/catalog/**` is reached directly on the service port.
-2. Catalog flows go from `ModelCatalogController` to `AddModelUseCase` / `AircraftModelUpdater`, which persist through `AircraftModelRepository`.
-3. Aircraft registration resolves the model through `AircraftModelSearchService`, applies the availability through `AircraftLifeCycleUpdaterService`, and persists through `AddAircraftUseCase`.
-4. Read and analytics flows use `AircraftSearchService` over `AircraftRepository`.
-5. Compatible routes and route fuel efficiency call `route-service` (and `flight-service` for fuel) through `RestClient` adapters.
-6. Exceptions are transformed by `GlobalExceptionHandler` into `ErrorDetails` payloads.
+1. Inbound requests arrive through the API Gateway for `/api/hangar/**` and `/api/catalog/**`; the gateway validates the JWT and adds `X-Gateway-Secret`.
+2. `gatewaySecretFilter` checks the secret header before any controller runs (`403` when missing).
+3. Catalog flows go from `ModelCatalogController` to `AddModelUseCase` / `AircraftModelUpdater`, which persist through `AircraftModelRepository`.
+4. Aircraft registration resolves the model through `AircraftModelSearchService`, applies the availability through `AircraftLifeCycleUpdaterService`, and persists through `AddAircraftUseCase`.
+5. Read and analytics flows use `AircraftSearchService` over `AircraftRepository`.
+6. Compatible routes, route fuel efficiency, model rankings (`assignments`) and the utilization view call `route-service` and/or `flight-service` through `RestClient` adapters.
+7. Exceptions are transformed by `GlobalExceptionHandler` into `ErrorDetails` payloads.

@@ -36,7 +36,8 @@ end box
 
 client -> gateway : POST /api/hangar/aircraft\n(registrationNumber, modelName, manufacturingDate, hours, availability)
 activate gateway
-gateway -> controller : Forward request
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> model_search : spotAircraftInCatalog(modelName)
@@ -88,7 +89,8 @@ deactivate gateway
 
 client -> gateway : PATCH /api/hangar/aircraft/{registrationNumber}\n(registrationNumber, availability)
 activate gateway
-gateway -> controller : Forward request
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 alt path and body registration differ

@@ -1,0 +1,57 @@
+@startuml
+skinparam linetype polyline
+skinparam nodesep 60
+skinparam ranksep 70
+skinparam shadowing false
+skinparam componentStyle uml2
+
+title Component Diagram (C4 - Level 3) - Auth Service (As Implemented)
+
+component "API Gateway\n<<Spring Cloud Gateway>>" as api_gateway
+database "H2 Database\n<<In-Memory>>" as auth_db
+component "Other Microservices\n(aircraft, airport, maintenance,\nroute, flight)" as other_services
+
+package "Auth Service [Container]" {
+    component "SecurityConfig\n<<SecurityFilterChain + BCryptPasswordEncoder>>" as security_config
+
+    component "AuthController\n<<Spring REST Controller>>" as auth_controller
+    component "LandingController\n<<Spring REST Controller>>" as landing_controller
+
+    component "AuthenticateCollaboratorUseCase\n<<UseCase>>" as auth_uc
+    component "JwtService\n<<Spring Service>>" as jwt_service
+    component "JwtAuthenticationFilter\n<<OncePerRequestFilter>>\n(not in security chain)" as jwt_filter
+    component "CollaboratorDetailsService\n<<UserDetailsService>>\n(unused)" as details_service
+
+    component "CollaboratorRepository\n<<Spring Data JPA Repository>>" as collaborator_repo
+    component "Collaborator\n<<JPA Entity>>" as collaborator_entity
+    component "Role\n<<Enum>>" as role_enum
+
+    component "Bootstrap\n<<ApplicationRunner>>" as bootstrapper
+
+    component "GlobalExceptionHandler\n<<@RestControllerAdvice>>" as exception_handler
+    component "ErrorDetails\n<<DTO Payload>>" as error_details
+}
+
+api_gateway --> security_config : "Routes /api/auth/**\n(no JWT filter)\n[HTTP/JSON]"
+security_config --> auth_controller : "POST /api/auth/login permitAll"
+security_config --> landing_controller : "GET /api/welcome permitAll"
+
+auth_controller --> auth_uc : "execute(LoginRequest)"
+auth_uc --> collaborator_repo : "findByUsername"
+auth_uc --> security_config : "PasswordEncoder.matches"
+auth_uc --> jwt_service : "generateToken"
+
+jwt_filter ..> jwt_service : "isTokenValid / extract*"
+details_service ..> collaborator_repo : "findByUsername"
+
+bootstrapper --> collaborator_repo : "Seeds collaborators"
+
+collaborator_repo --> collaborator_entity : "Manages persistence"
+collaborator_entity --> role_enum : "Uses"
+collaborator_repo <--> auth_db : "company_colaborators\ncompany_colaborators_roles\n[JDBC/JPA]"
+
+exception_handler --> error_details : "Constructs and returns"
+
+api_gateway --> other_services : "Validates JWT with the same secret,\nadds X-User-Name + X-Gateway-Secret"
+
+@enduml

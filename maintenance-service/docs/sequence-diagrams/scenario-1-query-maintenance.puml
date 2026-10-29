@@ -1,0 +1,139 @@
+@startuml
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 180
+skinparam boxPadding 10
+skinparam participantPadding 10
+skinparam shadowing false
+
+title Sequence Diagram - Scenario 1: Template and Record Queries (As Implemented)
+
+autonumber
+
+actor "Client / Postman" as client
+participant "API Gateway\n<<Gateway>>" as gateway
+participant "gatewaySecretFilter\n<<OncePerRequestFilter>>" as secret_filter
+participant "MaintenanceRecordController\n<<REST Controller>>" as controller
+participant "MaintenanceTemplateSearchService\n<<Application Service>>" as template_search
+participant "MaintenanceRecordProgressService\n<<UseCase>>" as progress_svc
+participant "MaintenanceRecordSearchService\n<<Application Service>>" as record_search
+participant "MaintenanceRecordRepository\n<<JPA Repository>>" as record_repo
+database "H2 Database\n<<In-Memory DB>>" as db
+participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
+
+box "Maintenance Service [Container]" #LightBlue
+    participant secret_filter
+    participant controller
+    participant template_search
+    participant progress_svc
+    participant record_search
+    participant record_repo
+    participant exception_handler
+end box
+
+== Flow A: Template by Id (US117) ==
+
+client -> gateway : GET /api/maintenance/templates/{id}
+activate gateway
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> secret_filter : Forward request\n(+ X-Gateway-Secret, X-User-Name)
+activate secret_filter
+secret_filter -> controller : secret OK
+activate controller
+
+controller -> template_search : findByTemplateId(id)
+activate template_search
+template_search -> db : SELECT * FROM maintenance_template WHERE template_id = ?
+db --> template_search : row (or none)
+template_search --> controller : Optional<MaintenanceTemplate>
+deactivate template_search
+
+alt Template found
+    controller --> gateway : 200 OK (MaintenanceTemplateResponse)
+    gateway --> client : 200 OK Response
+else Template not found
+    controller -[#red]> exception_handler : throw DomainException("Maintenance Template does not exist")
+    activate exception_handler
+    exception_handler --> client : 409 Conflict (ErrorDetails JSON)
+    deactivate exception_handler
+end
+deactivate controller
+deactivate secret_filter
+deactivate gateway
+
+== Flow B: Record by Id (US119) ==
+
+client -> gateway : GET /api/maintenance/records/{id}
+activate gateway
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
+activate controller
+
+controller -> progress_svc : findById(id)
+activate progress_svc
+progress_svc -> record_repo : findByRecordId(id)
+activate record_repo
+record_repo -> db : SELECT * FROM company_maintenance_records WHERE record_id = ?
+db --> record_repo : row (or none)
+record_repo --> progress_svc : Optional<MaintenanceRecord>
+deactivate record_repo
+progress_svc --> controller : Optional<MaintenanceRecord>
+deactivate progress_svc
+
+alt Record found
+    controller --> gateway : 200 OK (MaintenanceRecordResponse)
+    gateway --> client : 200 OK Response
+else Record not found
+    controller -[#red]> exception_handler : throw DomainException("Maintenance Record does not exist")
+    activate exception_handler
+    exception_handler --> client : 409 Conflict (ErrorDetails JSON)
+    deactivate exception_handler
+end
+deactivate controller
+deactivate gateway
+
+== Flow C: Search Records (US218) ==
+
+client -> gateway : GET /api/maintenance/records?aircraft=&attribute=&initialDate=&finalDate=
+activate gateway
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
+activate controller
+
+opt aircraft parameter present
+    controller -> controller : aircraftClient.findAircraftByRegistration(aircraft)\n(409 if not found)
+end
+
+controller -> record_search : findRecordsMatchingFilter(aircraft, attribute, dates, pageable)
+activate record_search
+alt aircraft == null
+    record_search -[#red]> exception_handler : aircraftRegistration.isEmpty() -> NullPointerException
+else aircraft present
+    record_search -> record_repo : findAll(spec with root.get("aircraft"), pageable)
+    activate record_repo
+    record_repo -[#red]> exception_handler : no attribute "aircraft" on MaintenanceRecord\n(entity field is aircraftRegistration)
+    deactivate record_repo
+end
+deactivate record_search
+activate exception_handler
+exception_handler --> client : 500 Internal Server Error (ErrorDetails JSON)
+deactivate exception_handler
+deactivate controller
+deactivate gateway
+
+== Flow D: Rejected Requests (Gateway JWT / Secret Filter) ==
+
+client -> gateway : GET /api/maintenance/templates\n(no or invalid Authorization header)
+activate gateway
+gateway -> gateway : JWT missing / invalid
+gateway --[#red]> client : 401 Unauthorized (empty body)
+deactivate gateway
+
+client -> secret_filter : GET http://localhost:8121/api/maintenance/templates\n(direct call, no X-Gateway-Secret)
+activate secret_filter
+secret_filter -> secret_filter : path is not /h2-console, /swagger-ui, /api-docs
+secret_filter --[#red]> client : 403 Forbidden\n"Unauthorized Access! Please use the API Gateway!"
+deactivate secret_filter
+
+note over gateway, controller : In Flows B and C the forwarded request also passes gatewaySecretFilter\n(omitted for brevity).
+
+@enduml

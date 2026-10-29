@@ -1,0 +1,68 @@
+@startuml
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 180
+skinparam boxPadding 10
+skinparam participantPadding 10
+skinparam shadowing false
+
+title Sequence Diagram - Scenario 2: Authenticated Request with the Issued Token (As Implemented)
+
+autonumber
+
+actor "Client / Postman" as client
+participant "API Gateway\n<<Gateway>>" as gateway
+participant "JwtAuthenticationGatewayFilterFactory\n<<GatewayFilter>>" as gateway_filter
+participant "Downstream Service\n(e.g. maintenance-service)" as downstream
+participant "gatewaySecretFilter\n<<OncePerRequestFilter>>" as secret_filter
+participant "Controller\n<<REST Controller>>" as controller
+
+box "API Gateway [Container]" #LightYellow
+    participant gateway
+    participant gateway_filter
+end box
+
+box "Downstream Service [Container]" #LightBlue
+    participant secret_filter
+    participant controller
+end box
+
+note over client : Token obtained in Scenario 1\n(POST /api/auth/login)
+
+client -> gateway : GET /api/maintenance/templates\nAuthorization: Bearer <token>
+activate gateway
+gateway -> gateway_filter : apply(JwtAuthentication)
+activate gateway_filter
+
+alt Authorization header missing or not "Bearer "
+    gateway_filter --[#red]> client : 401 Unauthorized (empty body)
+else Bearer token present
+    gateway_filter -> gateway_filter : Jwts.parser().setSigningKey(SECRET_KEY)\n.parseClaimsJws(token)
+    alt signature invalid or token expired
+        gateway_filter --[#red]> client : 401 Unauthorized (empty body)
+    else token valid
+        gateway_filter -> gateway_filter : add X-User-Name = sub (collaboratorId)\nadd X-Gateway-Secret = sidis-g6-secret
+        gateway_filter -> downstream : lb://maintenance-service\nGET /api/maintenance/templates
+        activate downstream
+        downstream -> secret_filter : request
+        activate secret_filter
+        alt X-Gateway-Secret == sidis-g6-secret
+            secret_filter -> controller : request (permitAll, roles not checked)
+            activate controller
+            controller --> secret_filter : 200 OK (JSON)
+            deactivate controller
+            secret_filter --> downstream : 200 OK
+        else missing / wrong secret
+            secret_filter --[#red]> downstream : 403 Forbidden
+        end
+        deactivate secret_filter
+        downstream --> gateway_filter : response
+        deactivate downstream
+        gateway_filter --> client : response
+    end
+end
+deactivate gateway_filter
+deactivate gateway
+
+note over secret_filter, controller : Only aircraft-service and maintenance-service have gatewaySecretFilter.\nairport-service, route-service and flight-service accept the request without checking it.\nNo service reads the roles claim or X-User-Name.
+
+@enduml

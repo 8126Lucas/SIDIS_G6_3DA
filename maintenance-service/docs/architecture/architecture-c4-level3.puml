@@ -1,0 +1,93 @@
+@startuml
+skinparam linetype polyline
+skinparam nodesep 60
+skinparam ranksep 70
+skinparam shadowing false
+skinparam componentStyle uml2
+
+title Component Diagram (C4 - Level 3) - Maintenance Service (As Implemented)
+
+component "API Gateway\n<<Spring Cloud Gateway>>" as api_gateway
+database "H2 Database\n<<In-Memory>>" as maintenance_db
+component "Aircraft Service\n<<Microservice>>" as aircraft_service
+
+package "Maintenance Service [Container]" {
+    component "MaintenanceSecurityConfig\n<<SecurityFilterChain + gatewaySecretFilter>>" as security_filter
+
+    component "MaintenanceRecordController\n<<Spring REST Controller>>" as controller
+    component "LandingController\n<<Spring REST Controller>>" as landing_controller
+
+    component "AddMaintenanceTemplateUseCase\n<<UseCase>>" as add_template_uc
+    component "MaintenanceTemplateSearchService\n<<Spring Service>>" as template_search_svc
+
+    component "AddMaintenanceRecordUseCase\n<<UseCase>>" as add_record_uc
+    component "MaintenanceRecordProgressService\n<<UseCase>>" as progress_svc
+    component "MaintenanceRecordSearchService\n<<Spring Service>>" as record_search_svc
+    component "MaintenanceReportService\n<<UseCase>>" as report_svc
+    component "MaintenanceAlertService\n<<UseCase>>" as alert_svc
+    component "PartsInventoryService\n<<UseCase>>" as parts_svc
+
+    component "AircraftRestClientService\n<<RestClient Adapter>>" as aircraft_client
+    component "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>" as jwt_interceptor
+
+    component "Bootstrap\n<<ApplicationRunner>>" as bootstrapper
+
+    component "MaintenanceTemplateRepository\n<<Spring Data JPA Repository>>" as template_repo
+    component "MaintenanceRecordRepository\n<<Spring Data JPA Repository>>" as record_repo
+
+    component "MaintenanceTemplate\n<<JPA Entity>>" as template_entity
+    component "MaintenanceRecord\n<<JPA Aggregate Root>>" as record_entity
+    component "UsedPart\n<<Embeddable Value Object>>" as used_part_vo
+    component "DoneList\n<<Embeddable Value Object>>" as done_list_vo
+    component "MaintenanceStatus / MaintenanceType /\nMaintenanceAttribute\n<<Enums>>" as enums
+
+    component "GlobalExceptionHandler\n<<@RestControllerAdvice>>" as exception_handler
+    component "ErrorDetails\n<<DTO Payload>>" as error_details
+}
+
+api_gateway --> security_filter : "Routes /api/maintenance/**\n(JWT validated, X-Gateway-Secret added)\n[HTTP/JSON]"
+security_filter --> controller : "secret OK"
+security_filter --> landing_controller : "secret OK"
+
+controller --> add_template_uc : "POST /templates"
+controller --> template_search_svc : "GET /templates, template lookup"
+controller --> aircraft_client : "aircraft check"
+controller --> add_record_uc : "POST /record"
+controller --> progress_svc : "GET/PATCH /records/{id}"
+controller --> record_search_svc : "GET /records"
+controller --> report_svc : "ongoing, costs, turnaround"
+controller --> alert_svc : "alerts"
+controller --> parts_svc : "parts inventory, low stock"
+
+add_template_uc --> template_repo : "save"
+template_search_svc --> template_repo : "findByTemplateId / findAll"
+add_record_uc --> aircraft_client : "aircraft check"
+add_record_uc --> record_repo : "save"
+progress_svc --> record_repo : "findByRecordId / save"
+record_search_svc --> record_repo : "findAll(Specification, Pageable)"
+report_svc --> record_repo : "findByStatus / findAll"
+report_svc --> aircraft_client : "model name"
+alert_svc --> record_repo : "findByStatus(COMPLETED)"
+alert_svc --> aircraft_client : "all aircraft"
+parts_svc --> record_repo : "findAll"
+bootstrapper --> template_repo : "Seeds templates"
+bootstrapper --> record_repo : "Seeds records"
+
+template_repo --> template_entity : "Manages persistence"
+record_repo --> record_entity : "Manages persistence"
+
+record_entity --> template_entity : "ManyToOne"
+record_entity *-- used_part_vo : "ElementCollection"
+record_entity *-- done_list_vo : "Embeds"
+record_entity --> enums : "Uses"
+template_entity --> enums : "Uses"
+
+template_repo <--> maintenance_db : "maintenance_template\n[JDBC/JPA]"
+record_repo <--> maintenance_db : "company_maintenance_records\n[JDBC/JPA]"
+
+exception_handler --> error_details : "Constructs and returns"
+
+aircraft_client --> jwt_interceptor : "outgoing request"
+jwt_interceptor --> aircraft_service : "HTTP RestClient\n(X-Gateway-Secret, Authorization)"
+
+@enduml
