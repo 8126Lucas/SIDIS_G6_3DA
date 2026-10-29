@@ -1,13 +1,12 @@
 package com.sidis.aircraftservice;
 
+import com.sidis.aircraftservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest(properties = "eureka.client.enabled=false")
-class AircraftServiceApplicationTests {
-
+class AircraftServiceApplicationTests extends GatewayHttpTest {
     @Test
-    void contextLoads() {
+    void shouldRespondThroughHttp() throws Exception {
+        assertTrue(get("/api/hangar/analytics/status-summary").isContainerNode());
     }
-
 }

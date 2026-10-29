@@ -1,13 +1,12 @@
 package com.sidis.routeservice;
 
+import com.sidis.routeservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
-class RouteServiceApplicationTests {
-
+class RouteServiceApplicationTests extends GatewayHttpTest {
     @Test
-    void contextLoads() {
+    void shouldRespondThroughHttp() throws Exception {
+        assertTrue(get("/api/routes").isContainerNode());
     }
-
 }

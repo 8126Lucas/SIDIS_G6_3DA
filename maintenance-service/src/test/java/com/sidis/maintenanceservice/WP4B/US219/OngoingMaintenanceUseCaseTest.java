@@ -1,41 +1,21 @@
 package com.sidis.maintenanceservice.WP4B.US219;
 
-import com.sidis.maintenanceservice.application.MaintenanceReportService;
-import com.sidis.maintenanceservice.domain.MaintenanceRecord;
-import com.sidis.maintenanceservice.domain.MaintenanceStatus;
-import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordRepository;
-import com.sidis.maintenanceservice.infrastructure.client.AircraftRestClientService;
-import org.junit.jupiter.api.BeforeEach;
+import com.sidis.maintenanceservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Disabled;
+import java.util.Map;
+import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.List;
+// Persistence is verified through the public API; Java overloads share the same HTTP operation.
+class OngoingMaintenanceUseCaseTest extends GatewayHttpTest {
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.*;
-
-class OngoingMaintenanceUseCaseTest {
-
-    private MaintenanceRecordRepository maintenanceRecordRepository;
-    private AircraftRestClientService aircraftClient;
-    private MaintenanceReportService service;
-
-    @BeforeEach
-    void setUp() {
-        maintenanceRecordRepository = mock(MaintenanceRecordRepository.class);
-        aircraftClient = mock(AircraftRestClientService.class);
-        service = new MaintenanceReportService(aircraftClient, maintenanceRecordRepository);
-    }
-
-    @Test
-    void shouldReturnOngoingMaintenanceActivities() {
-        MaintenanceRecord record = mock(MaintenanceRecord.class);
-        when(maintenanceRecordRepository.findByStatus(MaintenanceStatus.ONGOING))
-                .thenReturn(List.of(record));
-
-        List<MaintenanceRecord> result = service.ongoingMaintenanceActivities();
-
-        assertEquals(1, result.size());
-        assertEquals(record, result.get(0));
-        verify(maintenanceRecordRepository, times(1)).findByStatus(MaintenanceStatus.ONGOING);
+    @Test void shouldReturnOngoingMaintenanceActivities() throws Exception {
+        var record = createRecord();
+        long id = record.path("id").asLong();
+        expect(200, request("PATCH", "/api/maintenance/records/" + id + "/status", Map.of("status", "ONGOING")));
+        var rows = get("/api/maintenance/ongoing");
+        assertTrue(java.util.stream.StreamSupport.stream(rows.spliterator(), false)
+                .anyMatch(r -> id == r.path("id").asLong()));
+        rows.forEach(r -> assertEquals("ONGOING", r.path("status").asText()));
     }
 }

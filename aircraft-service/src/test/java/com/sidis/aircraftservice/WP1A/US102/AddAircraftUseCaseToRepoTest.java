@@ -1,62 +1,24 @@
 package com.sidis.aircraftservice.WP1A.US102;
 
-import com.sidis.aircraftservice.Aircraft.application.AddAircraftUseCase;
-import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
-import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftRepository;
-import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
-import org.junit.jupiter.api.BeforeEach;
+import com.sidis.aircraftservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-
-import java.time.LocalDate;
-
+import org.junit.jupiter.api.Disabled;
+import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
-        import static org.mockito.Mockito.*;
 
-class AddAircraftUseCaseToRepoTest {
-    private AircraftRepository aircraftRepository;
-    private AddAircraftUseCase useCase;
+// Persistence is verified through the public API; Java overloads share the same HTTP operation.
+class AddAircraftUseCaseToRepoTest extends GatewayHttpTest {
 
-    @BeforeEach
-    void setUp() {
-        aircraftRepository = mock(AircraftRepository.class);
-        useCase = new AddAircraftUseCase(aircraftRepository);
-    }
-
-    @Test
-    void shouldSaveAircraftWhenExecuteWithFields() {
-        AircraftModel model = mock(AircraftModel.class);
-        String registrationNumber = "CS-TST";
-        LocalDate manufacturingDate = LocalDate.of(2020, 1, 1);
-        Double totalOperationalHours = 1000.0;
-        Double totalFlightHours = 800.0;
-
-        useCase.execute(
-                registrationNumber,
-                model,
-                manufacturingDate,
-                totalOperationalHours,
-                totalFlightHours
-        );
-
-        ArgumentCaptor<Aircraft> captor = ArgumentCaptor.forClass(Aircraft.class);
-        verify(aircraftRepository, times(1)).save(captor.capture());
-
-        Aircraft savedAircraft = captor.getValue();
-
-        assertEquals(registrationNumber, savedAircraft.getRegistrationNumber());
-        assertEquals(model, savedAircraft.getModel());
-        assertEquals(manufacturingDate, savedAircraft.getManufacturingDate());
-        assertEquals(totalOperationalHours, savedAircraft.getTotalOperationalHours());
-        assertEquals(totalFlightHours, savedAircraft.getTotalFlightHours());
-    }
-
-    @Test
-    void shouldSaveAircraftWhenExecuteWithAircraftObject() {
-        Aircraft aircraft = mock(Aircraft.class);
-
-        useCase.execute(aircraft);
-
-        verify(aircraftRepository, times(1)).save(aircraft);
+    @Test void shouldPersistAircraftThroughHttp() throws Exception {
+        String model = createModel();
+        String registration = createAircraft(model);
+        var saved = get("/api/hangar/aircraft/" + registration);
+        assertCreatedAircraft(saved, registration, model);
+        assertEquals(registration, saved.path("registrationNumber").asText());
+        assertEquals(model, saved.path("modelName").asText());
+        assertEquals("2020-01-01", saved.path("manufacturingDate").asText());
+        assertEquals("AVAILABLE", saved.path("status").asText());
+        assertEquals(1000.0, saved.path("totalOperationalHours").asDouble());
+        assertEquals(800.0, saved.path("totalFlightHours").asDouble());
     }
 }

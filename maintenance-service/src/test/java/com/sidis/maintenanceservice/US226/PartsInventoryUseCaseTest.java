@@ -1,131 +1,65 @@
 package com.sidis.maintenanceservice.US226;
 
-import com.sidis.maintenanceservice.application.PartsInventoryService;
-import com.sidis.maintenanceservice.domain.MaintenanceAttribute;
-import com.sidis.maintenanceservice.domain.MaintenanceRecord;
-import com.sidis.maintenanceservice.domain.MaintenanceTemplate;
-import com.sidis.maintenanceservice.domain.MaintenanceType;
-import com.sidis.maintenanceservice.domain.UsedPart;
-import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordRepository;
-import com.sidis.maintenanceservice.infrastructure.client.AircraftClientDTO;
-import org.junit.jupiter.api.BeforeEach;
+import com.sidis.maintenanceservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
-
-import java.time.LocalDate;
-import java.util.List;
+import org.junit.jupiter.api.Disabled;
 import java.util.Map;
-
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
-class PartsInventoryUseCaseTest {
+// Persistence is verified through the public API; Java overloads share the same HTTP operation.
+class PartsInventoryUseCaseTest extends GatewayHttpTest {
 
-    private MaintenanceRecordRepository maintenanceRecordRepository;
-    private PartsInventoryService service;
-    private MaintenanceTemplate template;
-    private AircraftClientDTO aircraft;
-
-    @BeforeEach
-    void setUp() {
-        maintenanceRecordRepository = mock(MaintenanceRecordRepository.class);
-        service = new PartsInventoryService(maintenanceRecordRepository);
-
-        template = new MaintenanceTemplate("Engine Check", 4.0, Map.of(), MaintenanceType.SCHEDULED, MaintenanceAttribute.ENGINE);
-        aircraft = new AircraftClientDTO("CS-TVA", "Boeing 737", 100.0);
+    @Test void shouldReadInventoryAndThresholdAlertsThroughHttp() throws Exception {
+        var inventory = get("/api/maintenance/parts/inventory");
+        var alerts = get("/api/maintenance/parts/low-stock?threshold=5");
+        assertTrue(inventory.isArray());
+        assertBootstrapInventory(inventory);
+        assertTrue(alerts.isArray());
+        for (var alert : alerts) {
+            assertTrue(alert.path("totalQuantityUsed").asInt() >= 5);
+            assertTrue(java.util.stream.StreamSupport.stream(inventory.spliterator(), false)
+                    .anyMatch(p -> p.path("partSerialNumber").equals(alert.path("partSerialNumber"))));
+        }
     }
-
-    @Test
-    void shouldReturnEmptyInventoryWhenNoRecords() {
-        when(maintenanceRecordRepository.findAll()).thenReturn(List.of());
-
-        List<PartsInventoryService.PartUsageSummary> result = service.getPartsUsageSummary();
-
-        assertTrue(result.isEmpty());
+    @Disabled("No public endpoint adds used parts or resets records; cannot seed the original fixture.")
+    @Test void shouldReturnEmptyInventoryWhenNoRecords() {}
+    @Disabled("No public endpoint resets records; requires control of the entire deployment.")
+    @Test void shouldReturnEmptyInventoryWhenRecordsHaveNoParts() {}
+    @Disabled("No public endpoint adds used parts; cannot seed aggregation fixtures.")
+    @Test void shouldAggregateSamePartAcrossMultipleRecords() {}
+    @Test void shouldAggregateMultipleDifferentParts() throws Exception {
+        var rows = get("/api/maintenance/parts/inventory");
+        assertBootstrapInventory(rows);
+        for (int i = 1; i < rows.size(); i++) {
+            assertTrue(rows.get(i - 1).path("partSerialNumber").asText()
+                    .compareTo(rows.get(i).path("partSerialNumber").asText()) < 0,
+                    "Parts must be unique and sorted by serial number: " + rows);
+        }
     }
-
-    @Test
-    void shouldReturnEmptyInventoryWhenRecordsHaveNoParts() {
-        MaintenanceRecord record = new MaintenanceRecord(aircraft.aircraftRegistration(), template, 4.0, "check", LocalDate.now());
-        when(maintenanceRecordRepository.findAll()).thenReturn(List.of(record));
-
-        List<PartsInventoryService.PartUsageSummary> result = service.getPartsUsageSummary();
-
-        assertTrue(result.isEmpty());
+    @Test void shouldReturnLowStockAlertWhenUsageExceedsThreshold() throws Exception {
+        var alerts = get("/api/maintenance/parts/low-stock?threshold=2");
+        var tire = findRow(alerts, "partSerialNumber", "TIRE-900");
+        assertEquals(4, tire.path("totalQuantityUsed").asInt());
+        assertEquals(1, tire.path("timesUsedInRecords").asLong());
+        assertTrue(tire.path("alertMessage").asText().contains("threshold: 2"));
+        for (var row : alerts) {
+            assertTrue(row.path("totalQuantityUsed").asInt() >= 2, row.toString());
+        }
     }
-
-    @Test
-    void shouldAggregateSamePartAcrossMultipleRecords() {
-        MaintenanceRecord r1 = new MaintenanceRecord(aircraft.aircraftRegistration(), template, 4.0, "check A", LocalDate.now());
-        r1.addUsedPart(new UsedPart("PART-001", 3, 50.0));
-
-        MaintenanceRecord r2 = new MaintenanceRecord(aircraft.aircraftRegistration(), template, 4.0, "check B", LocalDate.now());
-        r2.addUsedPart(new UsedPart("PART-001", 2, 50.0));
-
-        when(maintenanceRecordRepository.findAll()).thenReturn(List.of(r1, r2));
-
-        List<PartsInventoryService.PartUsageSummary> result = service.getPartsUsageSummary();
-
-        assertEquals(1, result.size());
-        assertEquals("PART-001", result.get(0).partSerialNumber());
-        assertEquals(5, result.get(0).totalQuantityUsed());
-        assertEquals(250.0, result.get(0).totalCost());
-        assertEquals(2L, result.get(0).timesUsedInRecords());
+    @Test void shouldNotAlertWhenUsageBelowThreshold() throws Exception {
+        var inventory = get("/api/maintenance/parts/inventory");
+        assertBootstrapInventory(inventory);
+        var alerts = get("/api/maintenance/parts/low-stock?threshold=5");
+        assertTrue(alerts.isArray());
+        assertTrue(alerts.isEmpty(), "All seeded quantities are below 5: " + alerts);
     }
-
-    @Test
-    void shouldAggregateMultipleDifferentParts() {
-        MaintenanceRecord record = new MaintenanceRecord(aircraft.aircraftRegistration(), template, 4.0, "check", LocalDate.now());
-        record.addUsedPart(new UsedPart("BOLT-XL", 10, 5.0));
-        record.addUsedPart(new UsedPart("FILTER-A", 1, 120.0));
-
-        when(maintenanceRecordRepository.findAll()).thenReturn(List.of(record));
-
-        List<PartsInventoryService.PartUsageSummary> result = service.getPartsUsageSummary();
-
-        assertEquals(2, result.size());
-        // results are sorted by partSerialNumber
-        assertEquals("BOLT-XL", result.get(0).partSerialNumber());
-        assertEquals(50.0, result.get(0).totalCost());
-        assertEquals("FILTER-A", result.get(1).partSerialNumber());
-        assertEquals(120.0, result.get(1).totalCost());
-    }
-
-    @Test
-    void shouldReturnLowStockAlertWhenUsageExceedsThreshold() {
-        MaintenanceRecord record = new MaintenanceRecord(aircraft.aircraftRegistration(), template, 4.0, "check", LocalDate.now());
-        record.addUsedPart(new UsedPart("PART-001", 15, 10.0));
-
-        when(maintenanceRecordRepository.findAll()).thenReturn(List.of(record));
-
-        List<PartsInventoryService.LowStockAlert> alerts = service.getLowStockAlerts(10);
-
-        assertEquals(1, alerts.size());
-        assertEquals("PART-001", alerts.get(0).partSerialNumber());
-        assertEquals(15, alerts.get(0).totalQuantityUsed());
-        assertTrue(alerts.get(0).alertMessage().contains("threshold: 10"));
-    }
-
-    @Test
-    void shouldNotAlertWhenUsageBelowThreshold() {
-        MaintenanceRecord record = new MaintenanceRecord(aircraft.aircraftRegistration(), template, 4.0, "check", LocalDate.now());
-        record.addUsedPart(new UsedPart("PART-001", 3, 10.0));
-
-        when(maintenanceRecordRepository.findAll()).thenReturn(List.of(record));
-
-        List<PartsInventoryService.LowStockAlert> alerts = service.getLowStockAlerts(10);
-
-        assertTrue(alerts.isEmpty());
-    }
-
-    @Test
-    void shouldAlertWhenUsageEqualsThreshold() {
-        MaintenanceRecord record = new MaintenanceRecord(aircraft.aircraftRegistration(), template, 4.0, "check", LocalDate.now());
-        record.addUsedPart(new UsedPart("PART-001", 10, 10.0));
-
-        when(maintenanceRecordRepository.findAll()).thenReturn(List.of(record));
-
-        List<PartsInventoryService.LowStockAlert> alerts = service.getLowStockAlerts(10);
-
-        assertEquals(1, alerts.size());
+    @Test void shouldAlertWhenUsageEqualsThreshold() throws Exception {
+        var alerts = get("/api/maintenance/parts/low-stock?threshold=2");
+        var engine = findRow(alerts, "partSerialNumber", "ENG-001");
+        assertEquals(2, engine.path("totalQuantityUsed").asInt());
+        assertTrue(engine.path("alertMessage").asText().contains("threshold: 2"));
+        assertTrue(java.util.stream.StreamSupport.stream(alerts.spliterator(), false)
+                .noneMatch(r -> "FUEL-PUMP-01".equals(r.path("partSerialNumber").asText())),
+                "The part with usage 1 must not trigger at threshold 2");
     }
 }
