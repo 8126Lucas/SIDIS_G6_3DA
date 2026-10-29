@@ -1,6 +1,5 @@
 package com.sidis.routeservice;
 
-import com.sidis.routeservice.UseCase;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -34,7 +33,7 @@ public class UseCaseLoggingAdvice {
     private static final Logger LOGGER = LoggerFactory.getLogger(UseCaseLoggingAdvice.class);
 
     /** Matches any class annotated with {@link UseCase}. */
-    @Pointcut("within(UseCase)")
+    @Pointcut("within(com.sidis.routeservice.UseCase)")
     public void useCase() {
     }
 

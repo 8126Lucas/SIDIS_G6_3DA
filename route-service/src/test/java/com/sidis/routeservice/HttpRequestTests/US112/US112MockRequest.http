@@ -1,0 +1,35 @@
+@GATEWAY=https://localhost:7979
+
+POST {{GATEWAY}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "atcc",
+  "password": "atcc123"
+}
+
+> {%
+    client.global.set("token", response.body.token);
+%}
+###
+@routeId=1
+
+###
+PATCH {{GATEWAY}}/api/routes/{{routeId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "destinationIataCode": "MAD",
+  "estimatedFlightTimeHours": 1.4,
+  "status": "ACTIVE"
+}
+
+###
+PATCH {{GATEWAY}}/api/routes/{{routeId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "ARCHIVED"
+}

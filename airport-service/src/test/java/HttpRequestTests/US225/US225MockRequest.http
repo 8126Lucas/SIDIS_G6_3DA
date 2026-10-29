@@ -1,0 +1,28 @@
+@GATEWAY=https://localhost:7979
+
+POST {{GATEWAY}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "backoffice",
+  "password": "backoffice123"
+}
+
+
+> {%
+client.global.set("token", response.body.token);
+%}
+
+### imports airports from csv - 1201107
+
+POST {{GATEWAY}}/api/airports/import HTTP/1.1
+Content-Type: multipart/form-data; boundary=boundary
+Authorization: Bearer {{token}}
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="airports.csv"
+
+< ./airports.csv
+--boundary--
+
+

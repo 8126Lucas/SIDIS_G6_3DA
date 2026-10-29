@@ -1,0 +1,26 @@
+@GATEWAY=https://localhost:7979
+
+POST {{GATEWAY}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "atcc",
+  "password": "atcc123"
+}
+
+> {%
+    client.global.set("token", response.body.token);
+%}
+
+###
+
+POST {{GATEWAY}}/api/flights/scheduled
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "routeId": 1,
+  "aircraftRegistrationNumber": "CS-TUA",
+  "scheduledDeparture": "2026-06-10T09:00:00",
+  "scheduledArrival": "2026-06-10T10:00:00"
+}

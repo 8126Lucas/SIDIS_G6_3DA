@@ -16,16 +16,11 @@ public class AirportReference {
     protected AirportReference() {}
 
     public AirportReference(String iataCode, AirportLocation airportLocation) {
-        this.iataCode = iataCode;
-        this.airportLocation = airportLocation;
-    }
-
-    public AirportReference(String iataCode) {
         if (iataCode == null || iataCode.length() != 3) {
             throw new IllegalArgumentException("Invalid IATA code");
         }
-
-        this.iataCode = iataCode.toUpperCase();
+        this.iataCode = iataCode;
+        this.airportLocation = airportLocation;
     }
 
     public AirportLocation getAirportLocation() {

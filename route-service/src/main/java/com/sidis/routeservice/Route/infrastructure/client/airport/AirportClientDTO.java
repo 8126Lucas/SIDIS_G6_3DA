@@ -1,5 +1,6 @@
 package com.sidis.routeservice.Route.infrastructure.client.airport;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sidis.routeservice.Route.domain.AirportLocation;
 import com.sidis.routeservice.Route.domain.AirportReference;
 
@@ -11,6 +12,7 @@ public record AirportClientDTO(
     String name,
     Long version,
     String status,
+    @JsonProperty("location")
     AirportLocationDTO airportLocation,
     FacilitiesDTO facilities,
     Double routeDistance,

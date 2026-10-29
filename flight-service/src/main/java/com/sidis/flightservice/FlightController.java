@@ -1,12 +1,14 @@
 package com.sidis.flightservice;
 
 import com.sidis.flightservice.Flight.application.AircraftSearchService;
+import com.sidis.flightservice.Flight.application.FlightSearchService;
 import com.sidis.flightservice.Flight.application.FlightUtilizationReportService;
 import com.sidis.flightservice.Flight.application.RouteService;
 import com.sidis.flightservice.Flight.domain.Flight;
 import com.sidis.flightservice.Flight.domain.FlightStatus;
 import com.sidis.flightservice.Flight.infrastructure.client.aircraft.AircraftClientDTO;
 import com.sidis.flightservice.exceptions.DomainException;
+import com.sidis.flightservice.exceptions.ResourceNotFoundException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -22,11 +24,21 @@ public class FlightController {
     private final RouteService routeService;
     private final AircraftSearchService aircraftSearchService;
     private final FlightUtilizationReportService flightUtilizationReportService;
+    private final FlightSearchService flightSearchService;
 
-    public FlightController(RouteService routeService,AircraftSearchService aircraftSearchService,FlightUtilizationReportService flightUtilizationReportService) {
+    public FlightController(RouteService routeService, AircraftSearchService aircraftSearchService, FlightUtilizationReportService flightUtilizationReportService, FlightSearchService flightSearchService) {
         this.routeService = routeService;
         this.aircraftSearchService = aircraftSearchService;
         this.flightUtilizationReportService = flightUtilizationReportService;
+        this.flightSearchService = flightSearchService;
+    }
+
+    @GetMapping({"", "/"})
+    public List<FlightResponse> getFlights() {
+        List<Flight> flights = flightSearchService.findAll();
+        return flights.stream()
+                .map(FlightResponse::from)
+                .toList();
     }
 
     @PostMapping("/scheduled")

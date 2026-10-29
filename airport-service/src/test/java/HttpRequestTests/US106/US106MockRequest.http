@@ -1,0 +1,67 @@
+### LOGIN
+@GATEWAY=https://localhost:7979
+
+POST {{GATEWAY}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "backoffice",
+  "password": "backoffice123"
+}
+
+> {%
+    client.global.set("token", response.body.token);
+%}
+
+### US106 - REGISTER AIRPORT (us106)
+POST {{GATEWAY}}/api/airports
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "iataCode": "ZCX",
+  "airportType": "International",
+  "name": "Francisco Sá Carneiro Airport",
+  "status": "OPERATIONAL",
+  "location": {
+    "city": "Porto",
+    "longitude": -8.6814,
+    "latitude": 41.2481,
+    "region": "Norte",
+    "timezone": "Europe/Lisbon",
+    "country": "Portugal"
+  },
+  "facilities": {
+    "terminalCount": 1,
+    "services": ["fuel", "maintenance", "catering", "ground_handling"],
+    "gateCount": 36
+  },
+  "routeDistance": 0.0,
+  "runways": [
+    {
+      "runwayName": "17/35",
+      "length": 3480.0,
+      "orientation": "N/S",
+      "status": "OPEN"
+    }
+  ],
+  "certifications": [],
+  "contacts": [
+    {
+      "type": "EMAIL",
+      "value": "ops@opo.pt"
+    },
+    {
+      "type": "PHONE",
+      "value": "+351229432400"
+    }
+  ],
+  "airportPhotos": [
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Aeroporto_Porto.jpg/320px-Aeroporto_Porto.jpg"
+  ]
+}
+
+
+
+
+

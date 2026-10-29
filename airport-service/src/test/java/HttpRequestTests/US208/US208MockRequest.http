@@ -1,0 +1,29 @@
+@GATEWAY=https://localhost:7979
+### LOGIN
+POST {{GATEWAY}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "backoffice",
+  "password": "backoffice123"
+}
+
+> {%
+    client.global.set("token", response.body.token);
+%}
+
+### US208 - UPDATE AIRPORT DETAILS
+PATCH {{GATEWAY}}/api/airports/LIS/details
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Lisbon Airport",
+  "operationalHours": "05:00-00:00",
+  "contacts": [
+    {
+      "type": "PHONE",
+      "value": "+351210000000"
+    }
+  ]
+}

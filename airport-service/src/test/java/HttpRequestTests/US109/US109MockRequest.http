@@ -1,0 +1,23 @@
+### LOGIN
+@GATEWAY=https://localhost:7979
+
+POST {{GATEWAY}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "backoffice",
+  "password": "backoffice123"
+}
+
+> {%
+    client.global.set("token", response.body.token);
+%}
+
+### US109 - UPDATE AIRPORT STATUS (us109)
+PATCH {{GATEWAY}}/api/airports/OPO/status
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "UNDER_MAINTENANCE"
+}

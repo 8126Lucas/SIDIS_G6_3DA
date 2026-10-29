@@ -1,12 +1,10 @@
 package com.sidis.routeservice.exceptions;
 
-import com.sidis.routeservice.exceptions.DomainException;
-import com.sidis.routeservice.exceptions.ErrorDetails;
-import com.sidis.routeservice.exceptions.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -97,7 +95,31 @@ public class GlobalExceptionHandler {
                 null
         );
     }
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorDetails> handleOptimisticLocking(
+            ObjectOptimisticLockingFailureException ex,
+            HttpServletRequest request) {
+        return buildError(
+                HttpStatus.CONFLICT,
+                "Conflict",
+                "Concurrent modification detected. Please retry the operation.",
+                request.getRequestURI(),
+                null
+        );
+    }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorDetails> handleIllegalState(
+            IllegalStateException ex,
+            HttpServletRequest request) {
+        return buildError(
+                HttpStatus.CONFLICT,
+                "Conflict",
+                ex.getMessage(),
+                request.getRequestURI(),
+                null
+        );
+    }
     private ResponseEntity<ErrorDetails> buildError(
             HttpStatus status,
             String error,

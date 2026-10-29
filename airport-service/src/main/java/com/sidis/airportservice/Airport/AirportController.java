@@ -26,7 +26,7 @@ public class AirportController {
     }
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.CREATED)//ok
     public void registerAirport(@Valid @RequestBody AddAirportRequest request) {
         AirportLocation location = new AirportLocation(
                 request.location().city(),
@@ -90,7 +90,7 @@ public class AirportController {
     }
 
     @PostMapping("/{iataCode}/certifications")
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.CREATED)//ok
     public CertificationResponse addCertification(@PathVariable String iataCode,@Valid @RequestBody AddCertificationRequest request) {
         Certification certification = airportService.addCertification(
                 iataCode,
@@ -131,7 +131,7 @@ public class AirportController {
         return AirportResponse.from(airport);
     }
 
-    @PatchMapping("/{iataCode}/details")
+    @PatchMapping("/{iataCode}/details")//ok
     public AirportResponse updateAirportDetails(
             @PathVariable String iataCode,
             @Valid @RequestBody UpdateAirportDetailsRequest request) {
