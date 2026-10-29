@@ -14,16 +14,18 @@ Current implemented responsibilities:
 * Register aircraft instances in the hangar and change their availability (US102, US105).
 * Query aircraft by registration and by filters (model, status, manufacturing date) (US103, US104).
 * Find routes compatible with an aircraft using `route-service` data (US203).
+* Rank the top 5 aircraft models by flight assignments or flight hours (US204).
 * Provide fleet analytics: availability, status summary, operational hours (US205, US206).
 * Provide fuel efficiency metrics per aircraft and per route (US227).
+* Reject requests that do not come through the API Gateway (`X-Gateway-Secret` filter).
 * Return standardized API errors via `GlobalExceptionHandler`.
 
 Important implementation notes:
 
-* There is optimistic locking on `Aircraft` via `@Version` (not on `AircraftModel`).
-* The model ranking endpoint (US204, `GET /api/catalog/rankings`) is commented out in `ModelCatalogController`.
-* The utilization view (`/api/hangar/view/utilization`) computes flight hours as a hardcoded `0.0`, and no Thymeleaf template exists in `resources/`.
-* Some calls to other services target endpoints that are not exposed by those services (see `domain-and-resilience.md`, section 4).
+* There is optimistic locking on `Aircraft` via `@Version` (not on `AircraftModel`); conflicts now map to `409`.
+* Every request (except H2 console and Swagger UI paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403`. JWT validation happens only in the API Gateway (see `domain-and-resilience.md`, section 7).
+* The utilization view (`/api/hangar/view/utilization`) now has a placeholder `utilization.html` template that does not render the computed data.
+* Some calls to other services target endpoints or fields that are not exposed by those services (see `domain-and-resilience.md`, section 4).
 
 ---
 
@@ -38,15 +40,18 @@ Important implementation notes:
 | OpenAPI Docs | `/api/docs` | springdoc API docs path |
 | Swagger UI | `/api/swagger-ui` | springdoc Swagger UI path |
 | Service Registry | `http://localhost:8761/eureka/` | Eureka client registration |
+| Gateway Secret | `sidis-g6-secret` | Hardcoded in `AircraftSecurityConfig` and `JwtTokenInterceptor` |
 
 External client base URLs configured in code (resolved through Eureka via `@LoadBalanced` `RestClient.Builder`):
 
 * `flight-service`: `http://flight-service`
 * `route-service`: `http://route-service`
 
-API Gateway routing:
+All outgoing calls go through `JwtTokenInterceptor`, which adds `X-Gateway-Secret` and forwards the caller's `Authorization: Bearer` header.
 
-* Only `/api/hangar/**` is routed to `aircraft-service` by the gateway. `/api/catalog/**` is only reachable directly on the service port.
+API Gateway routing (`https://localhost:7979`):
+
+* `/api/hangar/**` and `/api/catalog/**` are routed to `aircraft-service` with the `JwtAuthentication` filter, which validates the JWT issued by `auth-service` and adds `X-User-Name` and `X-Gateway-Secret`.
 
 ---
 
@@ -55,7 +60,7 @@ API Gateway routing:
 This `docs/` directory is organized as follows:
 
 * `api-specification.md`: Real API contract implemented by controllers and services.
-* `domain-and-resilience.md`: Domain model, lifecycle rules, integrations, exception mapping, and concurrency notes.
+* `domain-and-resilience.md`: Domain model, lifecycle rules, integrations, exception mapping, concurrency, and security notes.
 * `architecture/architecture-c4-level3.md`: Component-level architecture aligned with current classes.
 * `architecture/architecture-c4-level3.puml`: PlantUML source of the architecture diagram.
 * `sequence-diagrams/README.md`: Dynamic behavior narrative for read, write, and inter-service flows.
@@ -73,7 +78,15 @@ Run locally:
 ./mvnw spring-boot:run
 ```
 
-Open H2 console:
+Call the API through the gateway (requires a token from `POST /api/auth/login` in `auth-service`):
+
+```bash
+curl -k -H "Authorization: Bearer <token>" https://localhost:7979/api/hangar/aircraft/D-ABXA
+```
+
+Calling `http://localhost:8081/api/...` directly without `X-Gateway-Secret` returns `403` (`"Unauthorized Access! Please use the API Gateway!"`).
+
+Open H2 console (exempt from the gateway secret filter):
 
 * URL: `http://localhost:8081/api/hangar/h2-console`
 * JDBC URL: `jdbc:h2:mem:aircrafttestdb`
@@ -83,3 +96,4 @@ Open H2 console:
 Open Swagger UI:
 
 * URL: `http://localhost:8081/api/swagger-ui`
+* The UI page loads, but the OpenAPI document at `/api/docs` is not in the filter's exemption list (it only exempts paths containing `/api-docs`), so the spec request returns `403`.

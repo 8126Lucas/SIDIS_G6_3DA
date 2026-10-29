@@ -13,6 +13,8 @@ component "Route Service\n<<Microservice>>" as route_service
 component "Flight Service\n<<Microservice>>" as flight_service
 
 package "Aircraft Service [Container]" {
+    component "AircraftSecurityConfig\n<<SecurityFilterChain + gatewaySecretFilter>>" as security_filter
+
     component "ModelCatalogController\n<<Spring REST Controller>>" as catalog_controller
     component "HangarController\n<<Spring REST Controller>>" as hangar_controller
     component "HangarViewController\n<<Spring MVC Controller>>" as view_controller
@@ -25,11 +27,13 @@ package "Aircraft Service [Container]" {
     component "AircraftSearchService\n<<Spring Service>>" as aircraft_search_svc
     component "AircraftLifeCycleUpdaterService\n<<Spring Service>>" as lifecycle_svc
     component "RouteSearchService\n<<Spring Service>>" as route_search_svc
+    component "FlightSearchService\n<<Spring Service>>" as flight_search_svc
     component "FuelEfficiencyService\n<<UseCase>>" as fuel_uc
     component "CalculationsService\n<<Spring Service>>" as calc_svc
 
     component "RouteRestClientService\n<<RestClient Adapter>>" as route_client
     component "FlightRestClientService\n<<RestClient Adapter>>" as flight_client
+    component "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>" as jwt_interceptor
 
     component "Bootstrap\n<<ApplicationRunner>>" as bootstrapper
 
@@ -48,11 +52,18 @@ package "Aircraft Service [Container]" {
     component "ErrorDetails\n<<DTO Payload>>" as error_details
 }
 
-api_gateway --> hangar_controller : "Routes /api/hangar/**\n[HTTPS/JSON]"
+api_gateway --> security_filter : "Routes /api/hangar/**, /api/catalog/**\n(JWT validated, X-Gateway-Secret added)\n[HTTP/JSON]"
+security_filter --> hangar_controller : "secret OK"
+security_filter --> catalog_controller : "secret OK"
+security_filter --> view_controller : "secret OK"
 
 catalog_controller --> add_model_uc : "POST /model"
 catalog_controller --> model_search_svc : "model lookup"
 catalog_controller --> model_updater : "PATCH /model/{modelName}"
+catalog_controller --> flight_search_svc : "rankings (assignments)"
+catalog_controller --> aircraft_search_svc : "rankings (flight-hours)"
+flight_search_svc --> flight_client : "all flights"
+flight_search_svc --> aircraft_repo : "findById"
 
 hangar_controller --> model_search_svc : "model lookup"
 hangar_controller --> lifecycle_svc : "availability change"
@@ -65,7 +76,7 @@ hangar_controller --> fuel_uc : "US227 fuel metrics"
 
 view_controller --> calc_svc : "utilization data"
 calc_svc --> aircraft_search_svc : "findAll"
-calc_svc ..> flight_client : "injected, call commented out"
+calc_svc --> flight_client : "flights by aircraft"
 
 fuel_uc --> aircraft_repo : "aircraft specs"
 fuel_uc --> flight_client : "all flights"
@@ -93,7 +104,9 @@ aircraft_repo <--> aircraft_db : "company_aircrafts\n[JDBC/JPA]"
 
 exception_handler --> error_details : "Constructs and returns"
 
-route_client --> route_service : "HTTP RestClient"
-flight_client --> flight_service : "HTTP RestClient"
+route_client --> jwt_interceptor : "outgoing request"
+flight_client --> jwt_interceptor : "outgoing request"
+jwt_interceptor --> route_service : "HTTP RestClient\n(X-Gateway-Secret, Authorization)"
+jwt_interceptor --> flight_service : "HTTP RestClient\n(X-Gateway-Secret, Authorization)"
 
 @enduml

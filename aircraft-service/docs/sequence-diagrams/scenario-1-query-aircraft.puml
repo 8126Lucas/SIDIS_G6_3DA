@@ -11,6 +11,7 @@ autonumber
 
 actor "Client / Postman" as client
 participant "API Gateway\n<<Gateway>>" as gateway
+participant "gatewaySecretFilter\n<<OncePerRequestFilter>>" as secret_filter
 participant "HangarController\n<<REST Controller>>" as controller
 participant "AircraftSearchService\n<<Application Service>>" as search_svc
 participant "AircraftRepository\n<<JPA Repository>>" as repo
@@ -18,6 +19,7 @@ database "H2 Database\n<<In-Memory DB>>" as db
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 
 box "Aircraft Service [Container]" #LightBlue
+    participant secret_filter
     participant controller
     participant search_svc
     participant repo
@@ -28,7 +30,8 @@ end box
 
 client -> gateway : GET /api/hangar/aircraft/{registrationNumber}
 activate gateway
-gateway -> controller : Forward request
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> search_svc : spotAircraftInHangar(registrationNumber)
@@ -60,7 +63,8 @@ deactivate gateway
 
 client -> gateway : GET /api/hangar/aircraft?model=&status=&manufacturingDate=&page=&size=
 activate gateway
-gateway -> controller : Forward request
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> search_svc : findAircraftsMatchingFilter(model, status, date, pageable)
@@ -86,7 +90,8 @@ deactivate gateway
 
 client -> gateway : GET /api/hangar/analytics/status-summary
 activate gateway
-gateway -> controller : Forward request
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 loop for each AircraftAvailability
@@ -106,5 +111,21 @@ controller --> gateway : 200 OK (Map<AircraftAvailability, Long>)
 deactivate controller
 gateway --> client : 200 OK Response
 deactivate gateway
+
+== Flow D: Rejected Requests (Gateway JWT / Secret Filter) ==
+
+client -> gateway : GET /api/hangar/aircraft/{registrationNumber}\n(no or invalid Authorization header)
+activate gateway
+gateway -> gateway : JWT missing / invalid
+gateway --[#red]> client : 401 Unauthorized (empty body)
+deactivate gateway
+
+client -> secret_filter : GET http://localhost:8081/api/hangar/aircraft/{registrationNumber}\n(direct call, no X-Gateway-Secret)
+activate secret_filter
+secret_filter -> secret_filter : path is not /h2-console, /swagger-ui, /api-docs
+secret_filter --[#red]> client : 403 Forbidden\n"Unauthorized Access! Please use the API Gateway!"
+deactivate secret_filter
+
+note over gateway, controller : In Flows A-C the forwarded request carries X-Gateway-Secret,\nso gatewaySecretFilter passes it to the controller (omitted above for brevity).
 
 @enduml
