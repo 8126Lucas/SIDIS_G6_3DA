@@ -1,107 +1,24 @@
 package com.sidis.aircraftservice.WP1A.US103;
 
-import com.sidis.aircraftservice.Aircraft.HangarController;
-import com.sidis.aircraftservice.Aircraft.application.*;
-//import com.sidis.aircraftservice.Aircraft.application.FuelEfficiencyService;
-import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
-import com.sidis.aircraftservice.Aircraft.domain.AircraftAvailability;
-import com.sidis.aircraftservice.infrastructure.client.FlightRestClientService;
-import com.sidis.aircraftservice.infrastructure.client.RouteRestClientService;
-import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
-import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
-//import com.sidis.aircraftservice.Flight.application.FlightSearchService;
-//import com.sidis.aircraftservice.Route.application.RouteSearchService;
-//import com.sidis.aircraftservice.authUsers.application.JwtService;
-//import com.sidis.aircraftservice.authUsers.infrastructure.JwtAuthenticationFilter;
-
+import com.sidis.aircraftservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
+import org.junit.jupiter.api.Disabled;
+import java.util.Map;
+import static org.junit.jupiter.api.Assertions.*;
 
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Optional;
+class GetAircraftHttpTest extends GatewayHttpTest {
 
-import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
-@WebMvcTest(controllers = HangarController.class, properties = "eureka.client.enabled=false")
-@AutoConfigureMockMvc(addFilters = false)
-class GetAircraftHttpTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockitoBean
-    private AddAircraftUseCase addAircraftUseCase;
-
-    @MockitoBean
-    private AircraftSearchService aircraftSearchService;
-
-    @MockitoBean
-    private AircraftLifeCycleUpdaterService aircraftLifeCycleUpdaterService;
-
-    @MockitoBean
-    private AircraftModelSearchService aircraftModelSearchService;
-
-    @MockitoBean
-    private RouteRestClientService routeClient;
-
-    @MockitoBean
-    private RouteSearchService routeSearchService;
-
-    @MockitoBean
-    private FlightRestClientService flightClient;
-
-    @MockitoBean
-    private FuelEfficiencyService fuelEfficiencyService;
-
-/*    @MockitoBean
-    private JwtService jwtService;
-
-    @MockitoBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;*/
-
-    @Test
-    void shouldReturnAircraftWhenExists() throws Exception {
-
-        AircraftModel model = mock(AircraftModel.class);
-        when(model.getModelName()).thenReturn("A320");
-
-        Aircraft aircraft = mock(Aircraft.class);
-
-        when(aircraft.getRegistrationNumber()).thenReturn("CS-TST");
-        when(aircraft.getModel()).thenReturn(model);
-        when(aircraft.getStatus()).thenReturn(AircraftAvailability.AVAILABLE);
-        when(aircraft.getManufacturingDate()).thenReturn(LocalDate.of(2020, 1, 1));
-        when(aircraft.getTotalOperationalHours()).thenReturn(1000.0);
-        when(aircraft.getTotalFlightHours()).thenReturn(800.0);
-        when(aircraft.getMeanRange()).thenReturn(5000.0);
-        when(aircraft.getFeatures()).thenReturn(List.of("WiFi", "Extra Legroom"));
-
-        when(aircraftSearchService.spotAircraftInHangar("CS-TST"))
-                .thenReturn(Optional.of(aircraft));
-
-        mockMvc.perform(get("/api/hangar/aircraft/CS-TST")
-                        .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.registrationNumber").value("CS-TST"))
-                .andExpect(jsonPath("$.modelName").value("A320"))
-                .andExpect(jsonPath("$.status").value("AVAILABLE"));
+    @Test void shouldReturnAircraftWhenExists() throws Exception {
+        String model = createModel();
+        String registration = createAircraft(model);
+        var aircraft = get("/api/hangar/aircraft/" + registration);
+        assertCreatedAircraft(aircraft, registration, model);
+        assertEquals(registration, aircraft.path("registrationNumber").asText());
+        assertEquals(model, aircraft.path("modelName").asText());
+        assertEquals("2020-01-01", aircraft.path("manufacturingDate").asText());
+        assertEquals(800.0, aircraft.path("totalFlightHours").asDouble());
     }
-
-    @Test
-    void shouldReturn404WhenAircraftNotFound() throws Exception {
-
-        when(aircraftSearchService.spotAircraftInHangar("CS-TST"))
-                .thenReturn(Optional.empty());
-
-        mockMvc.perform(get("/api/hangar/aircraft/CS-TST"))
-                .andExpect(status().isNotFound());
+    @Test void shouldReturn404WhenAircraftNotFound() throws Exception {
+        expect(404, request("GET", "/api/hangar/aircraft/" + unique(), null));
     }
 }

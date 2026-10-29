@@ -1,68 +1,24 @@
 package com.sidis.maintenanceservice.WP4B.US221;
 
-
-import com.sidis.maintenanceservice.MaintenanceRecordController;
-import com.sidis.maintenanceservice.application.AddMaintenanceRecordUseCase;
-import com.sidis.maintenanceservice.application.AddMaintenanceTemplateUseCase;
-import com.sidis.maintenanceservice.application.MaintenanceAlertService;
-import com.sidis.maintenanceservice.application.MaintenanceRecordProgressService;
-import com.sidis.maintenanceservice.application.MaintenanceReportService;
-import com.sidis.maintenanceservice.application.MaintenanceRecordSearchService;
-import com.sidis.maintenanceservice.application.MaintenanceTemplateSearchService;
-import com.sidis.maintenanceservice.application.PartsInventoryService;
+import com.sidis.maintenanceservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
+import org.junit.jupiter.api.Disabled;
+import java.util.Map;
+import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.List;
+class TurnaroundAverageHttpTest extends GatewayHttpTest {
 
-import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-@WebMvcTest(MaintenanceRecordController.class)
-@AutoConfigureMockMvc(addFilters = false)
-class TurnaroundAverageHttpTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockitoBean private MaintenanceReportService maintenanceReportService;
-    @MockitoBean private MaintenanceAlertService maintenanceAlertService;
-    @MockitoBean private MaintenanceRecordProgressService maintenanceRecordProgressService;
-    @MockitoBean private MaintenanceTemplateSearchService maintenanceTemplateSearchService;
-    @MockitoBean private AddMaintenanceTemplateUseCase addMaintenanceTemplateUseCase;
-    @MockitoBean private AddMaintenanceRecordUseCase addMaintenanceRecordUseCase;
-    @MockitoBean private MaintenanceRecordSearchService maintenanceRecordSearchService;
-    @MockitoBean private PartsInventoryService partsInventoryService;
-
-    /*@Test
-    void shouldReturnTurnaroundAverages() throws Exception {
-        when(maintenanceReportService.averageTurnaroundTimePerAircraftType()).thenReturn(List.of(
-                new MaintenanceReportService.TurnaroundAverage("Airbus A320", 3.0),
-                new MaintenanceReportService.TurnaroundAverage("Boeing 737", 7.5)
-        ));
-
-        mockMvc.perform(get("/api/maintenance/turnaround-average"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].aircraftType").value("Airbus A320"))
-                .andExpect(jsonPath("$[0].averageDays").value(3.0))
-                .andExpect(jsonPath("$[1].aircraftType").value("Boeing 737"))
-                .andExpect(jsonPath("$[1].averageDays").value(7.5));
-
-        verify(maintenanceReportService, times(1)).averageTurnaroundTimePerAircraftType();
+    @Test void shouldReturnTurnaroundAverages() throws Exception {
+        var rows = get("/api/maintenance/turnaround-average");
+        assertTrue(rows.isArray());
+        assertFalse(rows.isEmpty(), "Bootstrap contains completed records");
+        rows.forEach(r -> {
+            assertTrue(r.path("aircraftType").isTextual());
+            assertFalse(r.path("aircraftType").asText().isBlank(), r.toString());
+            assertTrue(r.path("averageDays").isNumber());
+            assertTrue(r.path("averageDays").asDouble() >= 0);
+        });
     }
-
-    @Test
-    void shouldReturnEmptyListWhenNoData() throws Exception {
-        when(maintenanceReportService.averageTurnaroundTimePerAircraftType()).thenReturn(List.of());
-
-        mockMvc.perform(get("/api/maintenance/turnaround-average"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isEmpty());
-    }*/
+    @Disabled("Requires a deployment without completed records; no completion/deletion API is exposed.")
+    @Test void shouldReturnEmptyListWhenNoData() {}
 }

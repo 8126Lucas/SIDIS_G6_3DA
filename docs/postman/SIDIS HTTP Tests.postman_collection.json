@@ -1,0 +1,2106 @@
+{
+  "info": {
+    "_postman_id": "a6ad41f6-ac99-488e-8ac3-70143d3d163f",
+    "name": "SIDIS HTTP Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "45030011",
+    "_collection_link": "https://go.postman.co/collection/45030011-a6ad41f6-ac99-488e-8ac3-70143d3d163f?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Additional - Security and Validation",
+      "item": [
+        {
+          "name": "US101 - Create Model - No Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request without token returns 401\", function () {\r\n    pm.response.to.have.status(401);\r\n});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"modelName\": \"HTTP-Test-{{$guid}}\",\r\n  \"manufacturer\": \"Airbus\",\r\n  \"modelImage\": [\r\n    \"https://example.com/images/a320.jpg\"\r\n  ],\r\n  \"specs\": {\r\n    \"fuelCapacityLiters\": 24210,\r\n    \"maximumRangeKm\": 6150,\r\n    \"cruisingSpeedKph\": 840,\r\n    \"standardSeatingCapacity\": 180\r\n  }\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://localhost:7979/api/catalog/model",
+              "protocol": "https",
+              "host": [
+                "localhost"
+              ],
+              "port": "7979",
+              "path": [
+                "api",
+                "catalog",
+                "model"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "US101 - Create Model - Invalid Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Invalid token returns 401\", function () {\r\n    pm.response.to.have.status(401);\r\n});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "invalid-token",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"modelName\": \"HTTP-Test-{{$guid}}\",\r\n  \"manufacturer\": \"Airbus\",\r\n  \"modelImage\": [\r\n    \"https://example.com/images/a320.jpg\"\r\n  ],\r\n  \"specs\": {\r\n    \"fuelCapacityLiters\": 24210,\r\n    \"maximumRangeKm\": 6150,\r\n    \"cruisingSpeedKph\": 840,\r\n    \"standardSeatingCapacity\": 180\r\n  }\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://localhost:7979/api/catalog/model",
+              "protocol": "https",
+              "host": [
+                "localhost"
+              ],
+              "port": "7979",
+              "path": [
+                "api",
+                "catalog",
+                "model"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "US101 - Create Model - Blank Manufacturer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Blank manufacturer returns 400\", function () {\r\n    pm.response.to.have.status(400);\r\n});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{backofficeToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"modelName\": \"HTTP-Test-{{$guid}}\",\r\n  \"manufacturer\": \"\",\r\n  \"modelImage\": [\r\n    \"https://example.com/images/a320.jpg\"\r\n  ],\r\n  \"specs\": {\r\n    \"fuelCapacityLiters\": 24210,\r\n    \"maximumRangeKm\": 6150,\r\n    \"cruisingSpeedKph\": 840,\r\n    \"standardSeatingCapacity\": 180\r\n  }\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://localhost:7979/api/catalog/model",
+              "protocol": "https",
+              "host": [
+                "localhost"
+              ],
+              "port": "7979",
+              "path": [
+                "api",
+                "catalog",
+                "model"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Setup - Login - Backoffice",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.unset(\"backofficeToken\");\r\n\r\npm.test(\"Backoffice login returns a token\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const data = pm.response.json();\r\n    pm.expect(data.token).to.be.a(\"string\").and.not.empty;\r\n\r\n    pm.collectionVariables.set(\"backofficeToken\", data.token);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"username\": \"backoffice\",\r\n  \"password\": \"backoffice123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/auth/login",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Setup - Login - Technician",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Technician login returns a token\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const data = pm.response.json();\r\n    pm.expect(data.token).to.be.a(\"string\").and.not.empty;\r\n    pm.collectionVariables.set(\"technicianToken\", data.token);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"username\": \"technician\",\r\n  \"password\": \"technician123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/auth/login",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Setup - Login - Supervisor",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Supervisor login returns a token\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const data = pm.response.json();\r\n    pm.expect(data.token).to.be.a(\"string\").and.not.empty;\r\n\r\n    pm.collectionVariables.set(\"supervisorToken\", data.token);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"username\": \"supervisor\",\r\n  \"password\": \"supervisor123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/auth/login",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Setup - Login - ATCC",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.unset(\"atccToken\");\r\n\r\npm.test(\"ATCC login returns a token\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const data = pm.response.json();\r\n    pm.expect(data.token).to.be.a(\"string\").and.not.empty;\r\n\r\n    pm.collectionVariables.set(\"atccToken\", data.token);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"username\": \"atcc\",\r\n    \"password\": \"atcc123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/auth/login",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US101 - Create Model - Success",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Model creation returns 201 Created\", function () {\r\n    pm.response.to.have.status(201);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{backofficeToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"modelName\": \"HTTP-Test-A320\",\r\n  \"manufacturer\": \"Airbus\",\r\n  \"modelImage\": [\r\n    \"https://example.com/images/a320.jpg\"\r\n  ],\r\n  \"specs\": {\r\n    \"fuelCapacityLiters\": 24210,\r\n    \"maximumRangeKm\": 6150,\r\n    \"cruisingSpeedKph\": 840,\r\n    \"standardSeatingCapacity\": 180\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/catalog/model",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "catalog",
+            "model"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US101 - Create Model - Blank Name",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Blank model name returns 400\", function () {\r\n    pm.response.to.have.status(400);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{backofficeToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"modelName\": \"\",\r\n  \"manufacturer\": \"Airbus\",\r\n  \"modelImage\": [\r\n    \"https://example.com/images/a320.jpg\"\r\n  ],\r\n  \"specs\": {\r\n    \"fuelCapacityLiters\": 24210,\r\n    \"maximumRangeKm\": 6150,\r\n    \"cruisingSpeedKph\": 840,\r\n    \"standardSeatingCapacity\": 180\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/catalog/model",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "catalog",
+            "model"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US102 - Create Aircraft - Success",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Aircraft creation returns 201\", function () {\r\n    pm.response.to.have.status(201);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"registrationNumber\": \"CS-TST\",\r\n    \"modelName\": \"HTTP-Test-A320\",\r\n    \"manufacturingDate\": \"2020-01-15\",\r\n    \"totalOperationalHours\": 1000,\r\n    \"totalFlightHours\": 800,\r\n    \"availability\": \"AVAILABLE\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/hangar/aircraft",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "hangar",
+            "aircraft"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US102 - Create Aircraft - Model Not Found",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Unknown model returns 404\", function () {\r\n    pm.response.to.have.status(404);\r\n    pm.expect(pm.response.json().message)\r\n        .to.include(\"Model\");\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"registrationNumber\": \"CS-ERR\",\r\n    \"modelName\": \"MODELO-INEXISTENTE\",\r\n    \"manufacturingDate\": \"2020-01-15\",\r\n    \"totalOperationalHours\": 1000,\r\n    \"totalFlightHours\": 800,\r\n    \"availability\": \"AVAILABLE\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/hangar/aircraft",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "hangar",
+            "aircraft"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US103 - Get Aircraft - Success",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US103 - Aircraft details match the created aircraft\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const aircraft = pm.response.json();\r\n\r\n    pm.expect(aircraft.registrationNumber).to.eql(\"CS-TST\");\r\n    pm.expect(aircraft.modelName).to.eql(\"HTTP-Test-A320\");\r\n    pm.expect(aircraft.status).to.eql(\"AVAILABLE\");\r\n    pm.expect(aircraft.manufacturingDate).to.eql(\"2020-01-15\");\r\n    pm.expect(aircraft.totalOperationalHours).to.eql(1000);\r\n    pm.expect(aircraft.totalFlightHours).to.eql(800);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/hangar/aircraft/CS-TST",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "hangar",
+            "aircraft",
+            "CS-TST"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US103 - Get Aircraft - Not Found",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Unknown aircraft returns 404\", function () {\r\n    pm.response.to.have.status(404);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/hangar/aircraft/CS-ZZZ",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "hangar",
+            "aircraft",
+            "CS-ZZZ"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US104 - All Filters Match",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US104 - All filters match\", function () {\r\n    pm.response.to.have.status(200);\r\n    pm.expect(pm.response.headers.get(\"Content-Type\"))\r\n        .to.include(\"application/json\");\r\n\r\n    const aircraft = pm.response.json();\r\n\r\n    pm.expect(aircraft).to.be.an(\"array\").with.lengthOf(1);\r\n    pm.expect(aircraft[0].registrationNumber).to.eql(\"CS-TUA\");\r\n    pm.expect(aircraft[0].modelName).to.eql(\"737-800\");\r\n    pm.expect(aircraft[0].status).to.eql(\"INACTIVE\");\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/hangar/aircraft?model=737-800&status=INACTIVE&manufacturingDate=2018-05-10",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "hangar",
+            "aircraft"
+          ],
+          "query": [
+            {
+              "key": "model",
+              "value": "737-800"
+            },
+            {
+              "key": "status",
+              "value": "INACTIVE"
+            },
+            {
+              "key": "manufacturingDate",
+              "value": "2018-05-10"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US104 - Model Does Not Match",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US104 - Non-matching model returns an empty array\", function () {\r\n    pm.response.to.have.status(200);\r\n    pm.expect(pm.response.json()).to.deep.equal([]);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/hangar/aircraft?model=INVALID-MODEL&status=INACTIVE&manufacturingDate=2018-05-10",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "hangar",
+            "aircraft"
+          ],
+          "query": [
+            {
+              "key": "model",
+              "value": "INVALID-MODEL"
+            },
+            {
+              "key": "status",
+              "value": "INACTIVE"
+            },
+            {
+              "key": "manufacturingDate",
+              "value": "2018-05-10"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US104 - Status Does Not Match",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US104 - Non-matching status returns an empty array\", function () {\r\n    pm.response.to.have.status(200);\r\n    pm.expect(pm.response.json()).to.deep.equal([]);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/hangar/aircraft?model=737-800&status=MAINTENANCE&manufacturingDate=2018-05-10",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "hangar",
+            "aircraft"
+          ],
+          "query": [
+            {
+              "key": "model",
+              "value": "737-800"
+            },
+            {
+              "key": "status",
+              "value": "MAINTENANCE"
+            },
+            {
+              "key": "manufacturingDate",
+              "value": "2018-05-10"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US104 - Date Does Not Match",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US104 - Non-matching date returns an empty array\", function () {\r\n    pm.response.to.have.status(200);\r\n    pm.expect(pm.response.json()).to.deep.equal([]);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/hangar/aircraft?model=737-800&status=INACTIVE&manufacturingDate=2000-01-01",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "hangar",
+            "aircraft"
+          ],
+          "query": [
+            {
+              "key": "model",
+              "value": "737-800"
+            },
+            {
+              "key": "status",
+              "value": "INACTIVE"
+            },
+            {
+              "key": "manufacturingDate",
+              "value": "2000-01-01"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US105 - Setup - Aircraft in Maintenance",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Aircraft update returns 200\", function () {\r\n    pm.response.to.have.status(200);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"registrationNumber\": \"CS-TST\",\r\n    \"availability\": \"MAINTENANCE\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/hangar/aircraft/CS-TST",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "hangar",
+            "aircraft",
+            "CS-TST"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US105 - Update Aircraft - Available",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US105 - Aircraft status update returns 200\", function () {\r\n    pm.response.to.have.status(200);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"registrationNumber\": \"CS-TST\",\r\n  \"availability\": \"AVAILABLE\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/hangar/aircraft/CS-TST",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "hangar",
+            "aircraft",
+            "CS-TST"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US105 - Verify Updated Status",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US105 - Updated status is persisted\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const aircraft = pm.response.json();\r\n    pm.expect(aircraft.registrationNumber).to.eql(\"CS-TST\");\r\n    pm.expect(aircraft.status).to.eql(\"AVAILABLE\");\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/hangar/aircraft/CS-TST",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "hangar",
+            "aircraft",
+            "CS-TST"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US105 - Update Aircraft - Not Found",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US105 - Updating an unknown aircraft returns 404\", function () {\r\n    pm.response.to.have.status(404);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"registrationNumber\": \"CS-ZZZ\",\r\n  \"availability\": \"AVAILABLE\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/hangar/aircraft/CS-ZZZ",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "hangar",
+            "aircraft",
+            "CS-ZZZ"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US115b - Create Maintenance Template",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US115b - Template is created with the expected fields\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const template = pm.response.json();\r\n\r\n    pm.expect(template.name).to.eql(\"A-Check Engine Inspection\");\r\n    pm.expect(template.expectedDuration).to.eql(6.5);\r\n    pm.expect(template.operation).to.eql(\"INSPECTION\");\r\n    pm.expect(template.attribute).to.eql(\"ENGINE\");\r\n    pm.expect(template.templateChecklist).to.deep.equal({\r\n        \"Check oil levels\": true,\r\n        \"Inspect engine turbine blades\": true\r\n    });\r\n    pm.expect(template.templateId).to.be.a(\"number\");\r\n\r\n    pm.collectionVariables.set(\"templateId\", template.templateId);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{technicianToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"name\": \"A-Check Engine Inspection\",\r\n  \"expectedDuration\": 6.5,\r\n  \"templateChecklist\": {\r\n    \"Check oil levels\": true,\r\n    \"Inspect engine turbine blades\": true\r\n  },\r\n  \"operation\": \"INSPECTION\",\r\n  \"attribute\": \"ENGINE\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/templates",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "templates"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US116 - Create Maintenance Record - Success",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US116 - Maintenance record creation returns 200\", function () {\r\n    pm.response.to.have.status(200);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{technicianToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"registrationNumber\": \"CS-TUA\",\r\n  \"templateId\": {{templateId}},\r\n  \"durationHours\": 6.5,\r\n  \"description\": \"HTTP-Test - Scheduled A-check maintenance\",\r\n  \"startDate\": \"2026-10-28\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/record",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "record"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US116 - Verify Created Maintenance Record",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US116 - Created maintenance record is persisted\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const records = pm.response.json();\r\n    pm.expect(records).to.be.an(\"array\");\r\n\r\n    const record = records.find(r =>\r\n        r.description === \"HTTP-Test - Scheduled A-check maintenance\"\r\n        && r.template.templateId === Number(\r\n            pm.collectionVariables.get(\"templateId\")\r\n        )\r\n    );\r\n\r\n    pm.expect(record, \"Created record must appear\").to.exist;\r\n    pm.expect(record.aircraftRegistration).to.eql(\"CS-TUA\");\r\n    pm.expect(record.durationHours).to.eql(6.5);\r\n    pm.expect(record.startDate).to.eql(\"2026-10-28\");\r\n    pm.expect(record.status).to.eql(\"INLINE\");\r\n    pm.expect(record.id).to.be.a(\"number\");\r\n    pm.collectionVariables.set(\"maintenanceRecordId\", record.id);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{technicianToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/records?aircraft=CS-TUA&page=0&size=100",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "records"
+          ],
+          "query": [
+            {
+              "key": "aircraft",
+              "value": "CS-TUA"
+            },
+            {
+              "key": "page",
+              "value": "0"
+            },
+            {
+              "key": "size",
+              "value": "100"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US117 - Get Maintenance Template - Success",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Saved maintenance template is returned\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const template = pm.response.json();\r\n\r\n    pm.expect(template.templateId)\r\n        .to.eql(Number(pm.collectionVariables.get(\"templateId\")));\r\n    pm.expect(template.name).to.eql(\"A-Check Engine Inspection\");\r\n    pm.expect(template.expectedDuration).to.eql(6.5);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{technicianToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/templates/{{templateId}}",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "templates",
+            "{{templateId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US117 - Get Maintenance Template - Not Found",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US117 - Unknown template returns 409\", function () {\r\n    pm.response.to.have.status(409);\r\n    pm.expect(pm.response.json().message)\r\n        .to.eql(\"Maintenance Template does not exist\");\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{technicianToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/templates/999999999",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "templates",
+            "999999999"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US117 - Setup Second Template",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Second template is created\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const template = pm.response.json();\r\n    pm.expect(template.name).to.eql(\"Landing Gear\");\r\n    pm.expect(template.expectedDuration).to.eql(3.5);\r\n    pm.expect(template.templateId).to.be.a(\"number\");\r\n\r\n    pm.collectionVariables.set(\"secondTemplateId\", template.templateId);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{technicianToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"name\": \"Landing Gear\",\r\n  \"expectedDuration\": 3.5,\r\n  \"templateChecklist\": {\r\n    \"brakes\": true\r\n  },\r\n  \"operation\": \"SCHEDULED\",\r\n  \"attribute\": \"AIRFRAME\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/templates",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "templates"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US117 - List Maintenance Templates",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US117 - List contains both created templates\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const templates = pm.response.json();\r\n    pm.expect(templates).to.be.an(\"array\");\r\n\r\n    const first = templates.find(t =>\r\n        t.templateId === Number(pm.collectionVariables.get(\"templateId\"))\r\n    );\r\n\r\n    const second = templates.find(t =>\r\n        t.templateId === Number(pm.collectionVariables.get(\"secondTemplateId\"))\r\n    );\r\n\r\n    pm.expect(first, \"First template must appear\").to.exist;\r\n    pm.expect(first.name).to.eql(\"A-Check Engine Inspection\");\r\n    pm.expect(first.expectedDuration).to.eql(6.5);\r\n\r\n    pm.expect(second, \"Second template must appear\").to.exist;\r\n    pm.expect(second.name).to.eql(\"Landing Gear\");\r\n    pm.expect(second.expectedDuration).to.eql(3.5);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{technicianToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/templates",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "templates"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US119 - Get Maintenance Record - Not Found",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US119 - Unknown maintenance record returns 409\", function () {\r\n    pm.response.to.have.status(409);\r\n    pm.expect(pm.response.json().message)\r\n        .to.eql(\"Maintenance Record does not exist\");\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{technicianToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/records/999999999",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "records",
+            "999999999"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US119 - Update Maintenance Record - Ongoing",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US119 - Maintenance status changes to ONGOING\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const record = pm.response.json();\r\n    pm.expect(record.id).to.eql(\r\n    Number(pm.collectionVariables.get(\"maintenanceRecordId\"))\r\n);\r\n    pm.expect(record.status).to.eql(\"ONGOING\");\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{technicianToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"status\": \"ONGOING\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/records/{{maintenanceRecordId}}/status",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "records",
+            "{{maintenanceRecordId}}",
+            "status"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US219 - Get Ongoing Maintenance - Success",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US219 - Ongoing maintenance includes the created record\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const records = pm.response.json();\r\n    pm.expect(records).to.be.an(\"array\").that.is.not.empty;\r\n\r\n    records.forEach(record => {\r\n        pm.expect(record.status).to.eql(\"ONGOING\");\r\n    });\r\n\r\n    pm.expect(records.map(record => record.id)).to.include(\r\n        Number(pm.collectionVariables.get(\"maintenanceRecordId\"))\r\n    );\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{supervisorToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/ongoing",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "ongoing"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US220 - Maintenance Costs By Aircraft",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US220 - Maintenance costs match bootstrap data\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const reports = pm.response.json();\r\n    pm.expect(reports).to.be.an(\"array\").with.lengthOf(3);\r\n\r\n    const expected = {\r\n        \"CS-TUA\": 6700,\r\n        \"D-ABXA\": 5600,\r\n        \"F-HXKA\": 0\r\n    };\r\n\r\n    Object.entries(expected).forEach(([registration, cost]) => {\r\n        const report = reports.find(r => r.group === registration);\r\n\r\n        pm.expect(report, registration + \" must appear\").to.exist;\r\n        pm.expect(report.totalCost).to.eql(cost);\r\n    });\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/reports/costs?groupBy=aircraft",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "reports",
+            "costs"
+          ],
+          "query": [
+            {
+              "key": "groupBy",
+              "value": "aircraft"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US220 - Maintenance Costs By Model",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US220 - Costs are grouped correctly by model\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const results = pm.response.json();\r\n    pm.expect(results).to.be.an(\"array\").with.lengthOf(2);\r\n\r\n    const boeing = results.find(item => item.group === \"737-800\");\r\n    const airbus = results.find(item => item.group === \"A320neo\");\r\n\r\n    pm.expect(boeing, \"737-800 must appear\").to.exist;\r\n    pm.expect(airbus, \"A320neo must appear\").to.exist;\r\n\r\n    pm.expect(boeing.totalCost).to.eql(12300);\r\n    pm.expect(airbus.totalCost).to.eql(0);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/reports/costs?groupBy=model",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "reports",
+            "costs"
+          ],
+          "query": [
+            {
+              "key": "groupBy",
+              "value": "model"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US221 - Average Maintenance Turnaround",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US221 - Average turnaround matches bootstrap data\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const results = pm.response.json();\r\n    pm.expect(results).to.be.an(\"array\").with.lengthOf(2);\r\n\r\n    const expected = {\r\n        \"737-800\": 4,\r\n        \"A320neo\": 1\r\n    };\r\n\r\n    Object.entries(expected).forEach(([model, days]) => {\r\n        const result = results.find(r => r.aircraftType === model);\r\n\r\n        pm.expect(result, model + \" must appear\").to.exist;\r\n        pm.expect(result.averageDays).to.eql(days);\r\n    });\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{supervisorToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/turnaround-average",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "turnaround-average"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US222 - Maintenance Alerts - Default Thresholds",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US222 - Default alerts match maintenance history\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const alerts = pm.response.json();\r\n    pm.expect(alerts).to.be.an(\"array\").that.is.not.empty;\r\n\r\n    [\"CS-TUA\", \"D-ABXA\", \"F-HXKA\"].forEach(registration => {\r\n        const alert = alerts.find(\r\n            a => a.registrationNumber === registration\r\n        );\r\n\r\n        pm.expect(alert, registration + \" must appear\").to.exist;\r\n        pm.expect(alert.lastMaintenanceDate).to.be.a(\"string\");\r\n        pm.expect(alert.daysSinceLastMaintenance).to.be.at.least(0);\r\n        pm.expect(alert.totalFlightHours).to.be.at.least(500);\r\n        pm.expect(alert.alertReason).to.include(\"threshold of 500\");\r\n        pm.expect(alert.alertReason)\r\n            .not.to.include(\"No completed maintenance on record\");\r\n    });\r\n\r\n    const withoutMaintenance = alerts.find(\r\n        a => a.registrationNumber === \"G-X321\"\r\n    );\r\n\r\n    pm.expect(withoutMaintenance, \"G-X321 must appear\").to.exist;\r\n    pm.expect(withoutMaintenance.lastMaintenanceDate).to.eql(null);\r\n    pm.expect(withoutMaintenance.daysSinceLastMaintenance).to.eql(null);\r\n    pm.expect(withoutMaintenance.alertReason)\r\n        .to.include(\"No completed maintenance on record\");\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/alerts",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "alerts"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US222 - Maintenance Alerts - Custom Thresholds",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US222 - Custom thresholds are applied\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const alerts = pm.response.json();\r\n    pm.expect(alerts).to.be.an(\"array\");\r\n\r\n    const aircraft = alerts.find(\r\n        a => a.registrationNumber === \"CS-TUA\"\r\n    );\r\n\r\n    pm.expect(aircraft, \"CS-TUA must appear\").to.exist;\r\n    pm.expect(aircraft.alertReason).to.include(\"threshold of 300\");\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/alerts?calendarDaysThreshold=90&flightHoursThreshold=300",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "alerts"
+          ],
+          "query": [
+            {
+              "key": "calendarDaysThreshold",
+              "value": "90"
+            },
+            {
+              "key": "flightHoursThreshold",
+              "value": "300"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US222 - Maintenance Alerts - Calendar Threshold",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US222 - Calendar threshold triggers the alert\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const alerts = pm.response.json();\r\n    pm.expect(alerts).to.be.an(\"array\");\r\n\r\n    const aircraft = alerts.find(\r\n        a => a.registrationNumber === \"CS-TUA\"\r\n    );\r\n\r\n    pm.expect(aircraft, \"CS-TUA must appear\").to.exist;\r\n    pm.expect(aircraft.daysSinceLastMaintenance).to.be.at.least(3);\r\n    pm.expect(aircraft.alertReason).to.include(\"days ago\");\r\n    pm.expect(aircraft.alertReason).to.include(\"threshold: 3\");\r\n    pm.expect(aircraft.alertReason).not.to.include(\"Total flight hours\");\r\n});\r\npm.test(\"US222 - Recent maintenance below thresholds produces no alert\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const alerts = pm.response.json();\r\n\r\n    pm.expect(\r\n        alerts.some(a => a.registrationNumber === \"F-HXKA\"),\r\n        \"F-HXKA should not generate an alert\"\r\n    ).to.eql(false);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/alerts?calendarDaysThreshold=3&flightHoursThreshold=99999",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "alerts"
+          ],
+          "query": [
+            {
+              "key": "calendarDaysThreshold",
+              "value": "3"
+            },
+            {
+              "key": "flightHoursThreshold",
+              "value": "99999"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US226 - Get Parts Inventory - Success",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US226 - Inventory contains the expected parts and totals\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const parts = pm.response.json();\r\n    pm.expect(parts).to.be.an(\"array\");\r\n\r\n    const expected = [\r\n        [\"ENG-001\", 2, 3000],\r\n        [\"TIRE-900\", 4, 3200],\r\n        [\"BRAKE-200\", 2, 2400],\r\n        [\"FUEL-PUMP-01\", 1, 3200],\r\n        [\"OIL-FILTER-22\", 2, 500]\r\n    ];\r\n\r\n    expected.forEach(([serial, quantity, cost]) => {\r\n        const part = parts.find(p => p.partSerialNumber === serial);\r\n\r\n        pm.expect(part, serial + \" must appear\").to.exist;\r\n        pm.expect(part.totalQuantityUsed).to.eql(quantity);\r\n        pm.expect(part.totalCost).to.eql(cost);\r\n        pm.expect(part.timesUsedInRecords).to.eql(1);\r\n    });\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{supervisorToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/parts/inventory",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "parts",
+            "inventory"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US226 - Low Stock - Custom Threshold",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US226 - No alerts with threshold 5\", function () {\r\n    pm.response.to.have.status(200);\r\n    pm.expect(pm.response.json()).to.deep.equal([]);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{supervisorToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/parts/low-stock?threshold=5",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "parts",
+            "low-stock"
+          ],
+          "query": [
+            {
+              "key": "threshold",
+              "value": "5"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US226 - Low Stock - Alerts Found",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US226 - Usage equal to or above threshold triggers alerts\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const alerts = pm.response.json();\r\n    pm.expect(alerts).to.be.an(\"array\");\r\n\r\n    const engine = alerts.find(p => p.partSerialNumber === \"ENG-001\");\r\n    const tire = alerts.find(p => p.partSerialNumber === \"TIRE-900\");\r\n\r\n    pm.expect(engine, \"Usage equal to threshold must trigger an alert\")\r\n        .to.exist;\r\n    pm.expect(engine.totalQuantityUsed).to.eql(2);\r\n\r\n    pm.expect(tire, \"Usage above threshold must trigger an alert\")\r\n        .to.exist;\r\n    pm.expect(tire.totalQuantityUsed).to.eql(4);\r\n\r\n    pm.expect(alerts.some(p => p.partSerialNumber === \"FUEL-PUMP-01\"))\r\n        .to.eql(false);\r\n\r\n    alerts.forEach(part => {\r\n        pm.expect(part.totalQuantityUsed).to.be.at.least(2);\r\n        pm.expect(part.alertMessage).to.include(\"threshold: 2\");\r\n    });\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{supervisorToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/parts/low-stock?threshold=2",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "parts",
+            "low-stock"
+          ],
+          "query": [
+            {
+              "key": "threshold",
+              "value": "2"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US226 - Low Stock - No Alerts",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US226 - No alerts with default threshold\", function () {\r\n    pm.response.to.have.status(200);\r\n    pm.expect(pm.response.json()).to.deep.equal([]);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{supervisorToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/maintenance/parts/low-stock",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "maintenance",
+            "parts",
+            "low-stock"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US227 - Fuel Efficiency Per Aircraft",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US227 - Aircraft fuel efficiency is calculated correctly\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const aircraft = pm.response.json();\r\n    pm.expect(aircraft).to.be.an(\"array\").that.is.not.empty;\r\n\r\n    aircraft.forEach(item => {\r\n        pm.expect(item.registrationNumber).to.be.a(\"string\");\r\n        pm.expect(item.fuelCapacityLiters).to.be.a(\"number\");\r\n        pm.expect(item.maxRangeKm).to.be.above(0);\r\n\r\n        const expected = Math.round(\r\n            item.fuelCapacityLiters / item.maxRangeKm * 100\r\n        ) / 100;\r\n\r\n        pm.expect(item.fuelConsumptionLitPerKm).to.eql(expected);\r\n    });\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/hangar/analytics/fuel-efficiency/aircraft",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "hangar",
+            "analytics",
+            "fuel-efficiency",
+            "aircraft"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US227 - Fuel Efficiency Per Route",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"US227 - Estimated route fuel matches distance and consumption\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const routes = pm.response.json();\r\n    pm.expect(routes).to.be.an(\"array\").that.is.not.empty;\r\n\r\n    routes.forEach(route => {\r\n        pm.expect(route.routeId).to.be.a(\"number\");\r\n        pm.expect(route.distanceKm).to.be.above(0);\r\n        pm.expect(route.avgFuelConsumptionLitPerKm)\r\n            .to.be.a(\"number\").and.at.least(0);\r\n\r\n        const expected = Math.round(\r\n            route.distanceKm * route.avgFuelConsumptionLitPerKm * 100\r\n        ) / 100;\r\n\r\n        pm.expect(route.estimatedFuelLiters).to.eql(expected);\r\n    });\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/hangar/analytics/fuel-efficiency/routes",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "hangar",
+            "analytics",
+            "fuel-efficiency",
+            "routes"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "technicianToken",
+      "value": ""
+    },
+    {
+      "key": "templateId",
+      "value": ""
+    },
+    {
+      "key": "supervisorToken",
+      "value": ""
+    },
+    {
+      "key": "backofficeToken",
+      "value": ""
+    },
+    {
+      "key": "atccToken",
+      "value": ""
+    },
+    {
+      "key": "secondTemplateId",
+      "value": ""
+    },
+    {
+      "key": "maintenanceRecordId",
+      "value": ""
+    }
+  ]
+}

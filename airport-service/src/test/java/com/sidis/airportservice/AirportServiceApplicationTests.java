@@ -1,13 +1,12 @@
 package com.sidis.airportservice;
 
+import com.sidis.airportservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
-class AirportServiceApplicationTests {
-
+class AirportServiceApplicationTests extends GatewayHttpTest {
     @Test
-    void contextLoads() {
+    void shouldRespondThroughHttp() throws Exception {
+        assertTrue(get("/api/airports").isContainerNode());
     }
-
 }

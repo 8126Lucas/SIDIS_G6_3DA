@@ -1,13 +1,12 @@
 package com.sidis.APIgateway;
 
+import com.sidis.APIgateway.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest(properties = "eureka.client.enabled=false")
-class APIgatewayApplicationTests {
-
-	@Test
-	void contextLoads() {
-	}
-
+class APIgatewayApplicationTests extends GatewayHttpTest {
+    @Test
+    void shouldRespondThroughHttp() throws Exception {
+        assertTrue(get("/api/hangar/analytics/status-summary").isContainerNode());
+    }
 }

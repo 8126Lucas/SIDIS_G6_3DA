@@ -1,100 +1,26 @@
 package com.sidis.aircraftservice.US227;
 
-import com.sidis.aircraftservice.Aircraft.HangarController;
-import com.sidis.aircraftservice.Aircraft.application.AddAircraftUseCase;
-import com.sidis.aircraftservice.Aircraft.application.AircraftLifeCycleUpdaterService;
-import com.sidis.aircraftservice.Aircraft.application.AircraftSearchService;
-//import com.sidis.aircraftservice.Aircraft.application.FuelEfficiencyService;
-import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
-//import com.sidis.aircraftservice.Flight.application.FlightSearchService;
-//import com.sidis.aircraftservice.Route.application.RouteSearchService;
-//import com.sidis.aircraftservice.authUsers.application.JwtService;
-//import com.sidis.aircraftservice.authUsers.infrastructure.JwtAuthenticationFilter;
+import com.sidis.aircraftservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
+import org.junit.jupiter.api.Disabled;
+import java.util.Map;
+import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.List;
+class FuelEfficiencyHttpTest extends GatewayHttpTest {
 
-import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
-@WebMvcTest(controllers = HangarController.class, properties = "eureka.client.enabled=false")
-@AutoConfigureMockMvc(addFilters = false)
-class FuelEfficiencyHttpTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-//    @MockitoBean private FuelEfficiencyService fuelEfficiencyService;
-    @MockitoBean private AddAircraftUseCase addAircraftUseCase;
-    @MockitoBean private AircraftModelSearchService aircraftModelSearchService;
-    @MockitoBean private AircraftLifeCycleUpdaterService aircraftLifeCycleUpdaterService;
-    @MockitoBean private AircraftSearchService aircraftSearchService;
-//    @MockitoBean private RouteSearchService routeSearchService;
-//    @MockitoBean private FlightSearchService flightSearchService;
-//    @MockitoBean private JwtService jwtService;
-//    @MockitoBean private JwtAuthenticationFilter jwtAuthenticationFilter;
-
-/*    @Test
-    void shouldReturnFuelEfficiencyPerAircraft() throws Exception {
-        FuelEfficiencyService.AircraftFuelEfficiency entry =
-                new FuelEfficiencyService.AircraftFuelEfficiency(
-                        "CS-TVA", "Boeing 737", 20000.0, 5000.0, 4.0);
-
-        when(fuelEfficiencyService.getFuelEfficiencyPerAircraft()).thenReturn(List.of(entry));
-
-        mockMvc.perform(get("/api/hangar/analytics/fuel-efficiency/aircraft"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].registrationNumber").value("CS-TVA"))
-                .andExpect(jsonPath("$[0].modelName").value("Boeing 737"))
-                .andExpect(jsonPath("$[0].fuelCapacityLiters").value(20000.0))
-                .andExpect(jsonPath("$[0].maxRangeKm").value(5000.0))
-                .andExpect(jsonPath("$[0].fuelConsumptionLitPerKm").value(4.0));
-
-        verify(fuelEfficiencyService, times(1)).getFuelEfficiencyPerAircraft();
-    }*/
-
-/*    @Test
-    void shouldReturnEmptyListWhenNoAircraft() throws Exception {
-        when(fuelEfficiencyService.getFuelEfficiencyPerAircraft()).thenReturn(List.of());
-
-        mockMvc.perform(get("/api/hangar/analytics/fuel-efficiency/aircraft"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isEmpty());
-    }*/
-
-/*    @Test
-    void shouldReturnFuelEfficiencyPerRoute() throws Exception {
-        FuelEfficiencyService.RouteFuelEfficiency route =
-                new FuelEfficiencyService.RouteFuelEfficiency(
-                        1L, "LIS-OPO", "LIS", "OPO", 300.0, 4.0, 1200.0);
-
-        when(fuelEfficiencyService.getFuelEfficiencyPerRoute()).thenReturn(List.of(route));
-
-        mockMvc.perform(get("/api/hangar/analytics/fuel-efficiency/routes"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].routeId").value(1))
-                .andExpect(jsonPath("$[0].routeName").value("LIS-OPO"))
-                .andExpect(jsonPath("$[0].originIata").value("LIS"))
-                .andExpect(jsonPath("$[0].destinationIata").value("OPO"))
-                .andExpect(jsonPath("$[0].distanceKm").value(300.0))
-                .andExpect(jsonPath("$[0].avgFuelConsumptionLitPerKm").value(4.0))
-                .andExpect(jsonPath("$[0].estimatedFuelLiters").value(1200.0));
-
-        verify(fuelEfficiencyService, times(1)).getFuelEfficiencyPerRoute();
-    }*/
-
-/*    @Test
-    void shouldReturnEmptyListWhenNoFlights() throws Exception {
-        when(fuelEfficiencyService.getFuelEfficiencyPerRoute()).thenReturn(List.of());
-
-        mockMvc.perform(get("/api/hangar/analytics/fuel-efficiency/routes"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isEmpty());
-    }*/
+    @Test void shouldReturnFuelEfficiencyPerAircraft() throws Exception {
+        String registration = createAircraft();
+        var rows = get("/api/hangar/analytics/fuel-efficiency/aircraft");
+        assertTrue(rows.isArray());
+        var row = java.util.stream.StreamSupport.stream(rows.spliterator(), false)
+                .filter(r -> registration.equals(r.path("registrationNumber").asText())).findFirst().orElseThrow();
+        assertEquals(3.94, row.path("fuelConsumptionLitPerKm").asDouble(), 0.001);
+    }
+    @Test void shouldReturnFuelEfficiencyPerRoute() throws Exception {
+        assertRouteFuelEfficiency();
+    }
+    @Disabled("Requires an empty deployment; HTTP API does not expose fleet deletion.")
+    @Test void shouldReturnEmptyListWhenNoAircraft() {}
+    @Disabled("Requires an empty deployment; HTTP API does not expose flight deletion.")
+    @Test void shouldReturnEmptyListWhenNoFlights() {}
 }

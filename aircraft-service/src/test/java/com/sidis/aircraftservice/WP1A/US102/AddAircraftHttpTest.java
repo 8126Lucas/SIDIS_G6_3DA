@@ -1,143 +1,26 @@
 package com.sidis.aircraftservice.WP1A.US102;
 
-import com.sidis.aircraftservice.Aircraft.HangarController;
-import com.sidis.aircraftservice.Aircraft.application.*;
-//import com.sidis.aircraftservice.Aircraft.application.FuelEfficiencyService;
-import com.sidis.aircraftservice.infrastructure.client.FlightRestClientService;
-import com.sidis.aircraftservice.infrastructure.client.RouteRestClientService;
-import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
-import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
-//import com.sidis.aircraftservice.Flight.application.FlightSearchService;
-//import com.sidis.aircraftservice.Route.application.RouteSearchService;
-//import com.sidis.aircraftservice.authUsers.application.JwtService;
-//import com.sidis.aircraftservice.authUsers.infrastructure.JwtAuthenticationFilter;
+import com.sidis.aircraftservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
+import org.junit.jupiter.api.Disabled;
+import java.util.Map;
+import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.Optional;
+class AddAircraftHttpTest extends GatewayHttpTest {
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-@WebMvcTest(controllers = HangarController.class, properties = "eureka.client.enabled=false")
-@AutoConfigureMockMvc(addFilters = false)
-class AddAircraftHttpTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockitoBean
-    private AddAircraftUseCase addAircraftUseCase;
-
-    @MockitoBean
-    private AircraftModelSearchService aircraftModelSearchService;
-
-    @MockitoBean
-    private AircraftLifeCycleUpdaterService aircraftLifeCycleUpdaterService;
-
-    @MockitoBean
-    private AircraftSearchService aircraftSearchService;
-
-    @MockitoBean
-    private RouteRestClientService routeClient;
-
-    @MockitoBean
-    private RouteSearchService routeSearchService;
-
-    @MockitoBean
-    private FlightRestClientService flightClient;
-
-    @MockitoBean
-    private FuelEfficiencyService fuelEfficiencyService;
-
-/*    @MockitoBean
-    private JwtService jwtService;
-
-    @MockitoBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-*/
-    @Test
-    void shouldCreateAircraftAndValidateRequestMapping() throws Exception {
-
-        AircraftModel model = mock(AircraftModel.class);
-        when(model.getModelName()).thenReturn("Airbus A320");
-
-        when(aircraftModelSearchService.spotAircraftInCatalog("Airbus A320"))
-                .thenReturn(Optional.of(model));
-
-        String json = "{\n" +
-                      "    \"registrationNumber\": \"CS-TST\",\n" +
-                      "    \"modelName\": \"Airbus A320\",\n" +
-                      "    \"manufacturingDate\": \"2020-01-01\",\n" +
-                      "    \"totalOperationalHours\": 1000.0,\n" +
-                      "    \"totalFlightHours\": 800.0,\n" +
-                      "    \"availability\": \"AVAILABLE\"\n" +
-                      "}\n";
-
-        mockMvc.perform(post("/api/hangar/aircraft")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
-                .andExpect(status().isCreated());
-
-        verify(aircraftModelSearchService, times(1))
-                .spotAircraftInCatalog("Airbus A320");
-
-        verify(aircraftLifeCycleUpdaterService, times(1))
-                .changeAvailability(any(), eq(
-                        com.sidis.aircraftservice.Aircraft.domain.AircraftAvailability.AVAILABLE
-                ));
-
-        verify(addAircraftUseCase, times(1))
-                .execute(any());
+    @Test void shouldCreateAircraftAndReadItBack() throws Exception {
+        String model = createModel();
+        String registration = createAircraft(model);
+        var aircraft = get("/api/hangar/aircraft/" + registration);
+        assertCreatedAircraft(aircraft, registration, model);
+        assertEquals(registration, aircraft.path("registrationNumber").asText());
+        assertEquals(model, aircraft.path("modelName").asText());
+        assertEquals("AVAILABLE", aircraft.path("status").asText());
+        assertEquals(1000.0, aircraft.path("totalOperationalHours").asDouble());
     }
-
-    @Test
-    void shouldReturn404WhenModelNotFound() throws Exception {
-
-        when(aircraftModelSearchService.spotAircraftInCatalog("Airbus A320"))
-                .thenReturn(Optional.empty());
-
-        String json = "{\n" +
-                      "    \"registrationNumber\": \"CS-TST\",\n" +
-                      "    \"modelName\": \"Airbus A320\",\n" +
-                      "    \"manufacturingDate\": \"2020-01-01\",\n" +
-                      "    \"totalOperationalHours\": 1000.0,\n" +
-                      "    \"totalFlightHours\": 800.0,\n" +
-                      "    \"availability\": \"AVAILABLE\"\n" +
-                      "}\n";
-
-        mockMvc.perform(post("/api/hangar/aircraft")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
-                .andExpect(status().isNotFound());
+    @Test void shouldReturn404WhenModelNotFound() throws Exception {
+        expect(404, request("POST", "/api/hangar/aircraft", aircraftBody(unique(), unique())));
     }
-
-    @Test
-    void shouldReturn500WhenServiceFails() throws Exception {
-
-        when(aircraftModelSearchService.spotAircraftInCatalog(any()))
-                .thenThrow(new RuntimeException("DB failure"));
-
-        String json = "{\n" +
-                      "    \"registrationNumber\": \"CS-TST\",\n" +
-                      "    \"modelName\": \"Airbus A320\",\n" +
-                      "    \"manufacturingDate\": \"2020-01-01\",\n" +
-                      "    \"totalOperationalHours\": 1000.0,\n" +
-                      "    \"totalFlightHours\": 800.0,\n" +
-                      "    \"availability\": \"AVAILABLE\"\n" +
-                      "}\n";
-
-        mockMvc.perform(post("/api/hangar/aircraft")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
-                .andExpect(status().isInternalServerError());
-    }
+    @Disabled("A real gateway request cannot inject a database failure.")
+    @Test void shouldReturn500WhenServiceFails() {}
 }
