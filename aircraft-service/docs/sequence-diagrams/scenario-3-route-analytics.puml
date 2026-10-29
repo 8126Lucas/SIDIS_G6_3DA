@@ -17,6 +17,7 @@ participant "RouteSearchService\n<<Application Service>>" as route_search
 participant "FuelEfficiencyService\n<<UseCase>>" as fuel_uc
 participant "RouteRestClientService\n<<RestClient Adapter>>" as route_client
 participant "FlightRestClientService\n<<RestClient Adapter>>" as flight_client
+participant "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>" as interceptor
 participant "AircraftRepository\n<<JPA Repository>>" as repo
 participant "Route Service\n<<External Microservice>>" as route_api
 participant "Flight Service\n<<External Microservice>>" as flight_api
@@ -28,6 +29,7 @@ box "Aircraft Service [Container]" #LightBlue
     participant fuel_uc
     participant route_client
     participant flight_client
+    participant interceptor
     participant repo
 end box
 
@@ -35,7 +37,8 @@ end box
 
 client -> gateway : GET /api/hangar/aircraft/{registrationNumber}/compatible-routes
 activate gateway
-gateway -> controller : Forward request
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> search_svc : spotAircraftInHangar(registrationNumber)
@@ -47,16 +50,21 @@ deactivate search_svc
 
 controller -> route_client : getAllRoutes()
 activate route_client
-route_client -> route_api : GET /api/routes
+route_client -> interceptor : GET /api/routes
+activate interceptor
+interceptor -> interceptor : add X-Gateway-Secret\n+ copy Authorization
+interceptor -> route_api : GET /api/routes
 activate route_api
-route_api --> route_client : RouteClientDTO[]
+route_api --> interceptor : RouteClientDTO[]
 deactivate route_api
+interceptor --> route_client : RouteClientDTO[]
+deactivate interceptor
 route_client --> controller : List<RouteClientDTO>
 deactivate route_client
 
 controller -> route_search : findCompatibleRoutes(aircraft, routes)
 activate route_search
-route_search -> route_search : keep capacity <= seats\nand distanceKm <= range
+route_search -> route_search : keep routeRequirements.requiredCapacity <= seats\nand distanceKm <= range (meanRange)
 route_search --> controller : List<RouteClientDTO>
 deactivate route_search
 
@@ -69,7 +77,8 @@ deactivate gateway
 
 client -> gateway : GET /api/hangar/analytics/fuel-efficiency/routes
 activate gateway
-gateway -> controller : Forward request
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> fuel_uc : getFuelEfficiencyPerRoute()
@@ -77,10 +86,14 @@ activate fuel_uc
 
 fuel_uc -> flight_client : getAllFlights()
 activate flight_client
-flight_client -> flight_api : GET /api/flights
+flight_client -> interceptor : GET /api/flights
+activate interceptor
+interceptor -> flight_api : GET /api/flights\n(+ X-Gateway-Secret, Authorization)
 activate flight_api
-flight_api --> flight_client : FlightClientDTO[]
+flight_api --> interceptor : FlightClientDTO[]
 deactivate flight_api
+interceptor --> flight_client : FlightClientDTO[]
+deactivate interceptor
 flight_client --> fuel_uc : List<FlightClientDTO>
 deactivate flight_client
 
@@ -108,6 +121,6 @@ deactivate controller
 gateway --> client : 200 OK Response
 deactivate gateway
 
-note over route_client, flight_api : GET /api/flights is not exposed by flight-service in the current code (RestClient error -> 500).\nGET /api/routes exists, but RouteClientDTO.capacity is not in its response; the null capacity\nmakes the compatible-routes filter throw NullPointerException (500, ErrorDetails)
+note over route_client, flight_api : GET /api/flights is not exposed by flight-service in the current code (RestClient error -> 500).\nFlightClientDTO.aircraftRegistration does not match flight-service's aircraftRegistrationNumber,\nso aircraft lookups would miss even if the endpoint existed.\nRoute capacity now maps from routeRequirements.requiredCapacity; origin/destination IATA stay null.
 
 @enduml
