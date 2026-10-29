@@ -1,7 +1,9 @@
 package com.sidis.maintenanceservice.infrastructure.client;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public record AircraftClientDTO (
-    String aircraftRegistration,
+    @JsonProperty("registrationNumber") String aircraftRegistration,
     String modelName,
     Double totalFlightHours
 ) {}

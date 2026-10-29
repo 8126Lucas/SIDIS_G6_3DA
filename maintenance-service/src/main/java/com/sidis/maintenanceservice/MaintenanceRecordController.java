@@ -188,6 +188,14 @@ public class MaintenanceRecordController {
         maintenanceRecordProgressService.changeRecordAttribute(record,request.attribute());
     }
 
+    @PatchMapping("/records/{id}/complete")
+    public MaintenanceRecordResponse completeMaintenance(@PathVariable Long id, @RequestBody CompleteRecordRequest request) {
+        MaintenanceRecord record = maintenanceRecordProgressService.completeRecord(
+                id, request.notes(), request.tasksDone(), request.endDate()
+        );
+        return MaintenanceRecordResponse.from(record);
+    }
+
     @GetMapping("/records")
     public List<MaintenanceRecordResponse> getRecordsWithFiltering(
             @RequestParam(required = false) String aircraft,
@@ -311,4 +319,7 @@ public class MaintenanceRecordController {
                                  Integer totalQuantityUsed,
                                  Long timesUsedInRecords,
                                  String alertMessage) {}
+
+    public record CompleteRecordRequest(String notes, Map<String, Boolean> tasksDone, LocalDate endDate) {}
+
 }

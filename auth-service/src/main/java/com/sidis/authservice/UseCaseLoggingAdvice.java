@@ -35,7 +35,7 @@ public class UseCaseLoggingAdvice {
     private static final Logger LOGGER = LoggerFactory.getLogger(com.sidis.authservice.UseCaseLoggingAdvice.class);
 
     /** Matches any class annotated with {@link UseCase}. */
-    @Pointcut("within(com.sidis.authservice.UseCase)")
+    @Pointcut("@within(com.sidis.authservice.UseCase)")
     public void useCase() {
     }
 
