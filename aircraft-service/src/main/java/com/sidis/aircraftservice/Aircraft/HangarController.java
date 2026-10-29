@@ -4,6 +4,7 @@ import com.sidis.aircraftservice.Aircraft.application.*;
 import com.sidis.aircraftservice.Aircraft.application.FuelEfficiencyService;
 import com.sidis.aircraftservice.Aircraft.domain.*;
 import com.sidis.aircraftservice.infrastructure.client.FlightRestClientService;
+import com.sidis.aircraftservice.infrastructure.client.PeerForwarder;
 import com.sidis.aircraftservice.infrastructure.client.RouteClientDTO;
 import com.sidis.aircraftservice.infrastructure.client.RouteRestClientService;
 import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
@@ -12,6 +13,7 @@ import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 //import com.sidis.aircraftservice.Route.RouteController;
 import com.sidis.aircraftservice.exceptions.DomainException;
 import com.sidis.aircraftservice.exceptions.ResourceNotFoundException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -40,6 +42,7 @@ public class HangarController {
     private final FlightRestClientService flightClient;
 //    private final FlightSearchService flightSearchService;
     private final FuelEfficiencyService fuelEfficiencyService;
+    private final PeerForwarder peerForwarder;
 
     public HangarController(AddAircraftUseCase addAircraftUseCase,
                             AircraftModelSearchService aircraftModelSearchService,
@@ -49,7 +52,8 @@ public class HangarController {
                             RouteSearchService routeSearchService,
                             FlightRestClientService flightClient,
 //                            FlightSearchService flightSearchService,
-                            FuelEfficiencyService fuelEfficiencyService) {
+                            FuelEfficiencyService fuelEfficiencyService,
+                            PeerForwarder peerForwarder) {
         this.addAircraftUseCase = addAircraftUseCase;
         this.aircraftModelSearchService = aircraftModelSearchService;
         this.aircraftLifeCycleUpdaterService = aircraftLifeCycleUpdaterService;
@@ -59,6 +63,7 @@ public class HangarController {
         this.flightClient = flightClient;
 //        this.flightSearchService = flightSearchService;
         this.fuelEfficiencyService = fuelEfficiencyService;
+        this.peerForwarder = peerForwarder;
     }
     @PostMapping("/aircraft")
     @ResponseStatus(HttpStatus.CREATED)
@@ -80,15 +85,15 @@ public class HangarController {
     }
 
     @GetMapping("/aircraft/{registrationNumber}")
-    public AircraftResponse getAircraft(@PathVariable String registrationNumber) {
-        Aircraft aircraft = aircraftSearchService
-                .spotAircraftInHangar(registrationNumber)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "Aircraft does not exist in hangar"
-                        )
-                );
-        return AircraftResponse.from(aircraft);
+    public AircraftResponse getAircraft(@PathVariable String registrationNumber, HttpServletRequest request) {
+        return aircraftSearchService.spotAircraftInHangar(registrationNumber)
+                .map(AircraftResponse::from)
+                .orElseGet(() -> peerForwarder.forwardGet(
+                        "aircraft-service",
+                        "/api/hangar/aircraft/" + registrationNumber,
+                        AircraftResponse.class,
+                        request.getHeader("Authorization")
+                ));
     }
 
     @GetMapping("/aircraft/{registrationNumber}/status")

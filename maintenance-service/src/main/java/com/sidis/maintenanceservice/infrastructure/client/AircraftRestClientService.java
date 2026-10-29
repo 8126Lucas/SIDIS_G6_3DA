@@ -1,5 +1,7 @@
 package com.sidis.maintenanceservice.infrastructure.client;
 
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
@@ -17,6 +19,7 @@ public class AircraftRestClientService {
         this.aircraftClient = globalBuilder.baseUrl("http://aircraft-service").build();
     }
 
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public List<AircraftClientDTO> findAll() {
         try {
             return Collections.singletonList(aircraftClient.get()
@@ -28,6 +31,7 @@ public class AircraftRestClientService {
         }
     }
 
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public Optional<AircraftClientDTO> findAircraftByRegistration(String registrationNumber) {
         try {
             AircraftClientDTO dto = aircraftClient.get()
@@ -41,6 +45,7 @@ public class AircraftRestClientService {
         }
     }
 
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public String findAircraftModelNameByRegistrationNumber(String registrationNumber) {
         try {
             Optional<AircraftClientDTO> dto = findAircraftByRegistration(registrationNumber);
