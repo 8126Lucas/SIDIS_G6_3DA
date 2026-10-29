@@ -1,0 +1,105 @@
+@startuml
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 180
+skinparam boxPadding 10
+skinparam participantPadding 10
+skinparam shadowing false
+
+title Sequence Diagram - Scenario 3: Maintenance Reports and Alerts (As Implemented)
+
+autonumber
+
+actor "Client / Postman" as client
+participant "API Gateway\n<<Gateway>>" as gateway
+participant "MaintenanceRecordController\n<<REST Controller>>" as controller
+participant "MaintenanceReportService\n<<UseCase>>" as report_svc
+participant "MaintenanceAlertService\n<<UseCase>>" as alert_svc
+participant "AircraftRestClientService\n<<RestClient Adapter>>" as aircraft_client
+participant "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>" as interceptor
+participant "MaintenanceRecordRepository\n<<JPA Repository>>" as record_repo
+participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
+participant "Aircraft Service\n<<External Microservice>>" as aircraft_api
+
+box "Maintenance Service [Container]" #LightBlue
+    participant controller
+    participant report_svc
+    participant alert_svc
+    participant aircraft_client
+    participant interceptor
+    participant record_repo
+    participant exception_handler
+end box
+
+== Flow A: Costs by Model (US220) ==
+
+client -> gateway : GET /api/maintenance/reports/costs?groupBy=model
+activate gateway
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
+activate controller
+
+controller -> report_svc : maintenanceCosts("model")
+activate report_svc
+report_svc -> record_repo : findAll()
+record_repo --> report_svc : List<MaintenanceRecord>
+
+loop for each record
+    report_svc -> aircraft_client : findAircraftModelNameByRegistrationNumber(registration)
+    activate aircraft_client
+    aircraft_client -> interceptor : GET /api/hangar/aircraft/{registration}
+    activate interceptor
+    interceptor -> interceptor : add X-Gateway-Secret\n+ copy Authorization
+    interceptor -> aircraft_api : GET /api/hangar/aircraft/{registration}
+    activate aircraft_api
+    aircraft_api --> interceptor : AircraftResponse or 404
+    deactivate aircraft_api
+    interceptor --> aircraft_client : response
+    deactivate interceptor
+    aircraft_client --> report_svc : modelName (or "" on 404)
+    deactivate aircraft_client
+    report_svc -> report_svc : add sum(quantity x price) to group
+end
+
+report_svc --> controller : List<MaintenanceCostReport> (sorted by group)
+deactivate report_svc
+controller --> gateway : 200 OK (JSON list)
+deactivate controller
+gateway --> client : 200 OK Response
+deactivate gateway
+
+== Flow B: Maintenance Alerts (US222) ==
+
+client -> gateway : GET /api/maintenance/alerts?calendarDaysThreshold=180&flightHoursThreshold=500
+activate gateway
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
+activate controller
+
+controller -> alert_svc : findAircraftDueForMaintenance(180, 500)
+activate alert_svc
+alert_svc -> record_repo : findByStatus(COMPLETED)
+record_repo --> alert_svc : List<MaintenanceRecord>
+
+alert_svc -> aircraft_client : findAll()
+activate aircraft_client
+aircraft_client -> interceptor : GET /api/hangar/aircraft
+activate interceptor
+interceptor -> aircraft_api : GET /api/hangar/aircraft\n(+ X-Gateway-Secret, Authorization)
+activate aircraft_api
+aircraft_api --> interceptor : AircraftResponse[] (JSON array, first page)
+deactivate aircraft_api
+interceptor --> aircraft_client : response
+deactivate interceptor
+aircraft_client -> aircraft_client : body(AircraftClientDTO.class)\n(array into single object)
+aircraft_client -[#red]> exception_handler : deserialization error (not HttpClientErrorException, not caught)
+deactivate aircraft_client
+deactivate alert_svc
+activate exception_handler
+exception_handler --> client : 500 Internal Server Error (ErrorDetails JSON)
+deactivate exception_handler
+deactivate controller
+deactivate gateway
+
+note over alert_svc, aircraft_api : Intended logic (not reached): for each aircraft, find the last COMPLETED record,\nalert if none, if days since endDate >= threshold, or if totalFlightHours >= threshold.\nWith the current AircraftClientDTO, aircraftRegistration would also be null (field is registrationNumber).
+
+@enduml
