@@ -1,79 +1,21 @@
 package com.sidis.aircraftservice.WP1A.US105;
 
-import com.sidis.aircraftservice.Aircraft.HangarController;
-import com.sidis.aircraftservice.Aircraft.application.*;
-import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
-import com.sidis.aircraftservice.Aircraft.domain.AircraftAvailability;
-import com.sidis.aircraftservice.infrastructure.client.FlightRestClientService;
-import com.sidis.aircraftservice.infrastructure.client.RouteRestClientService;
-import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
-import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
-//import com.sidis.aircraftservice.Aircraft.application.FuelEfficiencyService;
-//import com.sidis.aircraftservice.Flight.application.FlightSearchService;
-//import com.sidis.aircraftservice.Route.application.RouteSearchService;
-import org.junit.jupiter.api.BeforeEach;
+import com.sidis.aircraftservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
-
-import java.time.LocalDate;
-import java.util.Optional;
-
+import org.junit.jupiter.api.Disabled;
+import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
-class PatchAircraftFromRepoTest {
+// Persistence is verified through the public API; Java overloads share the same HTTP operation.
+class PatchAircraftFromRepoTest extends GatewayHttpTest {
 
-    private AircraftSearchService aircraftSearchService;
-    private AircraftLifeCycleUpdaterService aircraftLifeCycleUpdaterService;
-    private HangarController hangarController;
-
-    @BeforeEach
-    void setUp() {
-
-        aircraftSearchService = mock(AircraftSearchService.class);
-
-        aircraftLifeCycleUpdaterService =
-                new AircraftLifeCycleUpdaterService();
-
-        hangarController = new HangarController(
-                mock(AddAircraftUseCase.class),
-                mock(AircraftModelSearchService.class),
-                aircraftLifeCycleUpdaterService,
-                aircraftSearchService,
-                mock(RouteRestClientService.class),
-                mock(RouteSearchService.class),
-                mock(FlightRestClientService.class),
-                mock(FuelEfficiencyService.class)
-        );
-    }
-
-    @Test
-    void shouldChangeAircraftAvailability() {
-
-        AircraftModel model = mock(AircraftModel.class);
-        when(model.getModelName()).thenReturn("Airbus A320");
-
-        Aircraft aircraft = new Aircraft(
-                "CS-TST",
-                model,
-                LocalDate.of(2020, 1, 1),
-                1000.0,
-                800.0
-        );
-
-        when(aircraftSearchService.spotAircraftInHangar("CS-TST"))
-                .thenReturn(Optional.of(aircraft));
-
-        hangarController.changeAircraft(
-                "CS-TST",
-                new HangarController.PatchAircraftAvailabilityRequest(
-                        "CS-TST",
-                        "AVAILABLE"
-                )
-        );
-
-        assertEquals(AircraftAvailability.AVAILABLE, aircraft.getStatus());
-
-        verify(aircraftSearchService, times(1))
-                .spotAircraftInHangar("CS-TST");
+    @Test void shouldChangeAircraftAvailability() throws Exception {
+        String registration = createAircraft();
+        var expected = get("/api/hangar/aircraft/" + registration).deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) expected).put("status", "MAINTENANCE");
+        expect(200, request("PATCH", "/api/hangar/aircraft/" + registration,
+                Map.of("registrationNumber", registration, "availability", "MAINTENANCE")));
+        assertEquals(expected, get("/api/hangar/aircraft/" + registration),
+                "Changing availability must persist and preserve the other aircraft fields");
     }
 }

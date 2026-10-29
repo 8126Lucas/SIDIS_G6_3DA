@@ -1,13 +1,12 @@
 package com.sidis.flightservice;
 
+import com.sidis.flightservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
-class FlightServiceApplicationTests {
-
+class FlightServiceApplicationTests extends GatewayHttpTest {
     @Test
-    void contextLoads() {
+    void shouldRespondThroughHttp() throws Exception {
+        assertTrue(get("/api/flights/aircraft/HTTP-NONEXISTENT").isContainerNode());
     }
-
 }

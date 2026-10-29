@@ -1,77 +1,37 @@
 package com.sidis.aircraftservice.WP1A.US104;
 
+import com.sidis.aircraftservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
+import org.junit.jupiter.api.Disabled;
+import java.util.Map;
+import static org.junit.jupiter.api.Assertions.*;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+class GetAircraftWithFilteringHttpTest extends GatewayHttpTest {
 
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
-
-@SpringBootTest(properties = "eureka.client.enabled=false")
-@AutoConfigureMockMvc(addFilters = false)
-class GetAircraftWithFilteringHttpTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Test
-    void shouldReturnAircraftWhenAllFiltersMatch() throws Exception {
-
-        mockMvc.perform(get("/api/hangar/aircraft")
-                        .param("model", "737-800")
-                        .param("status", "INACTIVE")
-                        .param("manufacturingDate", "2018-05-10")
-                        .accept(MediaType.APPLICATION_JSON))
-                .andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].registrationNumber").value("CS-TUA"))
-                .andExpect(jsonPath("$[0].modelName").value("737-800"))
-                .andExpect(jsonPath("$[0].status").value("INACTIVE"));
+    private String filter(String model, String status, String date) {
+        return "/api/hangar/aircraft?model=" + model + "&status=" + status
+                + "&manufacturingDate=" + date + "&size=100";
     }
-
-    @Test
-    void shouldReturnEmptyWhenModelDoesNotMatch() throws Exception {
-
-        mockMvc.perform(get("/api/hangar/aircraft")
-                        .param("model", "INVALID-MODEL")
-                        .param("status", "INACTIVE")
-                        .param("manufacturingDate", "2018-05-10")
-                        .accept(MediaType.APPLICATION_JSON))
-                .andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+    @Test void shouldReturnAircraftWhenAllFiltersMatch() throws Exception {
+        String model = createModel();
+        String registration = createAircraft(model);
+        var aircraft = get(filter(model, "AVAILABLE", "2020-01-01"));
+        assertTrue(aircraft.isArray());
+        assertEquals(1, aircraft.size());
+        assertCreatedAircraft(aircraft.get(0), registration, model);
     }
-
-    @Test
-    void shouldReturnEmptyWhenStatusDoesNotMatch() throws Exception {
-
-        mockMvc.perform(get("/api/hangar/aircraft")
-                        .param("model", "Boeing 737-800")
-                        .param("status", "MAINTENANCE")
-                        .param("manufacturingDate", "2018-05-10")
-                        .accept(MediaType.APPLICATION_JSON))
-                .andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+    @Test void shouldReturnEmptyWhenModelDoesNotMatch() throws Exception {
+        createAircraft();
+        assertEquals(0, get(filter(unique(), "AVAILABLE", "2020-01-01")).size());
     }
-
-    @Test
-    void shouldReturnEmptyWhenDateDoesNotMatch() throws Exception {
-
-        mockMvc.perform(get("/api/hangar/aircraft")
-                        .param("model", "Boeing 737-800")
-                        .param("status", "INACTIVE")
-                        .param("manufacturingDate", "2000-01-01")
-                        .accept(MediaType.APPLICATION_JSON))
-                .andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+    @Test void shouldReturnEmptyWhenStatusDoesNotMatch() throws Exception {
+        String model = createModel();
+        createAircraft(model);
+        assertEquals(0, get(filter(model, "MAINTENANCE", "2020-01-01")).size());
+    }
+    @Test void shouldReturnEmptyWhenDateDoesNotMatch() throws Exception {
+        String model = createModel();
+        createAircraft(model);
+        assertEquals(0, get(filter(model, "AVAILABLE", "2000-01-01")).size());
     }
 }
