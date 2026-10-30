@@ -1,9 +1,6 @@
 package com.sidis.airportservice.exceptions;
 
-import com.sidis.airportservice.exceptions.DomainException;
-import com.sidis.airportservice.exceptions.ErrorDetails;
-import com.sidis.airportservice.exceptions.ResourceNotFoundException;
-import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -97,7 +94,31 @@ public class GlobalExceptionHandler {
                 null
         );
     }
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorDetails> handleOptimisticLocking(
+            ObjectOptimisticLockingFailureException ex,
+            HttpServletRequest request) {
+        return buildError(
+                HttpStatus.CONFLICT,
+                "Conflict",
+                "Concurrent modification detected. Please retry the operation.",
+                request.getRequestURI(),
+                null
+        );
+    }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorDetails> handleIllegalState(
+            IllegalStateException ex,
+            HttpServletRequest request) {
+        return buildError(
+                HttpStatus.CONFLICT,
+                "Conflict",
+                ex.getMessage(),
+                request.getRequestURI(),
+                null
+        );
+    }
     private ResponseEntity<ErrorDetails> buildError(
             HttpStatus status,
             String error,
