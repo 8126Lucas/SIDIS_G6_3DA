@@ -1,9 +1,11 @@
 package com.sidis.aircraftservice.infrastructure.client;
 
-import java.time.LocalDateTime;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 public record FlightClientDTO (
+    @JsonProperty("flightId")
     Long id,
+    @JsonProperty("aircraftRegistrationNumber")
     String aircraftRegistration,
     Long routeId,
     Double range,

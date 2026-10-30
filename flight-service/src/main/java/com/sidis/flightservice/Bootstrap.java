@@ -42,19 +42,19 @@ public class Bootstrap implements ApplicationRunner {
         AircraftReference n789dl = new AircraftReference("N789DL");
 
         RouteReference route1 = new RouteReference(
-                1L, "OPO", "Porto-London", "LHR"
+                1L, "OPO", "TEST ROUTE 1", "LIS"
         );
 
         RouteReference route2 = new RouteReference(
-                2L, "LIS", "Lisbon-Madrid", "MAD"
+                2L, "LIS", "TEST ROUTE 2", "MAD"
         );
 
         RouteReference route3 = new RouteReference(
-                3L, "OPO", "Porto-Paris", "CDG"
+                3L, "MAD", "TEST ROUTE 3", "CDG"
         );
 
         RouteReference route4 = new RouteReference(
-                4L, "LIS", "Lisbon-Frankfurt", "FRA"
+                4L, "CDG", "TEST ROUTE 4", "LHR"
         );
 
         Flight f1 = new Flight(
