@@ -1,13 +1,14 @@
 name: SIDIS Monorepo CD
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_run:
+    workflows: ["SIDIS Monorepo CI"]
+    types:
+      - completed
 
 jobs:
   build-services:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     outputs:
       repo_owner: ${{ steps.set-owner.outputs.repo_owner }}
@@ -65,6 +66,6 @@ jobs:
           docker build \
             -t ghcr.io/${{ needs.build-services.outputs.repo_owner }}/${{ matrix.modulo }}:latest \
             -f ${{ matrix.modulo }}/Dockerfile \
-            .
+            ${{ matrix.modulo }}
           
           docker push ghcr.io/${{ needs.build-services.outputs.repo_owner }}/${{ matrix.modulo }}:latest

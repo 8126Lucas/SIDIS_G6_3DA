@@ -4,6 +4,7 @@ services:
   # ------------------------------------------------------
   discovery-node1:
     build: ./discovery-service
+    image: ghcr.io/${REPO_OWNER}/discovery-service:latest
     container_name: discovery-node1
     ports:
       - "8761:8761"
@@ -17,6 +18,7 @@ services:
 
   discovery-node2:
     build: ./discovery-service
+    image: ghcr.io/${REPO_OWNER}/discovery-service:latest
     container_name: discovery-node2
     ports:
       - "8762:8762"
@@ -30,6 +32,7 @@ services:
 
   api-gateway:
     build: ./APIgateway
+    image: ghcr.io/${REPO_OWNER}/api-gateway:latest
     container_name: api-gateway
     ports:
       - "7979:7979"
@@ -49,6 +52,7 @@ services:
   # ------------------------------------------------------
   auth-service:
     build: ./auth-service
+    image: ghcr.io/${REPO_OWNER}/auth-service:latest
     container_name: auth-service
     ports:
       - "8101:8101"
@@ -64,6 +68,7 @@ services:
 
   aircraft-service:
     build: ./aircraft-service
+    image: ghcr.io/${REPO_OWNER}/aircraft-service:latest
     container_name: aircraft-service
     ports:
       - "8081:8081"
@@ -79,6 +84,7 @@ services:
 
   airport-service:
     build: ./airport-service
+    image: ghcr.io/${REPO_OWNER}/airport-service:latest
     container_name: airport-service
     ports:
       - "8091:8091"
@@ -94,6 +100,7 @@ services:
 
   flight-service:
     build: ./flight-service
+    image: ghcr.io/${REPO_OWNER}/flight-service:latest
     container_name: flight-service
     ports:
       - "8111:8111"
@@ -109,6 +116,7 @@ services:
 
   maintenance-service:
     build: ./maintenance-service
+    image: ghcr.io/${REPO_OWNER}/maintenance-service:latest
     container_name: maintenance-service
     ports:
       - "8121:8121"
@@ -124,6 +132,7 @@ services:
 
   route-service:
     build: ./route-service
+    image: ghcr.io/${REPO_OWNER}/route-service:latest
     container_name: route-service
     ports:
       - "8131:8131"
