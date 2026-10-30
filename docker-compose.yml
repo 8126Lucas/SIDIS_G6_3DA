@@ -1,0 +1,147 @@
+services:
+  # ------------------------------------------------------
+  # DISCOVERY e API-GATEWAY
+  # ------------------------------------------------------
+  discovery-node1:
+    build: ./discovery-service
+    image: ghcr.io/${REPO_OWNER}/discovery-service:latest
+    container_name: discovery-node1
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_PROFILES_ACTIVE=node1
+      - EUREKA_INSTANCE_HOSTNAME=discovery-node1
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  discovery-node2:
+    build: ./discovery-service
+    image: ghcr.io/${REPO_OWNER}/discovery-service:latest
+    container_name: discovery-node2
+    ports:
+      - "8762:8762"
+    environment:
+      - SPRING_PROFILES_ACTIVE=node2
+      - EUREKA_INSTANCE_HOSTNAME=discovery-node2
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  api-gateway:
+    build: ./APIgateway
+    image: ghcr.io/${REPO_OWNER}/api-gateway:latest
+    container_name: api-gateway
+    ports:
+      - "7979:7979"
+    environment:
+      - SERVER_PORT=7979
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-node1:8761/eureka/,http://discovery-node2:8762/eureka/
+    depends_on:
+      - discovery-node1
+      - discovery-node2
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  # ------------------------------------------------------
+  # AUTH, AIRCRAFT, AIRPORT, FLIGHT, MAINTENANCE e ROUTE
+  # ------------------------------------------------------
+  auth-service:
+    build: ./auth-service
+    image: ghcr.io/${REPO_OWNER}/auth-service:latest
+    container_name: auth-service
+    ports:
+      - "8101:8101"
+    environment:
+      - SERVER_PORT=8101
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-node1:8761/eureka/,http://discovery-node2:8762/eureka/
+    depends_on:
+      - discovery-node1
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  aircraft-service:
+    build: ./aircraft-service
+    image: ghcr.io/${REPO_OWNER}/aircraft-service:latest
+    container_name: aircraft-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SERVER_PORT=8081
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-node1:8761/eureka/,http://discovery-node2:8762/eureka/
+    depends_on:
+      - discovery-node1
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  airport-service:
+    build: ./airport-service
+    image: ghcr.io/${REPO_OWNER}/airport-service:latest
+    container_name: airport-service
+    ports:
+      - "8091:8091"
+    environment:
+      - SERVER_PORT=8091
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-node1:8761/eureka/,http://discovery-node2:8762/eureka/
+    depends_on:
+      - discovery-node1
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  flight-service:
+    build: ./flight-service
+    image: ghcr.io/${REPO_OWNER}/flight-service:latest
+    container_name: flight-service
+    ports:
+      - "8111:8111"
+    environment:
+      - SERVER_PORT=8111
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-node1:8761/eureka/,http://discovery-node2:8762/eureka/
+    depends_on:
+      - discovery-node1
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  maintenance-service:
+    build: ./maintenance-service
+    image: ghcr.io/${REPO_OWNER}/maintenance-service:latest
+    container_name: maintenance-service
+    ports:
+      - "8121:8121"
+    environment:
+      - SERVER_PORT=8121
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-node1:8761/eureka/,http://discovery-node2:8762/eureka/
+    depends_on:
+      - discovery-node1
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  route-service:
+    build: ./route-service
+    image: ghcr.io/${REPO_OWNER}/route-service:latest
+    container_name: route-service
+    ports:
+      - "8131:8131"
+    environment:
+      - SERVER_PORT=8131
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-node1:8761/eureka/,http://discovery-node2:8762/eureka/
+    depends_on:
+      - discovery-node1
+    deploy:
+      resources:
+        limits:
+          memory: 300M

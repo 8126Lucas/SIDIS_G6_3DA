@@ -22,7 +22,7 @@ class MaintenanceRecordHttpTest extends GatewayHttpTest {
         assertEquals(expected, updated, "Changing status must preserve the record fields");
         assertEquals(expected, get(path), "The complete updated record must persist");
     }
-    @Test void shouldReturn409WhenRecordNotFound() throws Exception {
-        expect(409, request("GET", "/api/maintenance/records/9223372036854775807", null));
+    @Test void shouldReturn404WhenRecordNotFound() throws Exception {
+        expect(404, request("GET", "/api/maintenance/records/9223372036854775807", null));
     }
 }

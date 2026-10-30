@@ -1,5 +1,5 @@
 ### LOGIN (us000-auth)
-POST http://localhost:8081/auth/login
+POST https://localhost:7979/auth/login
 Content-Type: application/json
 
 {
@@ -12,7 +12,7 @@ Content-Type: application/json
 %}
 
 ### US101 - ADD AIRCRAFT MODEL (us101)
-POST http://localhost:8081/api/catalog/model
+POST https://localhost:7979/api/catalog/model
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
@@ -31,7 +31,7 @@ Authorization: Bearer {{token}}
 }
 
 ### US102 - ADD AIRCRAFT (us102)
-POST http://localhost:8081/api/hangar/aircraft
+POST https://localhost:7979/api/hangar/aircraft
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
@@ -45,11 +45,11 @@ Authorization: Bearer {{token}}
 }
 
 ### GET AIRCRAFT (us103)
-GET http://localhost:8081/api/hangar/aircraft/CS-TVA
+GET https://localhost:7979/api/hangar/aircraft/CS-TVA
 Authorization: Bearer {{token}}
 
 ### UPDATE AIRCRAFT STATUS (us105)
-PATCH http://localhost:8081/api/hangar/aircraft/CS-TVA
+PATCH https://localhost:7979/api/hangar/aircraft/CS-TVA
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
@@ -59,11 +59,11 @@ Authorization: Bearer {{token}}
 }
 
 ### SEARCH AIRCRAFT (us104)
-GET http://localhost:8081/api/hangar/aircraft?model=A320neo&status=AVAILABLE
+GET https://localhost:7979/api/hangar/aircraft?model=A320neo&status=AVAILABLE
 Authorization: Bearer {{token}}
 
 ### US106 - REGISTER AIRPORT (us106)
-POST http://localhost:8081/api/airports
+POST https://localhost:7979/api/airports
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
@@ -111,15 +111,15 @@ Authorization: Bearer {{token}}
 }
 
 ### US107 - GET AIRPORT BY IATA (us107)
-GET http://localhost:8081/api/airports/XPT
+GET https://localhost:7979/api/airports/XPT
 Authorization: Bearer {{token}}
 
 ### US108 - SEARCH AIRPORTS (us108)
-GET http://localhost:8081/api/airports?city=Porto&country=Portugal&name=Francisco S%C3%A1 Carneiro Airport
+GET https://localhost:7979/api/airports?city=Porto&country=Portugal&name=Francisco S%C3%A1 Carneiro Airport
 Authorization: Bearer {{token}}
 
 ### US106A - ADD CERTIFICATION (us106a)
-POST http://localhost:8081/api/airports/OPO/certifications
+POST https://localhost:7979/api/airports/OPO/certifications
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
@@ -131,7 +131,7 @@ Authorization: Bearer {{token}}
 }
 
 ### US109 - UPDATE AIRPORT STATUS (us109)
-PATCH http://localhost:8081/api/airports/OPO/status
+PATCH https://localhost:7979/api/airports/OPO/status
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
@@ -142,7 +142,7 @@ Authorization: Bearer {{token}}
 ### WP#2B ENDPOINTS
 
 ### US207 - REGISTER ENHANCED AIRPORT with OPERATIONAL HOURS (us207)
-POST http://localhost:8081/api/airports
+POST https://localhost:7979/api/airports
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
@@ -185,7 +185,7 @@ Authorization: Bearer {{token}}
 }
 
 ### US208 - UPDATE AIRPORT DETAILS
-PATCH http://localhost:8081/api/airports/LIS/details
+PATCH https://localhost:7979/api/airports/LIS/details
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
@@ -201,33 +201,33 @@ Authorization: Bearer {{token}}
 }
 
 ### US209 - GET AIRPORT ROUTES (us209)
-GET http://localhost:8081/api/airports/LIS/routes
+GET https://localhost:7979/api/airports/LIS/routes
 Authorization: Bearer {{token}}
 
 ### US210 - GET BUSIEST AIRPORTS (us210)
-GET http://localhost:8081/api/airports/busiest
+GET https://localhost:7979/api/airports/busiest
 Authorization: Bearer {{token}}
 
 ### US211 - GROUP AIRPORTS BY CRITERIA (us211)
-GET http://localhost:8081/api/airports/grouped?by=country
+GET https://localhost:7979/api/airports/grouped?by=country
 Authorization: Bearer {{token}}
 
 ### WP#4A ENDPOINTS
 
 ### US117 - GET MAINTENANCE TEMPLATE BY ID (us117)
-GET http://localhost:8081/api/maintenance/templates/1
+GET https://localhost:7979/api/maintenance/templates/1
 Authorization: Bearer {{token}}
 
 ### US117 - LIST MAINTENANCE TEMPLATES (us117)
-GET http://localhost:8081/api/maintenance/templates
+GET https://localhost:7979/api/maintenance/templates
 Authorization: Bearer {{token}}
 
 ### US119 - GET MAINTENANCE RECORD BY ID (us119)
-GET http://localhost:8081/api/maintenance/records/1
+GET https://localhost:7979/api/maintenance/records/1
 Authorization: Bearer {{token}}
 
 ### US119 - ADVANCE MAINTENANCE RECORD STATUS (us119)
-PATCH http://localhost:8081/api/maintenance/records/1/status
+PATCH https://localhost:7979/api/maintenance/records/1/status
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
@@ -238,14 +238,14 @@ Authorization: Bearer {{token}}
 ### WP#4B ENDPOINTS
 
 ### US221 - TURNAROUND AVERAGE PER AIRCRAFT TYPE (us221)
-GET http://localhost:8081/api/maintenance/turnaround-average
+GET https://localhost:7979/api/maintenance/turnaround-average
 Authorization: Bearer {{token}}
 
 ### US222 - MAINTENANCE ALERTS WITH DEFAULT THRESHOLDS (us222)
-GET http://localhost:8081/api/maintenance/alerts
+GET https://localhost:7979/api/maintenance/alerts
 Authorization: Bearer {{token}}
 
 ### US222 - MAINTENANCE ALERTS WITH CUSTOM THRESHOLDS (us222)
-GET http://localhost:8081/api/maintenance/alerts?calendarDaysThreshold=90&flightHoursThreshold=300
+GET https://localhost:7979/api/maintenance/alerts?calendarDaysThreshold=90&flightHoursThreshold=300
 Authorization: Bearer {{token}}
 

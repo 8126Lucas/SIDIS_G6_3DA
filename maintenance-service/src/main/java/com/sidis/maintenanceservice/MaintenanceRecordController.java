@@ -15,6 +15,8 @@ import com.sidis.maintenanceservice.exceptions.DomainException;
 import com.sidis.maintenanceservice.exceptions.ResourceNotFoundException;
 import com.sidis.maintenanceservice.infrastructure.client.AircraftClientDTO;
 import com.sidis.maintenanceservice.infrastructure.client.AircraftRestClientService;
+import com.sidis.maintenanceservice.infrastructure.client.PeerForwarder;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -40,6 +42,7 @@ public class MaintenanceRecordController {
     private final MaintenanceAlertService maintenanceAlertService;
     private final MaintenanceRecordSearchService maintenanceRecordSearchService;
     private final PartsInventoryService partsInventoryService;
+    private final PeerForwarder peerForwarder;
 
     public MaintenanceRecordController(AddMaintenanceTemplateUseCase addMaintenanceTemplateUseCase,
                                        AddMaintenanceRecordUseCase addMaintenanceRecordUseCase,
@@ -49,7 +52,8 @@ public class MaintenanceRecordController {
                                        MaintenanceReportService maintenanceReportService,
                                        MaintenanceAlertService maintenanceAlertService,
                                        MaintenanceRecordSearchService maintenanceRecordSearchService,
-                                       PartsInventoryService partsInventoryService) {
+                                       PartsInventoryService partsInventoryService,
+                                       PeerForwarder peerForwarder) {
         this.addMaintenanceTemplateUseCase = addMaintenanceTemplateUseCase;
         this.addMaintenanceRecordUseCase = addMaintenanceRecordUseCase;
         this.aircraftClient = aircraftClient;
@@ -59,6 +63,7 @@ public class MaintenanceRecordController {
         this.maintenanceAlertService = maintenanceAlertService;
         this.maintenanceRecordSearchService = maintenanceRecordSearchService;
         this.partsInventoryService = partsInventoryService;
+        this.peerForwarder = peerForwarder;
     }
 
     // WP3 — criar template
@@ -76,11 +81,15 @@ public class MaintenanceRecordController {
 
     // US117 — obter template por id
     @GetMapping("/templates/{id}")
-    public MaintenanceTemplateResponse getTemplate(@PathVariable Long id) {
-        MaintenanceTemplate template = maintenanceTemplateSearchService
-                .findByTemplateId(id)
-                .orElseThrow(() -> new DomainException("Maintenance Template does not exist"));
-        return MaintenanceTemplateResponse.from(template);
+    public MaintenanceTemplateResponse getTemplate(@PathVariable Long id, HttpServletRequest request) {
+        return maintenanceTemplateSearchService.findByTemplateId(id)
+                .map(MaintenanceTemplateResponse::from)
+                .orElseGet(() -> peerForwarder.forwardGet(
+                        "aircraft-service",
+                        "/api/maintenance/templates/" + id,
+                        MaintenanceTemplateResponse.class,
+                        request.getHeader("Authorization")
+                ));
     }
 
     // US117 — listar templates
@@ -186,6 +195,14 @@ public class MaintenanceRecordController {
                         new DomainException("Maintenance Record does not exist"));
 
         maintenanceRecordProgressService.changeRecordAttribute(record,request.attribute());
+    }
+
+    @PatchMapping("/records/{id}/complete")
+    public MaintenanceRecordResponse completeMaintenance(@PathVariable Long id, @RequestBody CompleteRecordRequest request) {
+        MaintenanceRecord record = maintenanceRecordProgressService.completeRecord(
+                id, request.notes(), request.tasksDone(), request.endDate()
+        );
+        return MaintenanceRecordResponse.from(record);
     }
 
     @GetMapping("/records")
@@ -311,4 +328,7 @@ public class MaintenanceRecordController {
                                  Integer totalQuantityUsed,
                                  Long timesUsedInRecords,
                                  String alertMessage) {}
+
+    public record CompleteRecordRequest(String notes, Map<String, Boolean> tasksDone, LocalDate endDate) {}
+
 }

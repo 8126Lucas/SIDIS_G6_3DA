@@ -19,7 +19,7 @@ class GetMaintenanceTemplateHttpTest extends GatewayHttpTest {
         assertTrue(java.util.stream.StreamSupport.stream(rows.spliterator(), false)
                 .anyMatch(created::equals));
     }
-    @Test void shouldReturn409WhenTemplateNotFound() throws Exception {
-        expect(409, request("GET", "/api/maintenance/templates/9223372036854775807", null));
+    @Test void shouldReturn404WhenTemplateNotFound() throws Exception {
+        expect(404, request("GET", "/api/maintenance/templates/9223372036854775807", null));
     }
 }

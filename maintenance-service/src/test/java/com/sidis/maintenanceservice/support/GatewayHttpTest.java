@@ -173,7 +173,7 @@ public abstract class GatewayHttpTest {
 
     protected void assertBootstrapCostsByAircraft() throws Exception {
         JsonNode rows = get("/api/maintenance/reports/costs?groupBy=aircraft");
-        for (var entry : Map.of("CS-TUA", 6700.0, "DA-BXA", 5600.0, "FH-XKA", 0.0).entrySet()) {
+        for (var entry : Map.of("CS-TUA", 6700.0, "D-ABXA", 5600.0, "F-HXKA", 0.0).entrySet()) {
             JsonNode row = findRow(rows, "group", entry.getKey());
             assertTrue(row.path("totalCost").isNumber(), row.toString());
             assertEquals(entry.getValue(), row.path("totalCost").asDouble(), 0.001, row.toString());
@@ -183,7 +183,7 @@ public abstract class GatewayHttpTest {
     protected void assertBootstrapCostsByModel() throws Exception {
         // Resolve models through HTTP; mismatched bootstrap registrations must fail visibly.
         Map<String, Double> expected = new java.util.HashMap<>();
-        for (var entry : Map.of("CS-TUA", 6700.0, "DA-BXA", 5600.0, "FH-XKA", 0.0).entrySet()) {
+        for (var entry : Map.of("CS-TUA", 6700.0, "D-ABXA", 5600.0, "F-HXKA", 0.0).entrySet()) {
             String model = get("/api/hangar/aircraft/" + entry.getKey()).path("modelName").asText();
             assertFalse(model.isBlank(), "Aircraft must have a model: " + entry.getKey());
             expected.merge(model, entry.getValue(), Double::sum);

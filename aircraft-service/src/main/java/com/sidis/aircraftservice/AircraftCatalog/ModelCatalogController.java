@@ -76,8 +76,13 @@ public class ModelCatalogController {
                                 "Model does not exist in catalog"
                         )
                 );
-        aircraftModelUpdater.aircraftModelUpdate(model,request.modelImage(),request.manufacturer(),request.specs().fuelCapacityLiters(),
-                request.specs().maximumRangeKm(),request.specs().cruisingSpeedKph(),request.specs().standardSeatingCapacity());
+
+        Double fuel = request.specs() != null ? request.specs().fuelCapacityLiters() : null;
+        Double range = request.specs() != null ? request.specs().maximumRangeKm() : null;
+        Double speed = request.specs() != null ? request.specs().cruisingSpeedKph() : null;
+        Integer seating = request.specs() != null ? request.specs().standardSeatingCapacity() : null;
+
+        aircraftModelUpdater.aircraftModelUpdate(model, request.modelImage(), request.manufacturer(), fuel, range, speed, seating);
     }
 
     /**
