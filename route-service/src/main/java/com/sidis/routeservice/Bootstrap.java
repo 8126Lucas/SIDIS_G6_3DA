@@ -31,11 +31,46 @@ public class Bootstrap implements ApplicationRunner {
     }
 
     private void seedRoutes() {
-        AirportReference opo=new AirportReference("OPO");
-        AirportReference lis=new AirportReference("LIS");
-        AirportReference mad= new AirportReference("MAD");
-        AirportReference cdg=new AirportReference("CDG");
-        AirportReference lhr=new AirportReference("LHR");
+        AirportReference opo = new AirportReference(
+                "OPO",
+                new AirportLocation(
+                        "Porto", -8.6700, 41.2481,
+                        "Norte", "Europe/Lisbon", "Portugal"
+                )
+        );
+
+        AirportReference lis = new AirportReference(
+                "LIS",
+                new AirportLocation(
+                        "Lisbon", -9.1359, 38.7742,
+                        "Lisboa", "Europe/Lisbon", "Portugal"
+                )
+        );
+
+        AirportReference mad = new AirportReference(
+                "MAD",
+                new AirportLocation(
+                        "Madrid", -3.5676, 40.4983,
+                        "Community of Madrid", "Europe/Madrid", "Spain"
+                )
+        );
+
+        AirportReference cdg = new AirportReference(
+                "CDG",
+                new AirportLocation(
+                        "Paris", 2.5479, 49.0097,
+                        "Île-de-France", "Europe/Paris", "France"
+                )
+        );
+
+        AirportReference lhr = new AirportReference(
+                "LHR",
+                new AirportLocation(
+                        "London", -0.4543, 51.4700,
+                        "England", "Europe/London", "United Kingdom"
+                )
+        );
+
 
         routeRepository.save(new Route(
                 new RouteRequirements(1000.0, 100),

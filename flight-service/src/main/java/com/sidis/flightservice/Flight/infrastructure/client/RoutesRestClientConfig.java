@@ -1,5 +1,6 @@
 package com.sidis.flightservice.Flight.infrastructure.client;
 
+import com.sidis.flightservice.Flight.infrastructure.JwtTokenInterceptor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
@@ -12,7 +13,7 @@ public class RoutesRestClientConfig {
     @Bean
     @LoadBalanced
     public RestClient.Builder routesFlightRestClientBuilder() {
-        return RestClient.builder();
+        return RestClient.builder().requestInterceptor(new JwtTokenInterceptor());
     }
 
     @Bean("routeFlightsRestClient")

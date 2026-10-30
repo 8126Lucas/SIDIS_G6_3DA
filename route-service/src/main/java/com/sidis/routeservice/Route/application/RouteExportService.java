@@ -85,6 +85,16 @@ public class RouteExportService {
     }
 
     private String formatCoords(AirportLocation location) {
-        return "[" + location.getLongitude() + ", " + location.getLatitude() + "]";
+        if (location == null) {
+            throw new IllegalStateException(
+                    "Cannot export route: airport location is missing"
+            );
+        }
+        if (location.getLongitude() == null || location.getLatitude() == null) {
+            throw new IllegalStateException(
+                    "Cannot export route: airport coordinates are missing"
+            );
+        }
+        return "[" + location.getLongitude() + ", "+ location.getLatitude() + "]";
     }
 }
