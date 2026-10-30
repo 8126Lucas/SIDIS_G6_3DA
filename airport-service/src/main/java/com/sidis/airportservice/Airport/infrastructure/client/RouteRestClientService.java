@@ -13,8 +13,10 @@ import java.util.List;
 public class RouteRestClientService {
     private final RestClient routesClient;
 
-    public RouteRestClientService(@Qualifier("routesRestClient") RestClient routesRestClient) {
-        this.routesClient = routesRestClient;
+    public RouteRestClientService(@Qualifier("globalLoadBalancedBuilder") RestClient.Builder builder) {
+        this.routesClient = builder.clone()
+                .baseUrl("http://route-service")
+                .build();
     }
 
     public List<RouteResponse> findByOriginAirport_IataCodeOrDestinationAirport_IataCode(String origin, String destination) {

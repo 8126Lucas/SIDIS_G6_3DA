@@ -15,8 +15,10 @@ import java.util.*;
 public class AircraftRestClientService {
     private final RestClient aircraftRestClient;
 
-    public AircraftRestClientService(@Qualifier("aircraftFlightRestClient") RestClient aircraftRestClient) {
-        this.aircraftRestClient = aircraftRestClient;
+    public AircraftRestClientService(@Qualifier("globalLoadBalancedBuilder") RestClient.Builder globalBuilder) {
+        this.aircraftRestClient = globalBuilder.clone()
+                .baseUrl("http://aircraft-service")
+                .build();
     }
 
     public List<AircraftClientDTO> findAll() {

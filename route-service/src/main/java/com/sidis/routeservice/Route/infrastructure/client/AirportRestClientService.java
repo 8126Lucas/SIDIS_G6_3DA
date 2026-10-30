@@ -10,8 +10,10 @@ import org.springframework.web.client.RestClient;
 public class AirportRestClientService {
     private final RestClient airportClient;
 
-    public AirportRestClientService(@Qualifier("airportRestClient") RestClient airportClient) {
-        this.airportClient = airportClient;
+    public AirportRestClientService(@Qualifier("globalLoadBalancedBuilder") RestClient.Builder builder) {
+        this.airportClient = builder.clone()
+                .baseUrl("http://airport-service")
+                .build();
     }
 
     public AirportClientDTO findAirportByIataCode(String iata) {

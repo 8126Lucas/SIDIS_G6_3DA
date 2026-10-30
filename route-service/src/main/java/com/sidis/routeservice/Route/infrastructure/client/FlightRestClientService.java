@@ -8,7 +8,9 @@ import org.springframework.web.client.RestClient;
 public class FlightRestClientService {
     private final RestClient flightClient;
 
-    public FlightRestClientService(@Qualifier("flightRestClient") RestClient flightClient) {
-        this.flightClient = flightClient;
+    public FlightRestClientService(@Qualifier("globalLoadBalancedBuilder") RestClient.Builder builder) {
+        this.flightClient = builder.clone()
+                .baseUrl("http://flight-service")
+                .build();
     }
 }
