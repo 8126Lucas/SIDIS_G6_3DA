@@ -1,5 +1,5 @@
 ﻿### LOGIN - run this request first
-POST http://localhost:8081/auth/login
+POST https://localhost:7979/auth/login
 Content-Type: application/json
 
 {
@@ -12,9 +12,9 @@ Content-Type: application/json
 %}
 
 ### US220 - COSTS BY AIRCRAFT
-GET http://localhost:8081/api/maintenance/reports/costs?groupBy=aircraft
+GET https://localhost:7979/api/maintenance/reports/costs?groupBy=aircraft
 Authorization: Bearer {{token}}
 
 ### US220 - COSTS BY MODEL
-GET http://localhost:8081/api/maintenance/reports/costs?groupBy=model
+GET https://localhost:7979/api/maintenance/reports/costs?groupBy=model
 Authorization: Bearer {{token}}

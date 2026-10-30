@@ -1,7 +1,7 @@
 ### US227 - Fuel Efficiency Metrics per Aircraft and per Route
 
 ### LOGIN - run this request first
-POST http://localhost:8081/auth/login
+POST https://localhost:7979/auth/login
 Content-Type: application/json
 
 {
@@ -16,11 +16,11 @@ Content-Type: application/json
 ###
 
 ### US227 - Fuel efficiency per aircraft
-GET http://localhost:8081/api/hangar/analytics/fuel-efficiency/aircraft
+GET https://localhost:7979/api/hangar/analytics/fuel-efficiency/aircraft
 Authorization: Bearer {{token}}
 
 ###
 
 ### US227 - Fuel efficiency per route
-GET http://localhost:8081/api/hangar/analytics/fuel-efficiency/routes
+GET https://localhost:7979/api/hangar/analytics/fuel-efficiency/routes
 Authorization: Bearer {{token}}

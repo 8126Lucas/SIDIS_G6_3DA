@@ -1,4 +1,4 @@
-POST http://localhost:8081/auth/login
+POST https://localhost:7979/auth/login
 Content-Type: application/json
 
 {
@@ -9,7 +9,7 @@ Content-Type: application/json
 ###
 @token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzM2M4M2Y1Ni0wOTNhLTRkNzUtODc0NS0xYmZlM2M2N2E1NjciLCJyb2xlcyI6WyJNQUlOVEVOQU5DRV9URUNITklDSUFOIl0sImlhdCI6MTc3OTg3ODM0NCwiZXhwIjoxNzc5ODgxOTQ0fQ.s4c-WK0zhwxWWtI9YQfF0KaX0h4TqOeLYWE7zm7XQKc
 
-POST http://localhost:8081/api/maintenance/record
+POST https://localhost:7979/api/maintenance/record
 Content-Type: application/json
 Authorization: Bearer {{token}}
 

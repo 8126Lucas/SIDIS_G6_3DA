@@ -1,8 +1,8 @@
 # SIDIS_G6_3DA
 
 ## Service Ports
-- Discovery Service (Eureka Server): 8761
-- API Gateway: 7979
+- Discovery Service (Eureka Server): 8761 - 8762
+- API Gateway: 7979 - 7980
 - Aircraft Service: 8081 - 8090
 - Airport Service: 8091 - 8100
 - Authentication Service: 8101 - 8110

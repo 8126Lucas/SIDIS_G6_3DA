@@ -1,5 +1,5 @@
 ﻿### LOGIN - run this request first
-POST http://localhost:8081/auth/login
+POST https://localhost:7979/auth/login
 Content-Type: application/json
 
 {
@@ -12,5 +12,5 @@ Content-Type: application/json
 %}
 
 ### US219 - ONGOING MAINTENANCE ACTIVITIES
-GET http://localhost:8081/api/maintenance/ongoing
+GET https://localhost:7979/api/maintenance/ongoing
 Authorization: Bearer {{token}}

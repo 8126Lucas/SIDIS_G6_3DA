@@ -1,5 +1,7 @@
 package com.sidis.aircraftservice.infrastructure.client;
 
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -14,6 +16,7 @@ public class RouteRestClientService {
         this.routeClient = globalBuilder.baseUrl("http://route-service").build();
     }
 
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public List<RouteClientDTO> getAllRoutes() {
         RouteClientDTO[] routes = routeClient.get()
                 .uri("/api/routes")
@@ -22,6 +25,7 @@ public class RouteRestClientService {
         return routes != null ? Arrays.asList(routes) : List.of();
     }
 
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public RouteClientDTO getRouteById(Long routeId) {
         return routeClient.get()
                 .uri("/api/routes/" + routeId)
@@ -29,6 +33,7 @@ public class RouteRestClientService {
                 .body(RouteClientDTO.class);
     }
 
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public List<RouteClientDTO> getRoutesByAircraft(String registration) {
         RouteClientDTO[] routes = routeClient.get()
                 .uri("/api/routes/aircraft/" + registration)

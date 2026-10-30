@@ -24,5 +24,43 @@ jobs:
       - name: Dar permissões de execução ao Maven Wrapper
         run: chmod +x mvnw
 
-      - name: Compilar e Validar Todos os Módulos
-        run: ./mvnw clean verify
+      - name: Build todos os módulos
+        run: mvn clean package -DskipTests
+
+      - name: Iniciar Eureka e Gateway
+        run: |
+          nohup java -Xmx256m -Dspring.profiles.active=node1 -jar discovery-service/target/*.jar > eureka.log 2>&1 &
+          sleep 15
+          nohup java -Xmx256m -jar APIgateway/target/*.jar > gateway.log 2>&1 &
+
+      - name: Executar Microsserviços
+        run: |
+          nohup java -Xmx256m -jar auth-service/target/*.jar > auth.log 2>&1 &
+          nohup java -Xmx256m -jar aircraft-service/target/*.jar > aircraft.log 2>&1 &
+          nohup java -Xmx256m -jar maintenance-service/target/*.jar > maintenance.log 2>&1 &
+          nohup java -Xmx256m -jar flight-service/target/*.jar > flight.log 2>&1 &
+          nohup java -Xmx256m -jar route-service/target/*.jar > route.log 2>&1 &
+          nohup java -Xmx256m -jar airport-service/target/*.jar > airport.log 2>&1 &
+
+      - name: Esperar pelo registo no Eureka
+        run: |
+          echo "A aguardar 60 segundos para o Eureka registar todos os nós..."
+          sleep 60
+
+      - name: Validar Todos os Módulos
+        run: ./mvnw verify
+
+      - name: Login no GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Colocar o username em minúsculas
+        run: echo "REPO_OWNER=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Build e Push Docker Image
+        run: |
+          docker build -t ghcr.io/${{ env.REPO_OWNER }}/sidis-g6-3da:latest .
+          docker push ghcr.io/${{ env.REPO_OWNER }}/sidis-g6-3da:latest

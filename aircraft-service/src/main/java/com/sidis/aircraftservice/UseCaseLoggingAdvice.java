@@ -33,7 +33,7 @@ public class UseCaseLoggingAdvice {
     private static final Logger LOGGER = LoggerFactory.getLogger(com.sidis.aircraftservice.UseCaseLoggingAdvice.class);
 
     /** Matches any class annotated with {@link UseCase}. */
-    @Pointcut("within(com.sidis.aircraftservice.UseCase)")
+    @Pointcut("@within(com.sidis.aircraftservice.UseCase)")
     public void useCase() {
     }
 
