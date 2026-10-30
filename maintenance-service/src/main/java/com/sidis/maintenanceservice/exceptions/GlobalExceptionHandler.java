@@ -75,8 +75,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorDetails> handleDomain(DomainException ex,
                                                      HttpServletRequest request) {
         return buildError(
-                HttpStatus.CONFLICT,
-                "Conflict",
+                HttpStatus.NOT_FOUND,
+                "Not Found",
                 ex.getMessage(),
                 request.getRequestURI(),
                 null

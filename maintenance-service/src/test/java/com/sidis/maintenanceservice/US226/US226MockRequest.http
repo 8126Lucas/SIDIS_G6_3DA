@@ -1,7 +1,7 @@
 ### US226 - Parts Inventory & Low-Stock Alerts
 
 ### LOGIN - run this request first
-POST http://localhost:8081/auth/login
+POST https://localhost:7979/auth/login
 Content-Type: application/json
 
 {
@@ -16,17 +16,17 @@ Content-Type: application/json
 ###
 
 ### US226 - Parts usage inventory
-GET http://localhost:8081/api/maintenance/parts/inventory
+GET https://localhost:7979/api/maintenance/parts/inventory
 Authorization: Bearer {{token}}
 
 ###
 
 ### US226 - Low-stock alerts with default threshold
-GET http://localhost:8081/api/maintenance/parts/low-stock
+GET https://localhost:7979/api/maintenance/parts/low-stock
 Authorization: Bearer {{token}}
 
 ###
 
 ### US226 - Low-stock alerts with custom threshold
-GET http://localhost:8081/api/maintenance/parts/low-stock?threshold=5
+GET https://localhost:7979/api/maintenance/parts/low-stock?threshold=5
 Authorization: Bearer {{token}}

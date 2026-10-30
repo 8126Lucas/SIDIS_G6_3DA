@@ -19,13 +19,12 @@ import java.io.IOException;
 
 @Configuration
 public class GlobalRestClientConfig {
-    SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-    factory.setConnectTimeout(2000);
-    factory.setReadTimeout(2000);
-
     @Bean
     @LoadBalanced
     public RestClient.Builder globalLoadBalancedBuilder() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(2000);
+        factory.setReadTimeout(2000);
         return RestClient.builder()
                 .requestFactory(factory)
                 .requestInterceptor(new JwtTokenInterceptor());

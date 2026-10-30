@@ -6,10 +6,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Component
 public class AircraftRestClientService {
@@ -22,10 +19,11 @@ public class AircraftRestClientService {
     @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public List<AircraftClientDTO> findAll() {
         try {
-            return Collections.singletonList(aircraftClient.get()
-                    .uri("/api/hangar/aircraft")
+            AircraftClientDTO[] array = aircraftClient.get()
+                    .uri("/api/hangar/aircraft?size=1000")
                     .retrieve()
-                    .body(AircraftClientDTO.class));
+                    .body(AircraftClientDTO[].class);
+            return array != null ? Arrays.asList(array) : new ArrayList<>();
         } catch (HttpClientErrorException e) {
             return new ArrayList<>();
         }

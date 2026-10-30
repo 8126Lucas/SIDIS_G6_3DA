@@ -1,4 +1,4 @@
-POST http://localhost:8081/auth/login
+POST https://localhost:7979/auth/login
 Content-Type: application/json
 
 {
@@ -12,7 +12,7 @@ Content-Type: application/json
 @token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI1NTdlNTNkMS1iYjU5LTRhZjItYmFjZS01ZDM3MGI1YzAzYjAiLCJyb2xlcyI6WyJBVENDIl0sImlhdCI6MTc4MjA3Mjg5MCwiZXhwIjoxNzgyMDc2NDkwfQ.u1VDlVDF5nMo33AMuy5_2nFmxpLxzdCKrUtjruSWq_M
 
 ###
-PATCH http://localhost:8081/api/hangar/aircraft/CS-TU
+PATCH https://localhost:7979/api/hangar/aircraft/CS-TU
 Content-Type: application/json
 Authorization: Bearer {{token}}
 

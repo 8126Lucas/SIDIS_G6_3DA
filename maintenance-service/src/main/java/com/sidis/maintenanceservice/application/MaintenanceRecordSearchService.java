@@ -29,7 +29,7 @@ public class MaintenanceRecordSearchService {
 
         if (!aircraftRegistration.isEmpty()) {
             spec = spec.and((root, query, cb) ->
-                    cb.equal(root.get("aircraft"), aircraftRegistration));
+                cb.equal(root.get("aircraftRegistration"), aircraftRegistration));
         }
 
         if (attribute != null && !attribute.isBlank()) {
