@@ -76,6 +76,31 @@ public abstract class GatewayHttpTest {
         return response.body().isBlank() ? JSON.nullNode() : JSON.readTree(response.body());
     }
 
+
+    /** Authenticate as the actor named in the US; fixtures may first need BACKOFFICE. */
+    protected void authenticateAs(String role) throws Exception {
+        String key = role.toUpperCase(java.util.Locale.ROOT);
+        var response = request("POST", "/api/auth/login", Map.of(
+                "username", System.getenv().getOrDefault("SIDIS_" + key + "_USERNAME", role),
+                "password", System.getenv().getOrDefault("SIDIS_" + key + "_PASSWORD", role + "123")));
+        var login = expect(200, response);
+        token = login.path("token").asText();
+        assertFalse(token.isBlank(), "Login must return a token for " + role);
+    }
+
+    protected HttpResponse<String> postCsv(String path, String csv) throws Exception {
+        String boundary = "sidis-" + UUID.randomUUID();
+        String body = "--" + boundary + "\r\n"
+                + "Content-Disposition: form-data; name=\"file\"; filename=\"airports.csv\"\r\n"
+                + "Content-Type: text/csv\r\n\r\n" + csv + "\r\n--" + boundary + "--\r\n";
+        return client.send(HttpRequest.newBuilder(URI.create(baseUrl + path))
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer " + token)
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
     protected JsonNode get(String path) throws Exception {
         return expect(200, request("GET", path, null));
     }
