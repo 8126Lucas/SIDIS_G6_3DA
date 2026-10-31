@@ -27,3 +27,4 @@ replay_pid*
 *.iml
 out/
 target/
+.env
