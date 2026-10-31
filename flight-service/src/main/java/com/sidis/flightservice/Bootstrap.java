@@ -41,60 +41,18 @@ public class Bootstrap implements ApplicationRunner {
         AircraftReference fHxka = new AircraftReference("F-HXKA");
         AircraftReference n789dl = new AircraftReference("N789DL");
 
-        RouteReference route1 = new RouteReference(
-                1L, "OPO", "Porto-London", "LHR"
-        );
+        RouteReference route1 = new RouteReference(1L, "OPO", "Porto-Lisbon", "LIS");
+        RouteReference route2 = new RouteReference(2L, "LIS", "Lisbon-Madrid", "MAD");
+        RouteReference route3 = new RouteReference(3L, "MAD", "Madrid-Paris", "CDG");
+        RouteReference route4 = new RouteReference(4L, "CDG", "Paris-London", "LHR");
 
-        RouteReference route2 = new RouteReference(
-                2L, "LIS", "Lisbon-Madrid", "MAD"
-        );
+        Flight f1 = new Flight(route1, csTua, LocalDateTime.of(2026, 6, 15, 8, 0), LocalDateTime.of(2026, 6, 15, 9, 0));
+        Flight f2 = new Flight(route1, dAbxa, LocalDateTime.of(2026, 6, 15, 10, 30), LocalDateTime.of(2026, 6, 15, 12, 0));
+        Flight f3 = new Flight(route2, fHxka, LocalDateTime.of(2026, 6, 15, 14, 0), LocalDateTime.of(2026, 6, 15, 15, 20));
+        Flight f4 = new Flight(route3, fHxka, LocalDateTime.of(2026, 6, 16, 9, 15), LocalDateTime.of(2026, 6, 16, 11, 20));
+        Flight f5 = new Flight(route4, csTua, LocalDateTime.of(2026, 6, 16, 13, 0), LocalDateTime.of(2026, 6, 16, 14, 15));
+        Flight f6 = new Flight(route3, n789dl, LocalDateTime.of(2026, 6, 17, 11, 0), LocalDateTime.of(2026, 6, 17, 13, 40));
 
-        RouteReference route3 = new RouteReference(
-                3L, "OPO", "Porto-Paris", "CDG"
-        );
-
-        RouteReference route4 = new RouteReference(
-                4L, "LIS", "Lisbon-Frankfurt", "FRA"
-        );
-
-        Flight f1 = new Flight(
-                route1, csTua,
-                LocalDateTime.of(2026, 6, 15, 8, 0),
-                LocalDateTime.of(2026, 6, 15, 9, 0)
-        );
-
-        Flight f2 = new Flight(
-                route1, dAbxa,
-                LocalDateTime.of(2026, 6, 15, 10, 30),
-                LocalDateTime.of(2026, 6, 15, 12, 0)
-        );
-
-        Flight f3 = new Flight(
-                route2, fHxka,
-                LocalDateTime.of(2026, 6, 15, 14, 0),
-                LocalDateTime.of(2026, 6, 15, 15, 20)
-        );
-
-        Flight f4 = new Flight(
-                route3, fHxka,
-                LocalDateTime.of(2026, 6, 16, 9, 15),
-                LocalDateTime.of(2026, 6, 16, 11, 20)
-        );
-
-        Flight f5 = new Flight(
-                route4, csTua,
-                LocalDateTime.of(2026, 6, 16, 13, 0),
-                LocalDateTime.of(2026, 6, 16, 14, 15)
-        );
-
-        Flight f6 = new Flight(
-                route3, n789dl,
-                LocalDateTime.of(2026, 6, 17, 11, 0),
-                LocalDateTime.of(2026, 6, 17, 13, 40)
-        );
-
-        flightRepository.saveAll(
-                List.of(f1, f2, f3, f4, f5, f6)
-        );
+        flightRepository.saveAll(List.of(f1, f2, f3, f4, f5, f6));
     }
 }

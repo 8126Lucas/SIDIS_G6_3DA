@@ -2,7 +2,7 @@ name: SIDIS Monorepo CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "1241008" ]
   pull_request:
     branches: [ "main" ]
 
@@ -44,8 +44,8 @@ jobs:
 
       - name: Esperar pelo registo no Eureka
         run: |
-          echo "A aguardar 60 segundos para o Eureka registar todos os nós..."
-          sleep 60
+          echo "A aguardar 200 segundos para o Eureka registar todos os nós..."
+          sleep 200
 
       - name: Validar Todos os Módulos
         run: ./mvnw verify

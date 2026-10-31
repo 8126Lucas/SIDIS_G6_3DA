@@ -46,7 +46,7 @@ public class AircraftRestClientService {
     public long countByStatus(AircraftAvailability availability) {
         try {
             Map<AircraftAvailability, Long> response = aircraftRestClient.get()
-                    .uri("/analytics/status-summary")
+                    .uri("/api/hangar/analytics/status-summary")
                     .retrieve()
                     .body(new ParameterizedTypeReference<Map<AircraftAvailability, Long>>() {});
             return response == null? 0L : response.getOrDefault(availability, 0L);

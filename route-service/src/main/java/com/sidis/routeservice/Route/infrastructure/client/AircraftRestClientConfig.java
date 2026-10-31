@@ -17,6 +17,6 @@ public class AircraftRestClientConfig {
 
     @Bean("aircraftRestClient")
     public RestClient aircraftRestClient(@Qualifier("aircraftRestClientBuilder") RestClient.Builder builder) {
-        return builder.baseUrl("https://aircraft-service").build();
+        return builder.baseUrl("http://aircraft-service").build();
     }
 }

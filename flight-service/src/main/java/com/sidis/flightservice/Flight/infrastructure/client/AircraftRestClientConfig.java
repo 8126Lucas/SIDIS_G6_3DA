@@ -22,7 +22,7 @@ public class AircraftRestClientConfig {
             RestClient.Builder builder) {
 
         return builder
-                .baseUrl("https://aircraft-service")
+                .baseUrl("http://aircraft-service")
                 .build();
     }
 }
