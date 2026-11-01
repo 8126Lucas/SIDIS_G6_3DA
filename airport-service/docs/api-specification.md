@@ -6,26 +6,40 @@ This document reflects the current implementation in `AirportController`, `Airpo
 
 ## 1. General Service Configuration
 
-* **Base URL (local):** `http://localhost:8091`
+* **Base URL (via API Gateway):** `https://localhost:7979`
+* **Base URL (service, local):** `http://localhost:8091`
 * **API Prefix:** `/api/airports`
 * **Content-Type:** `application/json` (except the CSV import, which is `multipart/form-data`)
+
+### 1.1. Required Headers
+
+| Header | Where it is checked | Effect when missing / invalid |
+| :--- | :--- | :--- |
+| `Authorization: Bearer <JWT>` | API Gateway (`JwtAuthentication` filter) | `401 Unauthorized` (empty body) from the gateway |
+| `X-Gateway-Secret: sidis-g6-secret` | `AirportSecurityConfig.gatewaySecretFilter` | `403 Forbidden`, body `Unauthorized Access! Please use the API Gateway!` |
+
+* The gateway adds `X-Gateway-Secret` and `X-User-Name` after validating the JWT, so clients only send `Authorization`.
+* The service itself does not validate the JWT and does not read `X-User-Name`; all requests that pass the secret filter are `permitAll()`.
+* Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` skip the secret filter.
 
 ---
 
 ## 2. Implemented Endpoints Summary
 
+All endpoints additionally return `403` when `X-Gateway-Secret` is missing (and `401` at the gateway when the JWT is missing or invalid).
+
 | Method | Endpoint Path | Description | Status Codes |
 | :--- | :--- | :--- | :--- |
 | `POST` | `/api/airports` | Register a new airport | `201`, `400`, `409`, `500` |
 | `POST` | `/api/airports/import` | Import airports from a CSV file | `200`, `400`, `409`, `500` |
-| `POST` | `/api/airports/{iataCode}/certifications` | Add a certification to an airport | `201`, `409` |
+| `POST` | `/api/airports/{iataCode}/certifications` | Add a certification to an airport | `201`, `400`, `409` |
 | `GET` | `/api/airports/{iataCode}` | Get one airport | `200`, `409` |
 | `GET` | `/api/airports` | List airports with optional filters | `200` |
 | `PATCH` | `/api/airports/{iataCode}/status` | Change airport status | `200`, `400`, `409`, `500` |
-| `PATCH` | `/api/airports/{iataCode}/details` | Update name and contacts | `200`, `400`, `409` |
-| `GET` | `/api/airports/{iataCode}/routes` | Routes departing from the airport | `200`, `409`, `500` |
+| `PATCH` | `/api/airports/{iataCode}/details` | Update name, operational hours and contacts | `200`, `400`, `409` |
+| `GET` | `/api/airports/{iataCode}/routes` | Routes departing from or arriving at the airport | `200`, `409`, `500` |
 | `GET` | `/api/airports/busiest` | Airports ranked by number of routes | `200`, `500` |
-| `GET` | `/api/airports/grouped` | Airports grouped by country or city | `200`, `409` |
+| `GET` | `/api/airports/grouped` | Airports grouped by country, city or region | `200`, `409` |
 
 ---
 
@@ -164,7 +178,8 @@ Notes:
 Notes:
 
 * Airport must exist → otherwise `409` (`"Airport does not exist"`).
-* There is no validation of dates (`expiresAt` may be before `startsAt`) nor of duplicate names.
+* `expiresAt` before `startsAt` fails the `@AssertTrue` check on the request → `400` (`validationErrors` contains `"Expiry date cannot be before start date"`). Missing dates pass this check.
+* Duplicate certification names are not checked.
 
 ---
 
@@ -204,13 +219,15 @@ Notes:
     { "type": "PHONE", "value": "+351 22 943 2400" },
     { "type": "EMAIL", "value": "info@ana.pt" }
   ],
-  "airportPhotos": ["opo_terminal.jpg", "opo_runway.jpg", "opo_night_view.jpg"]
+  "airportPhotos": ["opo_terminal.jpg", "opo_runway.jpg", "opo_night_view.jpg"],
+  "operationalHours": "07:00-22:00"
 }
 ```
 
 Notes:
 
 * A missing airport returns `409` (`"Airport does not exist"`), not `404`.
+* `operationalHours` defaults to `"07:00-22:00"` for every airport until it is changed with `PATCH /details`.
 * This endpoint is also consumed by `flight-service` and `route-service`.
 
 ---
@@ -282,8 +299,8 @@ The updated `AirportResponse`.
 
 Notes:
 
-* Despite being a `PATCH`, the update is a full replacement of `name` and `contacts`: an omitted `name` sets it to `null`, and omitted `contacts` clear all contacts.
-* `operationalHours` is accepted but ignored.
+* Despite being a `PATCH`, `name` and `contacts` are fully replaced: an omitted `name` sets it to `null`, and omitted `contacts` clear all contacts.
+* `operationalHours` is only changed when it is sent; a blank value is rejected by `Airport.changeOperationalHours(...)` with `IllegalArgumentException` → `400` (`"Operational hours cannot be empty"`). The format is not checked.
 * An unknown contact `type` returns `400`; a missing airport returns `409`.
 
 ---
@@ -291,7 +308,7 @@ Notes:
 ### 3.8. Airport Routes
 
 * **Endpoint:** `GET /api/airports/{iataCode}/routes`
-* **Description:** Checks that the airport exists locally, then calls `GET /api/routes/from/{iataCode}` on `route-service`.
+* **Description:** Checks that the airport exists locally, loads all routes with `GET /api/routes` on `route-service`, and keeps those whose origin or destination is the airport.
 
 #### Response Example (`200 OK`)
 
@@ -314,9 +331,9 @@ Notes:
 
 Notes:
 
-* `route-service` returns only routes whose **origin** is the airport; routes arriving at it are not included.
+* Both departing and arriving routes are included; the filtering is done in this service.
 * Field names are renamed by `RouteResponse.from(...)` (`status` → `routeStatus`, `originIataCode` → `originAirportIata`, etc.).
-* Any `route-service` error (unavailable, `4xx`/`5xx`) is returned as `500`.
+* Any `route-service` error (unavailable, timeout after 2 s, `4xx`/`5xx`) is returned as `500`.
 
 ---
 
@@ -345,7 +362,7 @@ Notes:
 ### 3.10. Grouped Airports
 
 * **Endpoint:** `GET /api/airports/grouped`
-* **Query parameters:** `by` = `country` (default) or `city`.
+* **Query parameters:** `by` = `country` (default), `city` or `region`.
 
 #### Response Example (`200 OK`)
 
@@ -387,9 +404,12 @@ Error payload model: `ErrorDetails`
 | `HttpMessageNotReadableException` | `400 Bad Request` |
 | `IllegalArgumentException` | `400 Bad Request` |
 | `DomainException` | `409 Conflict` |
+| `ObjectOptimisticLockingFailureException` | `409 Conflict` (`"Concurrent modification detected. Please retry the operation."`) |
+| `IllegalStateException` | `409 Conflict` |
 | `Exception` | `500 Internal Server Error` |
 
 Notes:
 
-* `ResourceNotFoundException` and `MethodArgumentNotValidException` are never raised by the current code (no lookup throws `ResourceNotFoundException` and requests have no constraints).
-* There is no dedicated handler for `OptimisticLockingFailureException` or for `RestClient` errors from `route-service`; both map to `500`.
+* `ResourceNotFoundException` is never raised by the service's own lookups; `MethodArgumentNotValidException` is only raised by the certification date check.
+* There is no dedicated handler for `RestClient` errors from `route-service`; they map to `500`.
+* The `403` from the gateway secret filter is written directly by the filter as plain text, not as `ErrorDetails`.

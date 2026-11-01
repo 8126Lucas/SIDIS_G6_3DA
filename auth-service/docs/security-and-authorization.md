@@ -45,7 +45,7 @@ Current gaps:
 
 `JwtService` also has `isTokenValid(...)`, `extractSubject(...)` and `extractRoles(...)`, used only by the inactive `JwtAuthenticationFilter`.
 
-`AuthenticateCollaboratorUseCase` is `@UseCase` with `@SuppressArgLogging` so the password is not logged, but the `UseCaseLoggingAdvice` pointcut is `within(com.sidis.authservice.UseCase)`, which matches no class, so nothing is logged anyway.
+`AuthenticateCollaboratorUseCase` is `@UseCase` with `@SuppressArgLogging`. `UseCaseLoggingAdvice` (pointcut `@within(com.sidis.authservice.UseCase)`) logs each login call and its duration, with the arguments replaced by `[SUPPRESSED]`, so the password is not logged.
 
 ## 4. Token Validation Across the System
 
@@ -54,10 +54,12 @@ Current gaps:
 1. `/api/auth/**` is routed without a filter.
 2. Every other route (`aircraft`, `airport`, `maintenance`, `route`, `flight`) uses `JwtAuthenticationGatewayFilterFactory`, which:
    * requires `Authorization: Bearer <token>` (`401` otherwise);
-   * verifies the signature with the same secret (hardcoded in the gateway class) and the expiration (`401` on any parsing error);
+   * verifies the signature with the same secret (`security.jwt.secret` in the gateway's `application.properties`) and the expiration (`401` on any parsing error);
    * forwards the request with `X-User-Name: <sub>` and `X-Gateway-Secret: sidis-g6-secret`.
-3. `aircraft-service` and `maintenance-service` reject requests without `X-Gateway-Secret` (`403`). `airport-service`, `route-service` and `flight-service` do not check it.
-4. `aircraft-service` and `maintenance-service` forward the incoming `Authorization` header and the secret on their outgoing calls (`JwtTokenInterceptor`).
+3. All five business services (`aircraft`, `airport`, `flight`, `maintenance`, `route`) reject requests without `X-Gateway-Secret` (`403`) through their `gatewaySecretFilter`.
+4. All five forward the incoming `Authorization` header and the secret on their outgoing calls (`JwtTokenInterceptor`).
+
+See also `APIgateway/docs/routing-and-security.md`.
 
 Role usage:
 
@@ -66,7 +68,7 @@ Role usage:
 
 Known weaknesses:
 
-* The JWT secret is duplicated: `security.jwt.secret` in `auth-service` and a hardcoded constant in the gateway filter. Changing one breaks validation.
+* The JWT secret is duplicated: `security.jwt.secret` must have the same value in `auth-service` and in `APIgateway`. Changing one breaks validation.
 * `X-User-Name` carries the UUID subject, not the username.
 * `auth-service` does not check `X-Gateway-Secret`, so login also works directly on port `8101`.
 * There is no token revocation; a token stays valid for one hour after issue.

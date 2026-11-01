@@ -15,7 +15,8 @@ Microservices architecture monorepo for the _Sistemas Distribuídos_ (SIDIS) cou
 ## Instructions
 - **Start the cluster:** `docker compose up -d --build`
 - **Access Eureka (Discovery):** http://localhost:8761 or http://localhost:8762
-- **Access API (Gateway):** http://localhost:7979
+- **Access API (Gateway):** https://localhost:7979 (self-signed certificate; log in with `POST /api/auth/login` and send the token as `Authorization: Bearer <token>`)
+- **Documentation:** [docs/README.md](docs/README.md) (global) and `docs/` inside each service; CI/CD details in [docs/ci-cd-pipelines.md](docs/ci-cd-pipelines.md)
 
 > **Startup Note:** It is expected to see `Connection Refused` errors in the logs during the first 30-60 seconds. The microservices are configured with retry mechanisms and will automatically stabilize once the Eureka nodes finish booting and synchronize their registries. Wait until all services appear in the Eureka dashboard before issuing HTTP requests.
 

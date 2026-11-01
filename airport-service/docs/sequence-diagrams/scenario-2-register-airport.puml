@@ -30,7 +30,7 @@ end box
 
 client -> gateway : POST /api/airports\n(iataCode, name, status, location, facilities, runways, certifications, contacts, photos)
 activate gateway
-gateway -> controller : Forward request
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> controller : Build Airport aggregate\n(AirportStatus / RunwayStatus / ContactType.valueOf)
@@ -74,7 +74,7 @@ deactivate gateway
 
 client -> gateway : POST /api/airports/import\n(multipart file)
 activate gateway
-gateway -> controller : Forward request
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> csv_svc : importFile(file.getInputStream())
@@ -106,7 +106,7 @@ note right of airport_uc : A DomainException on any row returns 409;\nairports s
 
 client -> gateway : PATCH /api/airports/{iataCode}/status\n(status)
 activate gateway
-gateway -> controller : Forward request
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> airport_uc : updateStatus(iataCode, AirportStatus.valueOf(status))

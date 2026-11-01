@@ -27,21 +27,21 @@ In every flow the API Gateway first validates the JWT and forwards the request w
 
 1. Client requests one template.
 2. Controller delegates to `MaintenanceTemplateSearchService.findByTemplateId(...)`.
-3. Missing template throws `DomainException` → `409`.
-4. Controller maps to `MaintenanceTemplateResponse` and returns `200 OK`.
+3. A missing template is passed to `PeerForwarder` (with service id `aircraft-service`); the forwarded call fails and the result is `404`.
+4. Otherwise the controller maps to `MaintenanceTemplateResponse` and returns `200 OK`.
 
 #### Flow B — Record by Id
 
 1. Client requests one record.
 2. Controller delegates to `MaintenanceRecordProgressService.findById(...)`, which calls `findByRecordId(...)`.
-3. Missing record throws `DomainException` → `409`.
+3. Missing record throws `DomainException` → `404`.
 4. Controller maps to `MaintenanceRecordResponse` and returns `200 OK`.
 
 #### Flow C — Search Records
 
-1. When `aircraft` is set, the controller checks it in `aircraft-service` (`409` if missing).
-2. `MaintenanceRecordSearchService` builds a `Specification`.
-3. Without `aircraft`, `aircraftRegistration.isEmpty()` throws `NullPointerException`; with `aircraft`, the `Specification` references a non-existent `aircraft` attribute. Both end in `500`.
+1. When `aircraft` is set, the controller checks it in `aircraft-service` (`404` if missing).
+2. `MaintenanceRecordSearchService` builds a `Specification` on `aircraftRegistration`, attribute and start date range, and returns the page content (`200 OK`).
+3. Without `aircraft`, `aircraftRegistration.isEmpty()` throws `NullPointerException` → `500`.
 
 #### Flow D — Rejected Requests
 
@@ -55,7 +55,7 @@ In every flow the API Gateway first validates the JWT and forwards the request w
 
 ### Description
 
-Scenario 2 describes the write flows in `POST /api/maintenance/templates` (US115), `POST /api/maintenance/record` (US116) and `PATCH /api/maintenance/records/{id}/status` (US119).
+Scenario 2 describes the write flows in `POST /api/maintenance/templates` (US115), `POST /api/maintenance/record` (US116), `PATCH /api/maintenance/records/{id}/status` and `PATCH /api/maintenance/records/{id}/complete` (US119).
 
 ### Sequence Diagram Source
 
@@ -73,16 +73,23 @@ Scenario 2 describes the write flows in `POST /api/maintenance/templates` (US115
 
 1. Controller calls `aircraft-service` `GET /api/hangar/aircraft/{registrationNumber}` (`404` if missing).
 2. Controller loads the template (`404` if missing).
-3. Controller calls `AddMaintenanceRecordUseCase.executeShort(...)` with `aircraftDto.aircraftRegistration()`, which is `null` because `aircraft-service` returns `registrationNumber`.
-4. The use case looks up the aircraft again with `null` (`GET /api/hangar/aircraft/`); the downstream error is not caught → `500`.
-5. If that lookup succeeded, the record would be saved as `INLINE` with a `null` registration and `200 OK` (empty body) returned.
+3. Controller calls `AddMaintenanceRecordUseCase.executeShort(...)` with the registration returned by `aircraft-service`.
+4. The use case looks up the aircraft again (`404` if missing) and saves the record as `INLINE`.
+5. Controller returns `200 OK` (empty body).
 
 #### Advance Status
 
 1. Controller parses `status` (`400` if unknown) and calls `advanceStatus(...)`.
-2. Missing record → `409`.
+2. Missing record → `404`.
 3. `ONGOING` → `markAsOngoing()`, saved, `200 OK` with the record.
-4. `COMPLETED` or `INLINE` → `DomainException` → `409`.
+4. `COMPLETED` or `INLINE` → `DomainException` → `404`.
+
+#### Complete Record
+
+1. Controller calls `completeRecord(id, notes, tasksDone, endDate)`.
+2. Missing record → `404`.
+3. `markAsCompleted(...)` rejects an already completed record (`409`) and a missing or earlier-than-start `endDate` (`400`).
+4. The record is saved as `COMPLETED` with the done list and end date; `200 OK` with the record.
 
 ---
 
@@ -111,12 +118,13 @@ Scenario 3 describes flows that depend on `aircraft-service`:
 #### Flow B — Maintenance Alerts
 
 1. `MaintenanceAlertService` loads `COMPLETED` records.
-2. `AircraftRestClientService.findAll()` calls `GET /api/hangar/aircraft` and tries to read the JSON array as a single `AircraftClientDTO`.
-3. The deserialization error is not caught → `500`.
+2. `AircraftRestClientService.findAll()` calls `GET /api/hangar/aircraft?size=1000` and reads the JSON array.
+3. For each aircraft, the last completed record (by `endDate`) is found; an alert is raised when there is none, when it is at least `calendarDaysThreshold` days old, or when `totalFlightHours >= flightHoursThreshold`.
+4. Controller returns `200 OK` with the alerts.
 
 Notes:
 
-* The per-aircraft alert logic (no completed maintenance, days since last maintenance, flight hours) is never reached in the current code.
+* Every client call has a 2-second timeout and up to 3 attempts; after that the error is returned as `500`.
 * `GET /api/maintenance/turnaround-average` (US221) follows the same per-record model lookup as Flow A.
 
 ---
@@ -129,9 +137,9 @@ Notes:
 | `MethodArgumentNotValidException` | `400 Bad Request` |
 | `HttpMessageNotReadableException` | `400 Bad Request` |
 | `IllegalArgumentException` | `400 Bad Request` |
-| `DomainException` | `409 Conflict` |
+| `DomainException` | `404 Not Found` |
 | `ObjectOptimisticLockingFailureException` | `409 Conflict` |
 | `IllegalStateException` | `409 Conflict` |
 | `Exception` | `500 Internal Server Error` |
 
-Optimistic locking exists (`@Version` on `MaintenanceRecord`) and conflicts map to `409`. Downstream `RestClient` failures are not handled separately (`500`). The `403` from `gatewaySecretFilter` and the `401` from the gateway are not `ErrorDetails` payloads.
+Optimistic locking exists (`@Version` on `MaintenanceRecord`) and conflicts map to `409`. Downstream `RestClient` calls have 2-second timeouts and up to 3 attempts; after that they are not handled separately (`500`). The `403` from `gatewaySecretFilter` and the `401` from the gateway are not `ErrorDetails` payloads.

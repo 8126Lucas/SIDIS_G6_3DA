@@ -33,6 +33,7 @@ All endpoints additionally return `403` when `X-Gateway-Secret` is missing (and 
 | `POST` | `/api/catalog/model` | Add an aircraft model to the catalog | US101, US202 | `201`, `400`, `500` |
 | `PATCH` | `/api/catalog/model/{modelName}` | Update an aircraft model | US201 | `200`, `404`, `409`, `500` |
 | `GET` | `/api/catalog/rankings?mode=` | Top 5 models by assignments or flight hours | US204 | `200`, `500` |
+| `GET` | `/api/catalog/{modelName}` | Get one aircraft model | — | `200`, `404` |
 | `POST` | `/api/hangar/aircraft` | Register a new aircraft in the hangar | US102 | `201`, `400`, `404`, `500` |
 | `GET` | `/api/hangar/aircraft/{registrationNumber}` | Get one aircraft | US103 | `200`, `404` |
 | `GET` | `/api/hangar/aircraft` | List aircraft with optional filters and paging | US104 | `200`, `400` |
@@ -121,9 +122,31 @@ Validations:
 2. At least one of `modelImage`, `manufacturer`, `specs` must be present → otherwise `409` (`"Bad request"`).
 3. Model must exist → otherwise `404`.
 
-Note:
+`specs` is optional: when it is omitted, only `modelImage` and/or `manufacturer` are changed.
 
-* `specs` is always dereferenced; sending only `modelImage` or `manufacturer` without `specs` ends in `500`.
+---
+
+### 3.2.0. Get Aircraft Model
+
+* **Endpoint:** `GET /api/catalog/{modelName}`
+* **Description:** Returns the model with its specs. Added for `flight-service`, because `GET /api/hangar/aircraft/{registrationNumber}` only returns the model name.
+* **Errors:** unknown model → `404` (`"Model does not exist in catalog"`).
+
+#### Response Example (`200 OK`)
+
+```json
+{
+  "modelName": "A320neo",
+  "modelImage": ["a320neo-1.jpg", "a320neo-2.jpg", "a320neo-cockpit.jpg"],
+  "manufacturer": "Airbus",
+  "specs": {
+    "fuelCapacityLiters": 79000.0,
+    "maximumRangeKm": 6300.0,
+    "cruisingSpeedKph": 828.0,
+    "standardSeatingCapacity": 180
+  }
+}
+```
 
 ---
 
@@ -156,7 +179,7 @@ Note:
 Notes:
 
 * `mode` is a required `@RequestParam`; omitting it raises `MissingServletRequestParameterException`, which falls into the generic handler (`500`).
-* `mode=assignments` calls `GET /api/flights`, which `flight-service` does not expose, so it ends in `500`. Even with that endpoint, `FlightClientDTO.aircraftRegistration` does not match `flight-service`'s `aircraftRegistrationNumber`, so every flight would be filtered out and the result would be empty.
+* `mode=assignments` calls `GET /api/flights` on `flight-service` and counts flights per aircraft registration (mapped from `aircraftRegistrationNumber` through `@JsonAlias`). If `flight-service` is unavailable after the retries, it ends in `500`.
 
 ---
 
@@ -215,7 +238,9 @@ Notes:
 }
 ```
 
-This endpoint is also consumed by `flight-service` (flight scheduling) and `maintenance-service` (record creation and filtering). Only `maintenance-service` sends `X-Gateway-Secret` (see `domain-and-resilience.md`, section 4).
+When the aircraft is not in the local database, the controller asks the other registered instances of `aircraft-service` through `PeerForwarder` before answering `404` (`"Resource not found in any instance"`); see `domain-and-resilience.md`, section 6.
+
+This endpoint is also consumed by `flight-service` (flight scheduling), `route-service` and `maintenance-service` (record creation and filtering). All of them send `X-Gateway-Secret` through their `JwtTokenInterceptor`.
 
 ---
 
@@ -420,16 +445,17 @@ The timestamp is `Instant.now()` truncated to minutes.
 
 Note:
 
-* Depends on `GET /api/flights` in `flight-service`, which is not exposed in the current code (`500`).
-* Even with that endpoint, `FlightClientDTO` expects `aircraftRegistration`, so every aircraft lookup would miss and `avgFuelConsumptionLitPerKm` would be `0.0`.
+* Depends on `GET /api/flights` in `flight-service` and `GET /api/routes/{routeId}` in `route-service`; if either is unavailable after the retries, it ends in `500`.
+* The L/km is taken from each aircraft's model specs (`fuelCapacityLiters / maximumRangeKm`); aircraft that are not in this service count as `0.0` in the average.
+* `originIata` and `destinationIata` are always `null` (see `domain-and-resilience.md`, section 4).
 
 ---
 
 ### 3.13. Other Endpoints
 
-* `GET /api/hangar/analytics/fuel-efficiency`: legacy map mixing per-aircraft L/km and `"Flight {id}:"` entries; `page`/`size` are accepted but not used. Also depends on `GET /api/flights` (`500`).
+* `GET /api/hangar/analytics/fuel-efficiency`: legacy map mixing per-aircraft L/km and `"Flight {id}:"` entries; `page`/`size` are accepted but not used. For every flight from `GET /api/flights` it divides by `flight.range()`, which `flight-service` never returns (`null`), so the endpoint ends in `500` as soon as there is at least one flight.
 * `GET /api/hangar/aircraft-features`: GET with a JSON body `{"features": ["Wi-Fi"]}`; an empty or missing list throws `IllegalArgumentException` (`"Feature list cannot be empty!"`) → `400`.
-* `GET /api/hangar/view/utilization`: `CalculationsService` calls `GET /api/flights/aircraft/{registration}` on `flight-service` for every aircraft and builds 12 months of utilization (`flightHours / hoursInMonth × 100`, rounded to 2 decimals). The `utilization.html` template is a placeholder ("in progress") that does not render `utilizationData`. Because `FlightClientDTO` expects `departure` and `flightHours` (not returned by `flight-service`), every rate is `0.0`. Any downstream failure ends in `500`.
+* `GET /api/hangar/view/utilization`: `CalculationsService` calls `GET /api/flights/aircraft/{registration}` on `flight-service` for every aircraft and builds 12 months of utilization (`flightHours / hoursInMonth × 100`, rounded to 2 decimals). The `utilization.html` template is a placeholder ("in progress") that does not render `utilizationData`. `departure` is now mapped from `scheduledDeparture`, but `flight-service` does not return `flightHours`, so every flight is skipped and every rate is `0.0`. Any downstream failure ends in `500`.
 
 ---
 
@@ -463,5 +489,5 @@ Error payload model: `ErrorDetails`
 
 Notes:
 
-* There is no dedicated handler for `RestClient` errors from downstream services; they map to `500`.
+* There is no dedicated handler for `RestClient` errors from downstream services; after the retries (up to 3 attempts) they map to `500`.
 * The `403` from the gateway secret filter is written directly by the filter as plain text, not as `ErrorDetails`.

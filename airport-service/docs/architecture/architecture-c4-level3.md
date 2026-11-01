@@ -8,6 +8,8 @@ This document describes the current internal component architecture at C4 Level 
 
 The `airport-service` currently exposes one controller and the following main application services:
 
+* **`AirportSecurityConfig`**
+   * Stateless `SecurityFilterChain` with `gatewaySecretFilter`, which rejects requests without `X-Gateway-Secret` (`403`).
 * **`AirportController`** (`/api/airports`)
    * Registration (`POST /`), CSV import (`POST /import`), certifications (`POST /{iataCode}/certifications`).
    * Queries (`GET /{iataCode}`, `GET /`, `GET /grouped`).
@@ -18,7 +20,9 @@ The `airport-service` currently exposes one controller and the following main ap
 * **`AirportCsvService`**
    * Parses CSV rows (OpenCSV) into `Airport` aggregates; persistence is delegated back to `AirportService`.
 * **`RouteRestClientService`**
-   * `RestClient` adapter for `route-service`.
+   * `RestClient` adapter for `route-service` (`@Retryable` annotations, inactive without `@EnableRetry`).
+* **`PeerForwarder`**
+   * Forwards a GET to other instances of a service; not used by any controller.
 * **`AirportRepository`**
    * Spring Data JPA persistence with `JpaSpecificationExecutor`.
 * **`GlobalExceptionHandler`**
@@ -29,6 +33,7 @@ The `airport-service` currently exposes one controller and the following main ap
 External integration clients:
 
 * `RouteRestClientService` -> `route-service`
+* Built from the shared `GlobalRestClientConfig` builder (2 s timeouts, `JwtTokenInterceptor` for `X-Gateway-Secret` + `Authorization` propagation).
 
 ---
 
@@ -43,7 +48,7 @@ PlantUML source file:
 
 ## 3. Data Flow and Dependencies
 
-1. Inbound requests arrive through the API Gateway for `/api/airports/**`.
+1. Inbound requests arrive through the API Gateway for `/api/airports/**`; the gateway validates the JWT and adds `X-Gateway-Secret`, which `gatewaySecretFilter` checks (`403` when missing).
 2. All flows go from `AirportController` to `AirportService`, which persists through `AirportRepository`.
 3. The CSV import goes through `AirportCsvService` to build the aggregates, then calls `AirportService.execute(...)` once per airport.
 4. Airport routes and busiest airports call `route-service` through `RouteRestClientService`.

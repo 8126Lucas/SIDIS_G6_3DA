@@ -63,6 +63,6 @@ end
 deactivate gateway_filter
 deactivate gateway
 
-note over secret_filter, controller : Only aircraft-service and maintenance-service have gatewaySecretFilter.\nairport-service, route-service and flight-service accept the request without checking it.\nNo service reads the roles claim or X-User-Name.
+note over secret_filter, controller : All five business services (aircraft, airport, flight,\nmaintenance, route) have gatewaySecretFilter.\nNo service reads the roles claim or X-User-Name.
 
 @enduml

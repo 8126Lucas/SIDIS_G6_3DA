@@ -41,7 +41,7 @@ Scenario 2 shows how the token issued by `auth-service` is used on another route
 1. Client sends the request with `Authorization: Bearer <token>`.
 2. `JwtAuthenticationGatewayFilterFactory` rejects a missing header, a non-Bearer header, a bad signature or an expired token with `401` (empty body).
 3. On success, the gateway adds `X-User-Name` (the UUID subject) and `X-Gateway-Secret` and routes the request through Eureka.
-4. In `aircraft-service` and `maintenance-service`, `gatewaySecretFilter` checks the secret (`403` if missing); `airport-service`, `route-service` and `flight-service` do not check it.
+4. In the downstream service, `gatewaySecretFilter` checks the secret (`403` if missing); all five business services have this filter.
 5. The controller handles the request; roles are not checked anywhere.
 
 ---
@@ -54,4 +54,4 @@ Scenario 2 shows how the token issued by `auth-service` is used on another route
 | Unknown username / wrong password | `auth-service` | `409 Conflict` |
 | Any non-public path on `auth-service` | Spring Security | `403 Forbidden` |
 | Missing / invalid / expired token | API Gateway | `401 Unauthorized` |
-| Missing `X-Gateway-Secret` | `aircraft-service`, `maintenance-service` | `403 Forbidden` |
+| Missing `X-Gateway-Secret` | Any business service (aircraft, airport, flight, maintenance, route) | `403 Forbidden` |

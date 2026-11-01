@@ -6,37 +6,39 @@ This document describes the current internal component architecture at C4 Level 
 
 ## 1. Current Component Responsibilities
 
-The `flight-service` currently exposes one controller and three main application services:
+The `flight-service` currently exposes one controller and the following main components:
 
-* **`FlightController`**
-   * `POST /api/flights/scheduled`
-   * `GET /api/flights/aircraft/{registrationNumber}`
-   * `GET /api/flights/reports/route-utilization`
-* **`RouteService`**
-   * Scheduling orchestration and business-rule validation.
-   * Calls route and airport clients.
-   * Performs local overlap validation through repository.
-   * Updates route usage through route-service patch operation.
+* **`FlightSecurityConfig`**
+   * Stateless `SecurityFilterChain` with `gatewaySecretFilter`, which rejects requests without `X-Gateway-Secret` (`403`).
+* **`FlightController`** (`/api/flights`)
+   * `GET /`
+   * `POST /scheduled` (US212)
+   * `GET /aircraft/{registrationNumber}` (US213)
+   * `GET /reports/route-utilization` (US229)
+* **`RouteService`** (`@UseCase`)
+   * Scheduling orchestration and business-rule validation; route and airport lookups; route usage update; local overlap check; flights by aircraft.
 * **`AircraftSearchService`**
-   * Aircraft lookup and filtering helpers.
-   * Used by controller in scheduling flow.
+   * Aircraft and model lookup in `aircraft-service`.
+* **`FlightSearchService`**
+   * All flights.
 * **`FlightUtilizationReportService`**
-   * Aggregates route utilization by counting flights grouped by route.
+   * Flights per route.
 * **`FlightRepository`**
-   * Spring Data JPA persistence for `Flight` entities.
+   * Spring Data JPA persistence for `Flight`.
 * **`GlobalExceptionHandler`**
    * Cross-cutting HTTP error normalization (`ErrorDetails`).
+* **`UseCaseLoggingAdvice`**
+   * AOP logging aspect intended for `@UseCase` classes (its pointcut does not currently match them).
+* **`Bootstrap`**
+   * Seeds 6 flights.
 
 External integration clients:
 
-* `RouteRestClientService` -> `route-service`
 * `AircraftRestClientService` -> `aircraft-service`
+* `RouteRestClientService` -> `route-service`
 * `AirportRestClientService` -> `airport-service`
-
-Not present in current implementation:
-
-* `maintenance-service` integration.
-* A dedicated `FlightUtilizationController` (utilization is served by `FlightController`).
+* `PeerForwarder` -> other instances of a service (not used)
+* All are built from the shared `GlobalRestClientConfig` builder (2 s timeouts, `JwtTokenInterceptor` for `X-Gateway-Secret` + `Authorization` propagation). Their `@Retryable` annotations are inactive (no `@EnableRetry`).
 
 ---
 
@@ -50,8 +52,9 @@ PlantUML source file:
 
 ## 3. Data Flow and Dependencies
 
-1. Inbound requests arrive to `FlightController` under `/api/flights/**`.
-2. Scheduling flow (`POST /scheduled`) first resolves aircraft data through `AircraftSearchService`, then delegates to `RouteService`.
-3. `RouteService` performs synchronous calls to `route-service` and `airport-service`, validates business rules, updates route usage, and persists the `Flight`.
-4. Route utilization flow delegates to `FlightUtilizationReportService`, which reads all flights and groups by route (`flightCount`).
-5. Exceptions are transformed by `GlobalExceptionHandler` into `ErrorDetails` payloads.
+1. Inbound requests arrive through the API Gateway for `/api/flights/**`; the gateway validates the JWT and adds `X-Gateway-Secret`, which `gatewaySecretFilter` checks (`403` when missing).
+2. Scheduling first resolves the aircraft and its model through `AircraftSearchService`, then delegates to `RouteService`.
+3. `RouteService` calls `route-service` and `airport-service`, validates the business rules, patches the route usage in `route-service`, and persists the `Flight`.
+4. Read flows use `FlightSearchService` / `RouteService` over `FlightRepository`; the utilization report uses `FlightUtilizationReportService`.
+5. `aircraft-service` calls `GET /api/flights` and `GET /api/flights/aircraft/{registration}`.
+6. Exceptions are transformed by `GlobalExceptionHandler` into `ErrorDetails` payloads.

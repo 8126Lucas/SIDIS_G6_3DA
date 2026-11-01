@@ -37,7 +37,7 @@ Important implementation notes:
 | OpenAPI Docs / Swagger UI | `/api/docs`, `/api/swagger-ui` | Configured, but require authentication (blocked) |
 | JWT Secret | `security.jwt.secret` | 49-byte HMAC key (signs with `HS384`) |
 | JWT Expiration | `3600000` ms (1 hour) | `security.jwt.expiration-ms` |
-| Service Registry | `http://localhost:8761/eureka/` | Eureka client registration |
+| Service Registry | `http://localhost:8761/eureka/,http://localhost:8762/eureka/` | Eureka client registration (both discovery nodes) |
 
 API Gateway routing (`https://localhost:7979`):
 

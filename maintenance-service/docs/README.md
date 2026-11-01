@@ -12,7 +12,7 @@ Current implemented responsibilities:
 
 * Register maintenance templates (type, component attribute, expected duration, checklist) (US115).
 * Register maintenance records for an aircraft from a template, after checking the aircraft in `aircraft-service` (US116).
-* Query templates (US117) and records, and move a record to `ONGOING` (US119).
+* Query templates (US117) and records, move a record to `ONGOING` and complete it (US119).
 * Change the component attribute of a record (US217) and search records by aircraft, attribute and date range (US218).
 * Report ongoing maintenance (US219), maintenance costs per aircraft or model (US220), and average turnaround time per aircraft model (US221).
 * Raise maintenance alerts by calendar days or flight hours (US222).
@@ -23,11 +23,11 @@ Current implemented responsibilities:
 Important implementation notes:
 
 * There is optimistic locking on `MaintenanceRecord` via `@Version` (not on `MaintenanceTemplate`); conflicts map to `409`.
-* A record can only move to `ONGOING` through the API. `COMPLETED` is rejected with a message pointing to a "complete endpoint" that does not exist; `completeRecord(...)` and `updateProgress(...)` are not exposed. Only seeded records are `COMPLETED`.
-* Missing templates and records are reported as `DomainException` (`409 Conflict`), not `404`.
-* `GET /api/maintenance/records` (US218) always fails: the search service dereferences a `null` aircraft filter and queries a non-existent `aircraft` attribute (see `api-specification.md`, section 3.10).
-* `AircraftClientDTO` does not match `aircraft-service`'s response, which breaks record creation and alerts (see `domain-and-resilience.md`, section 4).
-* The `UseCaseLoggingAdvice` pointcut matches no class (see `domain-and-resilience.md`, section 3).
+* Records are completed through `PATCH /api/maintenance/records/{id}/complete`; `updateProgress(...)` (duration and used parts) is still not exposed.
+* `DomainException` now maps to `404 Not Found`, so every business-rule rejection (for example an invalid status transition) is also reported as `404`.
+* `GET /api/maintenance/records` (US218) only works when the `aircraft` filter is given; without it the search service dereferences `null` and returns `500` (see `api-specification.md`, section 3.10).
+* Outgoing calls have 2-second timeouts and up to 3 attempts (`@Retryable`, enabled with `@EnableRetry`).
+* A template that is not found locally is looked up in other instances through `PeerForwarder`, but the service id passed is `aircraft-service` (see `domain-and-resilience.md`, section 6).
 
 ---
 
@@ -42,7 +42,8 @@ Important implementation notes:
 | H2 Console Path | `/h2-console` | Spring H2 console path |
 | OpenAPI Docs | `/api/docs` | springdoc API docs path |
 | Swagger UI | `/api/swagger-ui` | springdoc Swagger UI path |
-| Service Registry | `http://localhost:8761/eureka/` | Eureka client registration (`prefer-ip-address=true`) |
+| Service Registry | `http://localhost:8761/eureka/,http://localhost:8762/eureka/` | Eureka client registration, both discovery nodes (`prefer-ip-address=true`) |
+| Outgoing Call Timeouts | `2000` ms connect / `2000` ms read | `GlobalRestClientConfig` |
 | Gateway Secret | `sidis-g6-secret` | Hardcoded in `MaintenanceSecurityConfig` and `JwtTokenInterceptor` |
 
 External client base URLs configured in code (resolved through Eureka via `@LoadBalanced` `RestClient.Builder`):

@@ -14,6 +14,7 @@ component "Route Service\n<<Microservice>>" as route_service
 component "Airport Service\n<<Microservice>>" as airport_service
 
 package "Flight Operations Service [Container]" {
+    component "FlightSecurityConfig\n<<SecurityFilterChain + gatewaySecretFilter>>" as security_filter
     component "FlightController\n<<Spring REST Controller>>" as flight_controller
 
     component "RouteService\n<<UseCase>>" as route_svc
@@ -24,36 +25,37 @@ package "Flight Operations Service [Container]" {
     component "RouteRestClientService\n<<RestClient Adapter>>" as route_client
     component "AircraftRestClientService\n<<RestClient Adapter>>" as aircraft_client
     component "AirportRestClientService\n<<RestClient Adapter>>" as airport_client
+    component "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>\n(shared builder, 2 s timeouts)" as jwt_interceptor
 
     component "Bootstrap\n<<ApplicationRunner>>" as bootstrapper
 
     component "FlightRepository\n<<Spring Data JPA Repository>>" as flight_repo
 
-    component "Flight\n<<JPA Domain Entity>>" as flight_entity
+    component "Flight\n<<JPA Aggregate Root>>" as flight_entity
     component "AircraftReference\n<<Embeddable Value Object>>" as aircraft_ref
     component "RouteReference\n<<Embeddable Value Object>>" as route_ref
     component "FlightStatus\n<<Enum>>" as flight_status
 
-    component "GlobalExceptionHandler\n<<@ControllerAdvice>>" as exception_handler
+    component "GlobalExceptionHandler\n<<@RestControllerAdvice>>" as exception_handler
     component "ErrorDetails\n<<DTO Payload>>" as error_details
 }
 
-api_gateway --> flight_controller : "Routes REST API requests\n[HTTPS/JSON]"
+api_gateway --> security_filter : "Routes /api/flights/**\n(JWT validated, X-Gateway-Secret added)\n[HTTP/JSON]"
+aircraft_service --> security_filter : "GET /api/flights,\n/aircraft/{registration}"
+security_filter --> flight_controller : "secret OK"
 
-flight_controller --> route_svc : "POST /scheduled"
-flight_controller --> aircraft_search_svc : "aircraft lookup"
-flight_controller --> flight_report_svc : "Delegates report generation"
-flight_controller --> route_svc : "GET /aircraft/{registration}"
-flight_controller ..> flight_search_svc : "utility service in codebase"
+flight_controller --> aircraft_search_svc : "aircraft + model lookup"
+flight_controller --> route_svc : "POST /scheduled,\nGET /aircraft/{registration}"
+flight_controller --> flight_search_svc : "GET /"
+flight_controller --> flight_report_svc : "GET /reports/route-utilization"
 
-route_svc --> route_client : "Route lookup/update"
-route_svc --> airport_client : "Airport lookup"
-aircraft_search_svc --> aircraft_client : "Aircraft lookup"
-
-route_svc --> flight_repo : "save + overlap query"
-flight_search_svc --> flight_repo : "Queries flight data"
-flight_report_svc --> flight_repo : "Queries route utilization data"
-bootstrapper --> flight_repo : "Checks and seeds initial flights"
+aircraft_search_svc --> aircraft_client : "aircraft, model"
+route_svc --> route_client : "route by id, PATCH usage"
+route_svc --> airport_client : "airport by IATA"
+route_svc --> flight_repo : "overlap query + save"
+flight_search_svc --> flight_repo : "findAll"
+flight_report_svc --> flight_repo : "findAll"
+bootstrapper --> flight_repo : "Seeds flights"
 
 flight_repo --> flight_entity : "Manages persistence"
 
@@ -61,12 +63,15 @@ flight_entity *-- aircraft_ref : "Embeds"
 flight_entity *-- route_ref : "Embeds"
 flight_entity --> flight_status : "Uses"
 
-flight_repo <--> flight_db : "Reads/Writes company_flights\n[JDBC/JPA]"
+flight_repo <--> flight_db : "company_flights\n[JDBC/JPA]"
 
 exception_handler --> error_details : "Constructs and returns"
 
-route_client --> route_service : "HTTP RestClient"
-aircraft_client --> aircraft_service : "HTTP RestClient"
-airport_client --> airport_service : "HTTP RestClient"
+aircraft_client --> jwt_interceptor : "outgoing request"
+route_client --> jwt_interceptor : "outgoing request"
+airport_client --> jwt_interceptor : "outgoing request"
+jwt_interceptor --> aircraft_service : "HTTP RestClient\n(X-Gateway-Secret, Authorization)"
+jwt_interceptor --> route_service : "HTTP RestClient\n(X-Gateway-Secret, Authorization)"
+jwt_interceptor --> airport_service : "HTTP RestClient\n(X-Gateway-Secret, Authorization)"
 
 @enduml

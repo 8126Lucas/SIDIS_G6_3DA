@@ -6,18 +6,32 @@ This document reflects the current implementation in `RouteController`, `RouteSe
 
 ## 1. General Service Configuration
 
-* **Base URL (local):** `http://localhost:8131`
+* **Base URL (via API Gateway):** `https://localhost:7979`
+* **Base URL (service, local):** `http://localhost:8131`
 * **API Prefix:** `/api/routes`
 * **Content-Type:** `application/json` (exports use `application/geo+json` and `application/vnd.google-earth.kml+xml`)
+
+### 1.1. Required Headers
+
+| Header | Where it is checked | Effect when missing / invalid |
+| :--- | :--- | :--- |
+| `Authorization: Bearer <JWT>` | API Gateway (`JwtAuthentication` filter) | `401 Unauthorized` (empty body) from the gateway |
+| `X-Gateway-Secret: sidis-g6-secret` | `RouteSecurityConfig.gatewaySecretFilter` | `403 Forbidden`, body `Unauthorized Access! Please use the API Gateway!` |
+
+* The gateway adds `X-Gateway-Secret` and `X-User-Name` after validating the JWT, so clients only send `Authorization`.
+* The service itself does not validate the JWT and does not read `X-User-Name`; all requests that pass the secret filter are `permitAll()`.
+* Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` skip the secret filter.
 
 ---
 
 ## 2. Implemented Endpoints Summary
 
+All endpoints additionally return `403` when `X-Gateway-Secret` is missing (and `401` at the gateway when the JWT is missing or invalid).
+
 | Method | Endpoint Path | Description | User Story | Status Codes |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/api/routes` | Create a route | — | `201`, `409`, `500` |
-| `PATCH` | `/api/routes/{routeId}` | Update destination, flight time, status | — | `200`, `400`, `409`, `500` |
+| `POST` | `/api/routes` | Create a route | — | `201`, `400`, `409`, `500` |
+| `PATCH` | `/api/routes/{routeId}` | Update destination, flight time, status, history | — | `200`, `400`, `409`, `500` |
 | `GET` | `/api/routes/{routeId}` | Get one route | — | `200`, `409` |
 | `GET` | `/api/routes/{routeId}/history` | Get the route history | — | `200`, `409` |
 | `GET` | `/api/routes` | List routes with optional origin/destination filters | — | `200`, `409` |
@@ -25,7 +39,7 @@ This document reflects the current implementation in `RouteController`, `RouteSe
 | `GET` | `/api/routes/active` | Active routes sorted by popularity or distance | — | `200` |
 | `GET` | `/api/routes/alternatives` | Active routes for the same origin/destination pair | — | `200`, `500` |
 | `GET` | `/api/routes/total-distance` | Sum of `distanceKm` of all routes | — | `200` |
-| `GET` | `/api/routes/export/geojson` | Route network as GeoJSON | US228 | `200`, `500` |
+| `GET` | `/api/routes/export/geojson` | Route network as GeoJSON | US228 | `200`, `409` |
 | `GET` | `/api/routes/export/kml` | Route network as KML | US228 | `200`, `500` |
 
 User stories are only referenced in the code for the export endpoints (comments in `RouteController`).
@@ -74,8 +88,9 @@ Notes:
 
 * The route starts as `ACTIVE`, `type` defaults to `DIRECT`, and history starts today with `routeUsage = 0`.
 * `distanceKm` is always set to `1.0`; it is not calculated from the airport coordinates.
-* `airport-service` answers `409` for a missing airport, which `RestClient` raises as an exception → `500` (the messages `"Origin/Destination airport does not exist"` are never returned).
-* When both airports are operational, `AirportClientDTO.airportLocation` is `null` (`airport-service` returns the field as `location`), so building the `AirportReference` throws `NullPointerException` → `500`. In the current code, this endpoint cannot create a route.
+* A missing airport (`409` from `airport-service`) is caught by `AirportRestClientService` and rethrown as `DomainException("Airport does not exist")` → `409`.
+* The airport location (`location` in `airport-service`'s response, mapped through `@JsonProperty`) is copied into the route's `AirportReference`, so new routes can be exported.
+* Any other `airport-service` error (unavailable, timeout after 2 s) → `500`.
 * An invalid `type` value returns `400` (malformed JSON).
 
 ---
@@ -83,7 +98,7 @@ Notes:
 ### 3.2. Update Route
 
 * **Endpoint:** `PATCH /api/routes/{routeId}`
-* **Description:** Changes only the non-null fields among `destinationIataCode`, `estimatedFlightTimeHours`, and `status`.
+* **Description:** Changes only the non-null fields among `destinationIataCode`, `estimatedFlightTimeHours`, `status`, and `history`.
 
 #### Request Example
 
@@ -91,7 +106,8 @@ Notes:
 {
   "destinationIataCode": "MAD",
   "estimatedFlightTimeHours": 1.4,
-  "status": "INACTIVE"
+  "status": "INACTIVE",
+  "history": { "routeBegin": "2026-01-01", "routeFinish": null, "routeUsage": 3 }
 }
 ```
 
@@ -102,16 +118,17 @@ The updated `RouteResponse`.
 Validations:
 
 1. Route must exist → otherwise `409` (`"Route does not exist"`).
-2. New destination: IATA format and different from origin (`409`), loaded from `airport-service` and must be `OPERATIONAL` (`409`). Same DTO problem as 3.1: an operational destination ends in `500`.
+2. New destination: IATA format and different from origin (`409`), loaded from `airport-service` (`409` if missing) and must be `OPERATIONAL` (`409`).
 3. `estimatedFlightTimeHours <= 0` → `400` (`IllegalArgumentException`).
 4. Status transitions (see `domain-and-resilience.md`, section 2):
-   * `INACTIVE` → `ACTIVE` throws `IllegalStateException` → `500`.
-   * `ARCHIVED` → `INACTIVE` throws `IllegalStateException` → `500`.
+   * `INACTIVE` → `ACTIVE` throws `IllegalStateException` → `409`.
+   * `ARCHIVED` → `INACTIVE` throws `IllegalStateException` → `409`.
    * `ARCHIVED` also sets `routeHistory.routeFinish` to today.
+5. A non-null `history` replaces the whole route history (`routeBegin`, `routeFinish`, `routeUsage`) after the other changes, so it also overwrites the `routeFinish` set by `ARCHIVED`.
 
 Note:
 
-* The request also accepts a `history` object, which is ignored.
+* `flight-service` uses this endpoint to increment `routeUsage` each time a flight is scheduled.
 
 ---
 
@@ -214,7 +231,7 @@ A JSON array of `ACTIVE` routes:
 
 Note:
 
-* `routeUsage` is never incremented by any flow (`RouteHistory.updateRouteUsage(...)` is unused), so popularity only reflects the seeded values.
+* `routeUsage` only changes through the `history` field of `PATCH /api/routes/{routeId}`, which `flight-service` sends with `routeUsage + 1` when it schedules a flight.
 
 ---
 
@@ -283,18 +300,20 @@ Sum of `distanceKm` of all routes, regardless of status (`null` counts as `0.0`)
 
 ```xml
 <Placemark>
-  <name>Porto - Paris</name>
-  <description>ACTIVE | 1.0 km</description>
+  <name><![CDATA[Porto - Paris]]></name>
+  <description><![CDATA[ACTIVE | 1.0 km]]></description>
   <LineString>
-    <coordinates>-8.68139,41.2421 2.55,49.0097</coordinates>
+    <coordinates>-8.68139,41.2421
+      2.55,49.0097</coordinates>
   </LineString>
 </Placemark>
 ```
 
 Notes:
 
-* Seeded routes are built with `new AirportReference("OPO")` and have no `airportLocation`; reading their coordinates throws `NullPointerException`, so both exports return `500` while seeded routes exist.
-* Text values are not escaped (a route name containing `"`, `&` or `<` produces invalid JSON / XML; the seeded `Pati&Patatá` would break the KML).
+* Seeded routes carry the airport coordinates, so both exports work on the seeded data.
+* In the GeoJSON export, a route whose airport has no location or no coordinates throws `IllegalStateException` (`"Cannot export route: airport location is missing"` / `"... coordinates are missing"`) → `409`. The KML export reads the coordinates without this check, so the same case ends in `NullPointerException` → `500`.
+* KML text values are wrapped in `CDATA`, so names such as `Pati&Patatá` are valid. GeoJSON values are still not escaped (a route name containing `"` produces invalid JSON).
 
 ---
 
@@ -322,4 +341,6 @@ Error payload model: `ErrorDetails`
 | `HttpMessageNotReadableException` | `400 Bad Request` |
 | `IllegalArgumentException` | `400 Bad Request` |
 | `DomainException` | `409 Conflict` |
+| `ObjectOptimisticLockingFailureException` | `409 Conflict` (`"Concurrent modification detected. Please retry the operation."`) |
+| `IllegalStateException` | `409 Conflict` |
 | `Exception` | `500 Internal Server Error` |

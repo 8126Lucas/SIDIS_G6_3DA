@@ -14,6 +14,7 @@ The `aircraft-service` currently exposes three controllers and the following mai
    * `POST /model`
    * `PATCH /model/{modelName}`
    * `GET /rankings?mode=` (US204).
+   * `GET /{modelName}`.
 * **`HangarController`** (`/api/hangar`)
    * Aircraft CRUD-like operations under `/aircraft/**`.
    * Analytics under `/analytics/**`.
@@ -41,13 +42,14 @@ The `aircraft-service` currently exposes three controllers and the following mai
 * **`GlobalExceptionHandler`**
    * Cross-cutting HTTP error normalization (`ErrorDetails`).
 * **`UseCaseLoggingAdvice`**
-   * AOP logging intended for `@UseCase` classes (pointcut currently matches no class).
+   * AOP logging of `@UseCase` classes (`@within` pointcut).
 
 External integration clients:
 
 * `RouteRestClientService` -> `route-service`
 * `FlightRestClientService` -> `flight-service`
-* Both are built from the shared `GlobalRestClientConfig` builder, which adds `JwtTokenInterceptor` (`X-Gateway-Secret` + `Authorization` propagation).
+* `PeerForwarder` -> other `aircraft-service` instances (aircraft lookup on a local miss)
+* All are built from the shared `GlobalRestClientConfig` builder (2 s timeouts, `JwtTokenInterceptor` for `X-Gateway-Secret` + `Authorization` propagation); client methods are `@Retryable` (3 attempts).
 
 ---
 
@@ -65,6 +67,6 @@ PlantUML source file:
 2. `gatewaySecretFilter` checks the secret header before any controller runs (`403` when missing).
 3. Catalog flows go from `ModelCatalogController` to `AddModelUseCase` / `AircraftModelUpdater`, which persist through `AircraftModelRepository`.
 4. Aircraft registration resolves the model through `AircraftModelSearchService`, applies the availability through `AircraftLifeCycleUpdaterService`, and persists through `AddAircraftUseCase`.
-5. Read and analytics flows use `AircraftSearchService` over `AircraftRepository`.
+5. Read and analytics flows use `AircraftSearchService` over `AircraftRepository`; a single-aircraft lookup that misses locally is passed to `PeerForwarder`.
 6. Compatible routes, route fuel efficiency, model rankings (`assignments`) and the utilization view call `route-service` and/or `flight-service` through `RestClient` adapters.
 7. Exceptions are transformed by `GlobalExceptionHandler` into `ErrorDetails` payloads.

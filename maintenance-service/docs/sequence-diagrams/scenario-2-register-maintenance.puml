@@ -5,7 +5,7 @@ skinparam boxPadding 10
 skinparam participantPadding 10
 skinparam shadowing false
 
-title Sequence Diagram - Scenario 2: Register Template, Register Record and Advance Status (As Implemented)
+title Sequence Diagram - Scenario 2: Register Template, Register Record, Advance Status and Complete Record (As Implemented)
 
 autonumber
 
@@ -74,7 +74,7 @@ aircraft_client -> aircraft_api : GET /api/hangar/aircraft/{registrationNumber}\
 activate aircraft_api
 aircraft_api --> aircraft_client : AircraftResponse (registrationNumber, modelName, ...) or 404
 deactivate aircraft_api
-aircraft_client --> controller : Optional<AircraftClientDTO>\n(aircraftRegistration = null: field name mismatch)
+aircraft_client --> controller : Optional<AircraftClientDTO>\n(aircraftRegistration mapped from registrationNumber)
 deactivate aircraft_client
 
 alt Aircraft 404
@@ -88,23 +88,24 @@ else Aircraft found
     template_search --> controller : Optional<MaintenanceTemplate> (404 if empty)
     deactivate template_search
 
-    controller -> add_record_uc : executeShort(aircraftDto.aircraftRegistration() = null, template, ...)
+    controller -> add_record_uc : executeShort(aircraftDto.aircraftRegistration(), template, ...)
     activate add_record_uc
-    add_record_uc -> aircraft_client : findAircraftByRegistration(null)
+    add_record_uc -> aircraft_client : findAircraftByRegistration(registration)
     activate aircraft_client
-    aircraft_client -> aircraft_api : GET /api/hangar/aircraft/
-    aircraft_api --[#red]> aircraft_client : error (path does not match single-aircraft endpoint)
-    aircraft_client -[#red]> exception_handler : RestClient exception (not caught)
+    aircraft_client -> aircraft_api : GET /api/hangar/aircraft/{registrationNumber}
+    aircraft_api --> aircraft_client : AircraftResponse
+    aircraft_client --> add_record_uc : Optional<AircraftClientDTO> (404 if empty)
     deactivate aircraft_client
+    add_record_uc -> record_repo : save(new MaintenanceRecord(...)) [status INLINE]
+    record_repo --> add_record_uc : MaintenanceRecord
     deactivate add_record_uc
-    activate exception_handler
-    exception_handler --> client : 500 Internal Server Error (ErrorDetails JSON)
-    deactivate exception_handler
+    controller --> gateway : 200 OK (empty body)
+    gateway --> client : 200 OK Response
 end
 deactivate controller
 deactivate gateway
 
-note over add_record_uc, record_repo : If the second lookup succeeded, record_repo.save(new MaintenanceRecord(...))\nwould store status INLINE with aircraftRegistration = null and return 200 (empty body).
+note over aircraft_client, aircraft_api : Client calls: 2 s timeouts, @Retryable (3 attempts);\nnon-404 errors end in 500 after the last attempt.
 
 == Advance Status (US119) ==
 
@@ -122,7 +123,7 @@ record_repo --> progress_svc : Optional<MaintenanceRecord>
 alt Record not found
     progress_svc -[#red]> exception_handler : throw DomainException("Maintenance record does not exist")
     activate exception_handler
-    exception_handler --> client : 409 Conflict
+    exception_handler --> client : 404 Not Found
     deactivate exception_handler
 else status == ONGOING
     progress_svc -> progress_svc : record.markAsOngoing()
@@ -134,8 +135,50 @@ else status == ONGOING
 else status == COMPLETED or INLINE
     progress_svc -[#red]> exception_handler : throw DomainException\n("Use the complete endpoint..." / "Invalid status transition")
     activate exception_handler
-    exception_handler --> client : 409 Conflict
+    exception_handler --> client : 404 Not Found (DomainException mapping)
     deactivate exception_handler
+end
+deactivate progress_svc
+deactivate controller
+deactivate gateway
+
+== Complete Record (US119) ==
+
+client -> gateway : PATCH /api/maintenance/records/{id}/complete\n{ notes, tasksDone, endDate }
+activate gateway
+gateway -> gateway : validate JWT (JwtAuthentication)
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
+activate controller
+
+controller -> progress_svc : completeRecord(id, notes, tasksDone, endDate)
+activate progress_svc
+progress_svc -> record_repo : findByRecordId(id)
+record_repo --> progress_svc : Optional<MaintenanceRecord>
+
+alt Record not found
+    progress_svc -[#red]> exception_handler : throw DomainException("Maintenance record does not exist")
+    activate exception_handler
+    exception_handler --> client : 404 Not Found
+    deactivate exception_handler
+else Record found
+    progress_svc -> progress_svc : record.markAsCompleted(notes, tasksDone, endDate)
+    alt already COMPLETED
+        progress_svc -[#red]> exception_handler : IllegalStateException
+        activate exception_handler
+        exception_handler --> client : 409 Conflict
+        deactivate exception_handler
+    else endDate null or before startDate
+        progress_svc -[#red]> exception_handler : IllegalArgumentException
+        activate exception_handler
+        exception_handler --> client : 400 Bad Request
+        deactivate exception_handler
+    else valid
+        progress_svc -> record_repo : save(record) [status COMPLETED, version + 1]
+        record_repo --> progress_svc : MaintenanceRecord
+        progress_svc --> controller : MaintenanceRecord
+        controller --> gateway : 200 OK (MaintenanceRecordResponse)
+        gateway --> client : 200 OK Response
+    end
 end
 deactivate progress_svc
 deactivate controller

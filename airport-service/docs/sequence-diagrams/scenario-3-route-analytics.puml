@@ -30,7 +30,7 @@ end box
 
 client -> gateway : GET /api/airports/{iataCode}/routes
 activate gateway
-gateway -> controller : Forward request
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> airport_uc : findRoutesByAirport(iataCode)
@@ -46,15 +46,16 @@ alt airport not found
     exception_handler --> client : 409 Conflict (ErrorDetails JSON)
     deactivate exception_handler
 else airport found
-    airport_uc -> route_client : getRoutesFromAirport(iataCode)
+    airport_uc -> route_client : getRoutes()
     activate route_client
-    route_client -> route_api : GET /api/routes/from/{iataCode}
+    route_client -> route_api : GET /api/routes\n(+ X-Gateway-Secret, Authorization via JwtTokenInterceptor)
     activate route_api
-    route_api --> route_client : RouteClientDTO[] (origin = iataCode)
+    route_api --> route_client : RouteClientDTO[] (all routes)
     deactivate route_api
     route_client -> route_client : map to RouteResponse
     route_client --> airport_uc : List<RouteResponse>
     deactivate route_client
+    airport_uc -> airport_uc : keep routes with origin or destination == iataCode
     airport_uc --> controller : List<RouteResponse>
     deactivate airport_uc
     controller --> gateway : 200 OK (JSON list)
@@ -67,7 +68,7 @@ deactivate gateway
 
 client -> gateway : GET /api/airports/busiest
 activate gateway
-gateway -> controller : Forward request
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> airport_uc : busiestAirports()
@@ -98,6 +99,6 @@ deactivate controller
 gateway --> client : 200 OK Response
 deactivate gateway
 
-note over route_client, route_api : No timeout, retry, or fallback around RestClient;\nany route-service error propagates as 500 (ErrorDetails)
+note over route_client, route_api : 2 s timeouts; @Retryable is present but inactive (no @EnableRetry);\nany route-service error propagates as 500 (ErrorDetails)
 
 @enduml
