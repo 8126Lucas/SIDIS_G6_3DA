@@ -12,8 +12,8 @@ The **AISafe Flight Management System** is a distributed, microservice-based pla
 
 ### Core Ecosystem Components
 
-* **API Gateway (`7979` / `8443`):** Central entry point using Spring Cloud Gateway (WebFlux). Handles HTTPS routing, rate limiting, and security boundaries.
-* **Discovery Service (`8761`):** Spring Cloud Netflix Eureka Server enabling dynamic service registry and Client-Side Load Balancing.
+* **API Gateway (`7979`, HTTPS):** Central entry point using Spring Cloud Gateway (WebFlux). Validates the JWT and routes requests to the services through Eureka.
+* **Discovery Service (`8761` / `8762`):** Two peer Spring Cloud Netflix Eureka Server nodes for the service registry and client-side load balancing.
 * **Auth Service (`8101 - 8110`):** Manages user accounts, credentials, and JWT token issuance.
 * **Aircraft Service (`8081 - 8090`):** Manages aircraft models, operational specifications, and fleet hangar instances.
 * **Airport Service (`8091 - 8100`):** Manages airport infrastructure, runway specs, and OpenCSV data imports.
@@ -33,9 +33,11 @@ docs/
 ├── system-context-c4-level1.puml          # C4 Level 1: System Context Diagram (PlantUML)
 ├── container-diagram-c4-level2.puml       # C4 Level 2: Container Architecture Diagram (PlantUML)
 ├── global-logical-view-level1.puml        # UML Logical View Level 1 (Socket/Lollipop P2P Forwarding)
-├── global-network-and-ports.md            # Master network topology and port allocations
+├── global-network-and-ports.md            # Network topology, ports, routing, security, inter-service calls
+├── ci-cd-pipelines.md                     # GitHub Actions CI (tests on the running system) and CD (Docker images)
 └── postman/
-    └── AISafe-Global-System.postman_collection.json  # Global Postman integration collection
+    ├── AISafe-Global-System.postman_collection.json  # Global Postman integration collection
+    └── SIDIS HTTP Tests.postman_collection.json      # HTTP test collection
 ``
 
 ---
@@ -43,12 +45,16 @@ docs/
 ## 3. High-Level Architectural Blueprints
 
 ### 3.1. C4 Level 1 — System Context Diagram
-* **File:** `01-system-context-c4-level1.puml`
+* **File:** `system-context-c4-level1.puml`
 * **Scope:** Defines the system boundary of the AISafe platform and its interactions with external actors (*Backoffice Operator*, *ATCC*, *Maintenance Technician*, *Maintenance Supervisor*) via REST/HTTPS clients (Postman).
 
 ### 3.2. C4 Level 2 — Container Diagram
-* **File:** `02-container-diagram-c4-level2.puml`
-* **Scope:** Illustrates the internal container structure, showing how the **API Gateway** routes traffic to microservices, how services register with **Eureka Discovery Service**, their dedicated **H2 In-Memory Databases**, and inter-service REST interactions (e.g., `maintenance-service` -> `aircraft-service` and `aircraft-service` -> `flight-service`).
+* **File:** `container-diagram-c4-level2.puml`
+* **Scope:** Illustrates the internal container structure, showing how the **API Gateway** routes traffic to microservices, how services register with the two **Eureka Discovery Service** nodes, their dedicated **H2 In-Memory Databases**, and inter-service REST interactions (see `global-network-and-ports.md`, section 6).
+
+### 3.3. CI/CD
+* **File:** `ci-cd-pipelines.md`
+* **Scope:** The CI workflow starts the whole system on the runner and runs the end-to-end tests; the CD workflow publishes Docker images to the GitHub Container Registry after a successful CI run.
 
 ---
 
@@ -58,8 +64,8 @@ All microservices run within designated port ranges to facilitate cloning and sc
 
 | Service / Infrastructure Component | Port Range / Base Port | Protocol / Technology |
 | :--- | :--- | :--- |
-| **Eureka Discovery Service** | `8761` | HTTP / Eureka Server |
-| **API Gateway** | `7979` (dev) / `8443` (prod) | HTTPS / WebFlux |
+| **Eureka Discovery Service** | `8761` / `8762` | HTTP / Eureka Server |
+| **API Gateway** | `7979` | HTTPS / WebFlux |
 | **Aircraft Service** | `8081 - 8090` | HTTP / Spring Web / JPA |
 | **Airport Service** | `8091 - 8100` | HTTP / Spring Web / OpenCSV |
 | **Authentication Service** | `8101 - 8110` | HTTP / Spring Security / JWT |

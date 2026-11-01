@@ -27,8 +27,9 @@ package "Maintenance Service [Container]" {
     component "MaintenanceAlertService\n<<UseCase>>" as alert_svc
     component "PartsInventoryService\n<<UseCase>>" as parts_svc
 
-    component "AircraftRestClientService\n<<RestClient Adapter>>" as aircraft_client
-    component "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>" as jwt_interceptor
+    component "AircraftRestClientService\n<<RestClient Adapter>>\n@Retryable x3" as aircraft_client
+    component "PeerForwarder\n<<DiscoveryClient + RestClient>>" as peer_forwarder
+    component "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>\n(shared builder, 2 s timeouts)" as jwt_interceptor
 
     component "Bootstrap\n<<ApplicationRunner>>" as bootstrapper
 
@@ -53,7 +54,8 @@ controller --> add_template_uc : "POST /templates"
 controller --> template_search_svc : "GET /templates, template lookup"
 controller --> aircraft_client : "aircraft check"
 controller --> add_record_uc : "POST /record"
-controller --> progress_svc : "GET/PATCH /records/{id}"
+controller --> progress_svc : "GET/PATCH /records/{id},\n/status, /complete"
+controller --> peer_forwarder : "template not found locally\n(service id: aircraft-service)"
 controller --> record_search_svc : "GET /records"
 controller --> report_svc : "ongoing, costs, turnaround"
 controller --> alert_svc : "alerts"
@@ -88,6 +90,7 @@ record_repo <--> maintenance_db : "company_maintenance_records\n[JDBC/JPA]"
 exception_handler --> error_details : "Constructs and returns"
 
 aircraft_client --> jwt_interceptor : "outgoing request"
+peer_forwarder --> jwt_interceptor : "GET /api/maintenance/templates/{id}"
 jwt_interceptor --> aircraft_service : "HTTP RestClient\n(X-Gateway-Secret, Authorization)"
 
 @enduml

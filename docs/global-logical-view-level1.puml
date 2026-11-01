@@ -13,8 +13,8 @@ component [API Client (Postman)] as Client
 
 package "AISafe Infrastructure Boundary" {
     interface "HTTP/HTTPS REST" as Gateway_IF
-    component [API Gateway\n(Port 7979 / 8443)] as Gateway
-    component [Eureka Discovery Service\n(Port 8761)] as Eureka
+    component [API Gateway\n(Port 7979, HTTPS)] as Gateway
+    component [Eureka Discovery Service\n(Ports 8761 / 8762)] as Eureka
 }
 
 package "Core Business Microservices" {
@@ -33,8 +33,8 @@ package "Core Business Microservices" {
 }
 
 ' --- INTERFACES REST EXPOSTAS (Lollipops) ---
-interface "/auth/**" as IF_Auth
-interface "/api/hangar/**" as IF_Aircraft
+interface "/api/auth/**" as IF_Auth
+interface "/api/hangar/**\n/api/catalog/**" as IF_Aircraft
 interface "/api/airports/**" as IF_Airport
 interface "/api/flights/**" as IF_Flight
 interface "/api/maintenance/**" as IF_Maint
@@ -63,19 +63,21 @@ IF_Route -- RouteService
 ' --- DEPENDÊNCIAS REST INTER-SERVIÇOS (RestClient) ---
 
 ' 1. Validações do Flight Service
-FlightService ..> RouteService 
-FlightService ..> AircraftService 
-FlightService ..> MaintService 
-FlightService ..> AirportService 
+FlightService ..> RouteService
+FlightService ..> AircraftService
+FlightService ..> AirportService
 
 ' 2. Validações do Route Service
-RouteService ..> AirportService 
+RouteService ..> AirportService
 
 ' 3. Validações do Maintenance Service
 MaintService ..> AircraftService
 
-' 4. Validações do Aircraft Service
-AircraftService ..> FlightService 
-AircraftService ..> MaintService 
+' 4. Dependências do Aircraft Service
+AircraftService ..> FlightService
+AircraftService ..> RouteService
+
+' 5. Dependências do Airport Service
+AirportService ..> RouteService
 
 @enduml

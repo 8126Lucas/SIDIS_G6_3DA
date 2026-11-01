@@ -29,7 +29,10 @@ Aggregate behavior in `Route`:
 * `activateRoute()`, `suspendRoute()`, `retireRoute()`: status transitions (section 2).
 * `updateEstimatedFlightTime(...)`: must be positive (`IllegalArgumentException`).
 * `changeDestination(...)`: not `null` and different from origin (`IllegalArgumentException`).
+* `updateRouteHistory(...)`: replaces the whole `RouteHistory` when it is not `null` (used by `PATCH /api/routes/{routeId}`).
 * `updateRoute(...)`, `changeRouteRange(...)`: exist but are not used.
+
+`AirportReference` rejects an IATA code that is `null` or not 3 characters long (`IllegalArgumentException`).
 
 The 8-argument constructor (used by `RouteService.createRoute` and part of `Bootstrap`) sets `distanceKm = 1.0`.
 
@@ -48,14 +51,14 @@ Transitions applied by `RouteService.updateRoute(...)`:
 Consequences of the current rules:
 
 * A suspended (`INACTIVE`) route cannot be reactivated, while an `ARCHIVED` route can go back to `ACTIVE` (the guard checks `INACTIVE` although the message refers to retired routes).
-* `IllegalStateException` has no handler, so rejected transitions return `500`.
+* Rejected transitions (`IllegalStateException`) return `409`.
 
 ## 3. Use Cases
 
 | Use Case / Service | Responsibility | User Story |
 | :--- | :--- | :--- |
 | `RouteService.createRoute(...)` | Validate and create a route using `airport-service` data | — |
-| `RouteService.updateRoute(...)` | Change destination, flight time, status | — |
+| `RouteService.updateRoute(...)` | Change destination, flight time, status, history | — |
 | `RouteService.getRouteDetails(...)` / `getRouteHistory(...)` | Lookup by id | — |
 | `RouteService.searchRoutes(...)` | `Specification`-based search by origin/destination | — |
 | `RouteService.getRoutesFromAirport(...)` | Routes by origin airport | — |
@@ -69,65 +72,75 @@ Consequences of the current rules:
 
 ## 4. External Integrations
 
-Synchronous `RestClient` integrations (Eureka load-balanced):
+Synchronous `RestClient` integrations (all built from the shared `@LoadBalanced` builder of `GlobalRestClientConfig`, with 2-second timeouts and `JwtTokenInterceptor`):
 
 * `airport-service` (`AirportRestClientService`, base URL `http://airport-service`)
   * `GET /api/airports/{iataCode}` (route creation and destination change)
-* `aircraft-service` (`AircraftRestClientService`, base URL `https://aircraft-service`)
+* `aircraft-service` (`AircraftRestClientService`, base URL `http://aircraft-service`)
   * `GET /api/hangar/aircraft`, `GET /api/hangar/aircraft/{registrationNumber}` — declared, but the client is not injected anywhere.
 * `flight-service` (`FlightRestClientService`, base URL `http://flight-service`)
   * Injected into `RouteService`, but the class has no methods.
 
-Contract gaps in the current code:
+`JwtTokenInterceptor` adds `X-Gateway-Secret: sidis-g6-secret` to every outgoing call and copies the incoming `Authorization: Bearer` header, so calls pass `airport-service`'s gateway secret filter.
 
-* `AirportClientDTO` expects `airportLocation`, `airportRunways`, and `version`, while `airport-service` returns `location` and `runways` (and no `version`). `airportLocation` is therefore always `null`, and `fromDTOtoAirportReference(...)` throws `NullPointerException` (`500`) for every operational airport.
-* `airport-service` returns `409` for a missing airport; `RestClient` raises it as `HttpClientErrorException` → `500`.
-* `AircraftClientDTO` expects `modelDTO` and `seatingPackDTO`, which `aircraft-service` does not return; `findAll()` also reads a JSON array as a single object. Not exercised, because the client is unused.
+Contract notes:
 
-Inbound consumers of this service:
+* `AirportClientDTO` maps `airport-service`'s `location` to `airportLocation` (`@JsonProperty`), so routes get the airport coordinates. `airportRunways` and `version` do not match the response and stay `null`; they are not used.
+* Any `4xx` from `airport-service` (for example `409` for a missing airport) is caught and rethrown as `DomainException("Airport does not exist")` → `409`.
+* `AircraftClientDTO` now reads `modelName`; `RouteSearchService.findCompatibleRoutes(...)` takes the model specs as a separate argument. Neither is used by an endpoint.
+
+Inbound consumers of this service (over `http://route-service` with their own `JwtTokenInterceptor`):
 
 * `aircraft-service` → `GET /api/routes`, `GET /api/routes/{routeId}`, and `GET /api/routes/aircraft/{registration}` (the last one is not exposed here).
-* `airport-service` → `GET /api/routes/from/{iataCode}`, `GET /api/routes`.
-* `flight-service` → `GET /api/routes` (with and without `origin`/`destination`), `GET /api/routes/from/{iataCode}`, `GET /api/routes/{routeId}`.
+* `airport-service` → `GET /api/routes` (it still declares `GET /api/routes/from/{iataCode}`, but no longer calls it).
+* `flight-service` → `GET /api/routes/{routeId}` and `PATCH /api/routes/{routeId}` when scheduling a flight; `GET /api/routes` and `GET /api/routes/from/{iataCode}` are declared but not used.
 
 ## 5. Analytics and Export
 
-* **Active routes:** `findByStatus(ACTIVE, sort)` by `distanceKm` ascending or `routeHistory.routeUsage` descending. `routeUsage` is never updated by the service.
+* **Active routes:** `findByStatus(ACTIVE, sort)` by `distanceKm` ascending or `routeHistory.routeUsage` descending. `routeUsage` changes only when a client sends a new `history` (as `flight-service` does after scheduling).
 * **Total distance:** sum of `distanceKm` of all routes, of any status.
 * **Same-pair routes:** active routes with identical origin and destination; no multi-leg search.
-* **GeoJSON / KML export (US228):** hand-built strings from all routes; requires `AirportLocation` on both airports; values are not escaped.
+* **GeoJSON / KML export (US228):** hand-built strings from all routes; requires `AirportLocation` with coordinates on both airports (GeoJSON: `IllegalStateException` → `409` otherwise; KML: `NullPointerException` → `500`); KML text is wrapped in `CDATA`, GeoJSON values are not escaped.
 
 ## 6. Resilience and Concurrency
 
 Optimistic locking:
 
 * Implemented with `@Version` on `Route.version`.
-* A concurrent update fails with `ObjectOptimisticLockingFailureException` → `500`.
+* A concurrent update fails with `ObjectOptimisticLockingFailureException` → `409`.
 
 Exception handling:
 
 * Centralized by `GlobalExceptionHandler`.
-* `DomainException` maps to `409 Conflict`; it is used for validation failures, duplicates, non-operational airports, and missing routes.
+* `DomainException` maps to `409 Conflict`; it is used for validation failures, duplicates, non-operational or missing airports, and missing routes.
+* `ObjectOptimisticLockingFailureException` and `IllegalStateException` (rejected status transitions, GeoJSON export without coordinates) map to `409 Conflict`.
 * Malformed JSON (including unknown enum values) and `IllegalArgumentException` map to `400 Bad Request`.
-* `ResourceNotFoundException` maps to `404 Not Found`, but is never thrown.
+* `ResourceNotFoundException` maps to `404 Not Found`; it is only thrown by the unused `PeerForwarder`.
 * Unhandled exceptions map to `500 Internal Server Error`.
+
+Outgoing calls:
+
+* `GlobalRestClientConfig` sets a 2-second connect timeout and a 2-second read timeout.
+* `AirportRestClientService` and `AircraftRestClientService` methods are annotated `@Retryable` (3 attempts, backoff 1 s then 2 s), but `RouteServiceApplication` has no `@EnableRetry`, so each call is made once.
 
 Current gaps:
 
 * Missing resources return `409` instead of `404`.
 * No Bean Validation (`spring-boot-starter-validation` is not a dependency).
-
-* No timeout, retry, or circuit breaker around `RestClient` calls; any `airport-service` failure becomes `500`.
-* `UseCaseLoggingAdvice` uses the pointcut `within(UseCase)`, which matches the `UseCase` annotation type itself rather than classes annotated with it, so no use case calls are logged.
+* Retries are not active and there is no circuit breaker; any `airport-service` failure other than `4xx` becomes `500`.
+* `UseCaseLoggingAdvice` uses the pointcut `within(com.sidis.routeservice.UseCase)`, which matches the `UseCase` annotation type itself rather than classes annotated with it, so no use case calls are logged.
 
 Security:
 
-* `route-service` has no security dependency and performs no authentication or authorization.
-* Role rules for the export endpoints are declared in `auth-service`'s `SecurityConfig`, which only applies to requests handled by `auth-service`.
+* `RouteSecurityConfig` defines a stateless `SecurityFilterChain`: CSRF, form login and HTTP Basic disabled, all requests `permitAll()`, no role checks.
+* `gatewaySecretFilter` (registered before `UsernamePasswordAuthenticationFilter`) requires `X-Gateway-Secret: sidis-g6-secret`; otherwise it writes `403` with the plain-text body `Unauthorized Access! Please use the API Gateway!`.
+* Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` skip the check.
+* JWT validation happens only in the API Gateway; the service does not read `X-User-Name`.
+* The gateway secret is a hardcoded constant, so any client that knows it can call the service directly without a JWT.
 
 ## 7. Bootstrap
 
-`Bootstrap` (`ApplicationRunner`) seeds data when the route table is empty. All airports are created with `new AirportReference(iataCode)` (no location).
+`Bootstrap` (`ApplicationRunner`) seeds data when the route table is empty. The five airports (`OPO`, `LIS`, `MAD`, `CDG`, `LHR`) are created with their city, coordinates, region, timezone and country, so the seeded routes can be exported.
 
 * 4 test routes (`TEST ROUTE 1` to `4`): `OPO`→`LIS`, `LIS`→`MAD`, `MAD`→`CDG`, `CDG`→`LHR`; `estimatedFlightTimeHours = 1.0`, `distanceKm = 1.0`, `routeUsage = 0`.
 * 9 named routes with explicit distance and usage:

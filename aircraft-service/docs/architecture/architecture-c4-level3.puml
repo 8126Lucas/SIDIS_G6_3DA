@@ -31,9 +31,10 @@ package "Aircraft Service [Container]" {
     component "FuelEfficiencyService\n<<UseCase>>" as fuel_uc
     component "CalculationsService\n<<Spring Service>>" as calc_svc
 
-    component "RouteRestClientService\n<<RestClient Adapter>>" as route_client
-    component "FlightRestClientService\n<<RestClient Adapter>>" as flight_client
-    component "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>" as jwt_interceptor
+    component "RouteRestClientService\n<<RestClient Adapter>>\n@Retryable x3" as route_client
+    component "FlightRestClientService\n<<RestClient Adapter>>\n@Retryable x3" as flight_client
+    component "PeerForwarder\n<<DiscoveryClient + RestClient>>" as peer_forwarder
+    component "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>\n(shared builder, 2 s timeouts)" as jwt_interceptor
 
     component "Bootstrap\n<<ApplicationRunner>>" as bootstrapper
 
@@ -73,6 +74,7 @@ hangar_controller --> route_search_svc : "compatible routes"
 hangar_controller --> route_client : "GET all routes"
 hangar_controller --> flight_client : "legacy fuel efficiency"
 hangar_controller --> fuel_uc : "US227 fuel metrics"
+hangar_controller --> peer_forwarder : "aircraft not found locally"
 
 view_controller --> calc_svc : "utilization data"
 calc_svc --> aircraft_search_svc : "findAll"
@@ -106,6 +108,7 @@ exception_handler --> error_details : "Constructs and returns"
 
 route_client --> jwt_interceptor : "outgoing request"
 flight_client --> jwt_interceptor : "outgoing request"
+peer_forwarder --> jwt_interceptor : "GET /api/hangar/aircraft/{reg}\non other instances"
 jwt_interceptor --> route_service : "HTTP RestClient\n(X-Gateway-Secret, Authorization)"
 jwt_interceptor --> flight_service : "HTTP RestClient\n(X-Gateway-Secret, Authorization)"
 

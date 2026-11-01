@@ -31,7 +31,7 @@ end box
 
 client -> gateway : POST /api/routes\n(routeName, originIataCode, destinationIataCode,\nestimatedFlightTimeHours, type, requirements)
 activate gateway
-gateway -> controller : Forward request
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 alt requirements missing
@@ -57,18 +57,18 @@ else requirements present
         loop origin and destination
             route_uc -> airport_client : findAirportByIataCode(iata)
             activate airport_client
-            airport_client -> airport_api : GET /api/airports/{iataCode}
+            airport_client -> airport_api : GET /api/airports/{iataCode}\n(+ X-Gateway-Secret, Authorization via JwtTokenInterceptor)
             activate airport_api
             airport_api --> airport_client : AirportResponse (status, location, ...)\nor 409 if missing
             deactivate airport_api
-            airport_client --> route_uc : AirportClientDTO (airportLocation = null)
+            airport_client --> route_uc : AirportClientDTO (location mapped to airportLocation)
             deactivate airport_client
         end
 
-        alt airport missing (409 from airport-service)
-            airport_client -[#red]> exception_handler : HttpClientErrorException
+        alt airport missing (4xx from airport-service)
+            airport_client -[#red]> exception_handler : throw DomainException("Airport does not exist")
             activate exception_handler
-            exception_handler --> client : 500 Internal Server Error
+            exception_handler --> client : 409 Conflict (ErrorDetails JSON)
             deactivate exception_handler
         else airport not OPERATIONAL
             route_uc -[#red]> exception_handler : throw DomainException("Airport is not operational")
@@ -76,12 +76,14 @@ else requirements present
             exception_handler --> client : 409 Conflict (ErrorDetails JSON)
             deactivate exception_handler
         else both OPERATIONAL
-            route_uc -> route_uc : fromDTOtoAirportReference(dto)
-            route_uc -[#red]> exception_handler : NullPointerException (airportLocation is null)
-            activate exception_handler
-            exception_handler --> client : 500 Internal Server Error (ErrorDetails JSON)
-            deactivate exception_handler
-            note right of route_uc : Intended path (not reachable today):\nnew Route(ACTIVE, distanceKm = 1.0)\n-> save -> 201 Created
+            route_uc -> route_uc : fromDTOtoAirportReference(dto)\n(IATA code + location)
+            route_uc -> repo : save(new Route(ACTIVE, distanceKm = 1.0))
+            activate repo
+            repo --> route_uc : Route
+            deactivate repo
+            route_uc --> controller : Route
+            controller --> gateway : 201 Created (RouteResponse)
+            gateway --> client : 201 Created Response
         end
     end
     deactivate route_uc
@@ -91,9 +93,9 @@ deactivate gateway
 
 == Flow B: Update Route ==
 
-client -> gateway : PATCH /api/routes/{routeId}\n(destinationIataCode?, estimatedFlightTimeHours?, status?)
+client -> gateway : PATCH /api/routes/{routeId}\n(destinationIataCode?, estimatedFlightTimeHours?, status?, history?)
 activate gateway
-gateway -> controller : Forward request
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> route_uc : updateRoute(routeId, destination, flightTime, status, history)
@@ -114,13 +116,16 @@ else route found
         airport_client -> airport_api : GET /api/airports/{iataCode}
         airport_api --> airport_client : AirportResponse
         airport_client --> route_uc : AirportClientDTO
-        route_uc -> route_uc : changeDestination(...)\n[same NullPointerException -> 500 as Flow A]
+        route_uc -> route_uc : changeDestination(...)\n[missing / not operational -> 409]
     end
     opt estimatedFlightTimeHours present
         route_uc -> route_uc : updateEstimatedFlightTime(...)\n[<= 0 -> IllegalArgumentException -> 400]
     end
     opt status present
-        route_uc -> route_uc : activateRoute / suspendRoute / retireRoute + endRoute(today)\n[invalid transition -> IllegalStateException -> 500]
+        route_uc -> route_uc : activateRoute / suspendRoute / retireRoute + endRoute(today)\n[invalid transition -> IllegalStateException -> 409]
+    end
+    opt history present (sent by flight-service on scheduling)
+        route_uc -> route_uc : updateRouteHistory(history)\n(replaces routeBegin, routeFinish, routeUsage)
     end
     route_uc -> repo : save(route)
     activate repo

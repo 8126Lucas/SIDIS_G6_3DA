@@ -121,6 +121,6 @@ deactivate controller
 gateway --> client : 200 OK Response
 deactivate gateway
 
-note over route_client, flight_api : GET /api/flights is not exposed by flight-service in the current code (RestClient error -> 500).\nFlightClientDTO.aircraftRegistration does not match flight-service's aircraftRegistrationNumber,\nso aircraft lookups would miss even if the endpoint existed.\nRoute capacity now maps from routeRequirements.requiredCapacity; origin/destination IATA stay null.
+note over route_client, flight_api : Client calls: 2 s timeouts, @Retryable (3 attempts), then 500.\nFlightClientDTO maps aircraftRegistrationNumber via @JsonAlias.\nRoute capacity maps from routeRequirements.requiredCapacity; origin/destination IATA stay null.
 
 @enduml

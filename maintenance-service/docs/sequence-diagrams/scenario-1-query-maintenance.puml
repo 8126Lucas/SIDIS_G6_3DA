@@ -50,10 +50,11 @@ deactivate template_search
 alt Template found
     controller --> gateway : 200 OK (MaintenanceTemplateResponse)
     gateway --> client : 200 OK Response
-else Template not found
-    controller -[#red]> exception_handler : throw DomainException("Maintenance Template does not exist")
+else Template not found locally
+    controller -> controller : peerForwarder.forwardGet("aircraft-service",\n"/api/maintenance/templates/{id}", ...)\n(wrong service id; peer call fails)
+    controller -[#red]> exception_handler : throw ResourceNotFoundException("Resource not found in any instance")
     activate exception_handler
-    exception_handler --> client : 409 Conflict (ErrorDetails JSON)
+    exception_handler --> client : 404 Not Found (ErrorDetails JSON)
     deactivate exception_handler
 end
 deactivate controller
@@ -85,7 +86,7 @@ alt Record found
 else Record not found
     controller -[#red]> exception_handler : throw DomainException("Maintenance Record does not exist")
     activate exception_handler
-    exception_handler --> client : 409 Conflict (ErrorDetails JSON)
+    exception_handler --> client : 404 Not Found (ErrorDetails JSON)
     deactivate exception_handler
 end
 deactivate controller
@@ -100,23 +101,26 @@ gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 opt aircraft parameter present
-    controller -> controller : aircraftClient.findAircraftByRegistration(aircraft)\n(409 if not found)
+    controller -> controller : aircraftClient.findAircraftByRegistration(aircraft)\n(404 if not found)
 end
 
 controller -> record_search : findRecordsMatchingFilter(aircraft, attribute, dates, pageable)
 activate record_search
 alt aircraft == null
     record_search -[#red]> exception_handler : aircraftRegistration.isEmpty() -> NullPointerException
+    activate exception_handler
+    exception_handler --> client : 500 Internal Server Error (ErrorDetails JSON)
+    deactivate exception_handler
 else aircraft present
-    record_search -> record_repo : findAll(spec with root.get("aircraft"), pageable)
+    record_search -> record_repo : findAll(spec on aircraftRegistration,\nattribute, startDate range, pageable)
     activate record_repo
-    record_repo -[#red]> exception_handler : no attribute "aircraft" on MaintenanceRecord\n(entity field is aircraftRegistration)
+    record_repo --> record_search : Page<MaintenanceRecord>
     deactivate record_repo
+    record_search --> controller : Page<MaintenanceRecord>
+    controller --> gateway : 200 OK (MaintenanceRecordResponse[])
+    gateway --> client : 200 OK Response
 end
 deactivate record_search
-activate exception_handler
-exception_handler --> client : 500 Internal Server Error (ErrorDetails JSON)
-deactivate exception_handler
 deactivate controller
 deactivate gateway
 

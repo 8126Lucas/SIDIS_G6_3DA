@@ -22,7 +22,7 @@ The `maintenance-service` currently exposes two controllers and the following ma
 * **`AddMaintenanceRecordUseCase`**
    * Aircraft check in `aircraft-service` and record persistence.
 * **`MaintenanceRecordProgressService`**
-   * Record lookup, `ONGOING` transition, template attribute change (also contains unexposed `updateProgress` and `completeRecord`).
+   * Record lookup, `ONGOING` and `COMPLETED` transitions, template attribute change (also contains the unexposed `updateProgress`).
 * **`MaintenanceRecordSearchService`**
    * `Specification`-based record search.
 * **`MaintenanceReportService`**
@@ -36,14 +36,15 @@ The `maintenance-service` currently exposes two controllers and the following ma
 * **`GlobalExceptionHandler`**
    * Cross-cutting HTTP error normalization (`ErrorDetails`).
 * **`UseCaseLoggingAdvice`**
-   * AOP logging intended for `@UseCase` classes (pointcut currently matches no class).
+   * AOP logging of `@UseCase` classes (`@within` pointcut).
 * **`Bootstrap`**
    * Seeds 4 templates and 4 records.
 
 External integration clients:
 
-* `AircraftRestClientService` -> `aircraft-service`
-* Built from the shared `GlobalRestClientConfig` builder, which adds `JwtTokenInterceptor` (`X-Gateway-Secret` + `Authorization` propagation).
+* `AircraftRestClientService` -> `aircraft-service` (methods are `@Retryable`, 3 attempts)
+* `PeerForwarder` -> other instances of the given service id (template lookup on a local miss; called with `aircraft-service`)
+* Both are built from the shared `GlobalRestClientConfig` builder (2 s timeouts, `JwtTokenInterceptor` for `X-Gateway-Secret` + `Authorization` propagation).
 
 ---
 
@@ -61,6 +62,6 @@ PlantUML source file:
 2. `gatewaySecretFilter` checks the secret header before any controller runs (`403` when missing).
 3. Template flows go from `MaintenanceRecordController` to `AddMaintenanceTemplateUseCase` / `MaintenanceTemplateSearchService` over `MaintenanceTemplateRepository`.
 4. Record creation checks the aircraft through `AircraftRestClientService`, resolves the template, and persists through `AddMaintenanceRecordUseCase`.
-5. Record reads, status changes and attribute changes use `MaintenanceRecordProgressService`; searches use `MaintenanceRecordSearchService`.
+5. Record reads, status changes, completion and attribute changes use `MaintenanceRecordProgressService`; searches use `MaintenanceRecordSearchService`. A template lookup that misses locally is passed to `PeerForwarder`.
 6. Reports and alerts read `MaintenanceRecordRepository` and, for model names and flight hours, call `aircraft-service`.
 7. Exceptions are transformed by `GlobalExceptionHandler` into `ErrorDetails` payloads.

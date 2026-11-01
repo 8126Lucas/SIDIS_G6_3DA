@@ -63,7 +63,7 @@ There is no transition guard (for example, any status can move to any other allo
 | `FuelEfficiencyService` (`@UseCase`) | Fuel metrics per aircraft and per route | US227 |
 | `CalculationsService` | Monthly utilization per aircraft from `flight-service` flights | — |
 
-Classes annotated with `@UseCase` are `@Service`, `@Validated` and `@Transactional`. `UseCaseLoggingAdvice` is meant to log them (method, arguments, execution time), but its pointcut is now `within(com.sidis.aircraftservice.UseCase)`, which matches the annotation type itself instead of classes annotated with it, so no use case is logged.
+Classes annotated with `@UseCase` are `@Service`, `@Validated` and `@Transactional`. `UseCaseLoggingAdvice` logs their calls (method, arguments, execution time) through the pointcut `@within(com.sidis.aircraftservice.UseCase)`.
 
 ## 4. External Integrations
 
@@ -77,20 +77,19 @@ Synchronous `RestClient` integrations (Eureka load-balanced, shared `RestClient.
   * `GET /api/flights` (fuel efficiency, US204 `assignments` ranking)
   * `GET /api/flights/aircraft/{registration}` (utilization view)
 
-`JwtTokenInterceptor` adds `X-Gateway-Secret: sidis-g6-secret` to every outgoing call and copies the incoming `Authorization: Bearer` header when the call runs inside an HTTP request.
+`JwtTokenInterceptor` adds `X-Gateway-Secret: sidis-g6-secret` to every outgoing call and copies the incoming `Authorization: Bearer` header when the call runs inside an HTTP request. All client methods are `@Retryable` (see section 6).
 
 Contract gaps in the current code:
 
 * `route-service` exposes `GET /api/routes` and `GET /api/routes/{routeId}`, but not `GET /api/routes/aircraft/{registration}`.
-* `RouteClientDTO` now reads capacity from `routeRequirements.requiredCapacity` (matches `route-service`), but still expects `originAirportIata` and `destinationAirportIata` while `route-service` returns `originIataCode` and `destinationIataCode`; both are deserialized as `null`.
-* `flight-service` does not expose `GET /api/flights`.
-* `FlightClientDTO` expects `id`, `aircraftRegistration`, `routeId`, `range`, `departure`, `arrival`, `flightHours`, while `flight-service` returns `flightId`, `aircraftRegistrationNumber`, `routeId`, `status`, `scheduledDeparture`, `scheduledArrival`. Only `routeId` matches, so registrations, dates and flight hours are always `null`.
+* `RouteClientDTO` reads capacity from `routeRequirements.requiredCapacity` (matches `route-service`), but still expects `originAirportIata` and `destinationAirportIata` while `route-service` returns `originIataCode` and `destinationIataCode`; both are deserialized as `null`.
+* `FlightClientDTO` maps `flightId`, `aircraftRegistrationNumber`, `scheduledDeparture` and `scheduledArrival` through `@JsonAlias`, but `flight-service` does not return `range` or `flightHours`, so those two fields are always `null` (fuel per route and monthly utilization have no hours to work with).
 
-Inbound consumers of this service:
+Inbound consumers of this service (all over `http://aircraft-service` with their own `JwtTokenInterceptor`, so they pass the secret filter):
 
-* `flight-service` → `GET /api/hangar/aircraft/{registrationNumber}`, using base URL `https://aircraft-service` and no `X-Gateway-Secret` header. This service has no TLS configured and rejects calls without the secret (`403`), so these calls fail.
-* `route-service` also targets `https://aircraft-service` without the secret header.
-* `maintenance-service` → `GET /api/hangar/aircraft/{registrationNumber}` over `http://aircraft-service` with `JwtTokenInterceptor`, so its calls pass the secret filter.
+* `flight-service` → `GET /api/hangar/aircraft/{registrationNumber}` and `GET /api/catalog/{modelName}` when scheduling a flight (its client also declares `GET /api/hangar/aircraft` and `GET /api/hangar/analytics/status-summary`, which no endpoint calls).
+* `route-service` has a client for `GET /api/hangar/aircraft` and `GET /api/hangar/aircraft/{registrationNumber}`, but no code calls it.
+* `maintenance-service` → `GET /api/hangar/aircraft/{registrationNumber}`, `GET /api/hangar/aircraft?size=1000`.
 
 ## 5. Analytics
 
@@ -116,9 +115,21 @@ Exception handling:
 * `ResourceNotFoundException` maps to `404 Not Found`.
 * Unhandled exceptions map to `500 Internal Server Error`.
 
+Outgoing calls:
+
+* `GlobalRestClientConfig` sets a 2-second connect timeout and a 2-second read timeout on every `RestClient`.
+* `RouteRestClientService` and `FlightRestClientService` methods are `@Retryable` (any `Exception`, 3 attempts, backoff 1 s then 2 s); `@EnableRetry` is on `AircraftServiceApplication`. There is no `@Recover` method or circuit breaker, so after the third failure the error becomes `500`.
+
+Peer forwarding (`PeerForwarder`):
+
+* Used only by `GET /api/hangar/aircraft/{registrationNumber}` when the aircraft is not found locally.
+* Asks Eureka for all `aircraft-service` instances, skips the one with the same port as the current instance, and calls `GET /api/hangar/aircraft/{registrationNumber}` on each (with `X-Gateway-Secret` and the caller's `Authorization`); any error is ignored. If no peer answers, it throws `ResourceNotFoundException` (`404`, `"Resource not found in any instance"`).
+* Peers are told apart only by port, so instances on other hosts that use the same port are skipped.
+* The `RestClient` comes from the `@LoadBalanced` builder, which treats the peer's host name or IP as a service id; such names are not registered in Eureka, so the peer call fails and the endpoint returns `404`.
+
 Current gaps:
 
-* No timeout, retry, or circuit breaker around `RestClient` calls; any downstream failure becomes `500`.
+* No circuit breaker or fallback; repeated failures of a downstream service are retried on every request.
 
 ## 7. Security
 

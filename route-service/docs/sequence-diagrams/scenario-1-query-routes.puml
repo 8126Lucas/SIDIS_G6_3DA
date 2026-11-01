@@ -28,7 +28,7 @@ end box
 
 client -> gateway : GET /api/routes/{routeId}
 activate gateway
-gateway -> controller : Forward request
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> route_uc : getRouteDetails(routeId)
@@ -60,7 +60,7 @@ deactivate gateway
 
 client -> gateway : GET /api/routes?origin=&destination=
 activate gateway
-gateway -> controller : Forward request
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> route_uc : searchRoutes(origin, destination)
@@ -93,7 +93,7 @@ deactivate gateway
 
 client -> gateway : GET /api/routes/active?sortBy=popularity|distance
 activate gateway
-gateway -> controller : Forward request
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> route_uc : listActiveRoutes(sortBy)

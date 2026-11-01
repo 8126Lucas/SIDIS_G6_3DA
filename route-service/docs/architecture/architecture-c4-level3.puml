@@ -14,6 +14,7 @@ component "Aircraft Service\n<<Microservice>>" as aircraft_service
 component "Flight Service\n<<Microservice>>" as flight_service
 
 package "Route Service [Container]" {
+    component "RouteSecurityConfig\n<<SecurityFilterChain + gatewaySecretFilter>>" as security_filter
     component "RouteController\n<<Spring REST Controller>>" as route_controller
 
     component "RouteService\n<<UseCase>>" as route_uc
@@ -23,6 +24,7 @@ package "Route Service [Container]" {
     component "AirportRestClientService\n<<RestClient Adapter>>" as airport_client
     component "AircraftRestClientService\n<<RestClient Adapter>>" as aircraft_client
     component "FlightRestClientService\n<<RestClient Adapter>>" as flight_client
+    component "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>\n(shared builder, 2 s timeouts)" as jwt_interceptor
 
     component "Bootstrap\n<<ApplicationRunner>>" as bootstrapper
 
@@ -39,10 +41,11 @@ package "Route Service [Container]" {
     component "ErrorDetails\n<<DTO Payload>>" as error_details
 }
 
-api_gateway --> route_controller : "Routes /api/routes/**\n[HTTPS/JSON]"
-aircraft_service --> route_controller : "GET /api/routes, /{routeId}"
-airport_service --> route_controller : "GET /api/routes, /from/{iata}"
-flight_service --> route_controller : "GET /api/routes, /from/{iata}, /{routeId}"
+api_gateway --> security_filter : "Routes /api/routes/**\n(JWT validated, X-Gateway-Secret added)\n[HTTP/JSON]"
+aircraft_service --> security_filter : "GET /api/routes, /{routeId}"
+airport_service --> security_filter : "GET /api/routes"
+flight_service --> security_filter : "GET /{routeId}, PATCH /{routeId}"
+security_filter --> route_controller : "secret OK"
 
 route_controller --> route_uc : "create, update, queries,\ntotal distance"
 route_controller --> export_uc : "GeoJSON / KML (US228)"
@@ -66,8 +69,9 @@ route_repo <--> route_db : "company_routes\n[JDBC/JPA]"
 
 exception_handler --> error_details : "Constructs and returns"
 
-airport_client --> airport_service : "HTTP RestClient"
-aircraft_client ..> aircraft_service : "HTTPS RestClient (not injected)"
+airport_client --> jwt_interceptor : "outgoing request"
+jwt_interceptor --> airport_service : "HTTP RestClient\n(X-Gateway-Secret, Authorization)"
+aircraft_client ..> aircraft_service : "HTTP RestClient (not injected)"
 flight_client ..> flight_service : "HTTP RestClient (no methods)"
 
 @enduml
