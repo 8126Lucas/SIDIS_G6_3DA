@@ -72,16 +72,16 @@ public class RouteExportService {
         AirportLocation origin = route.getOriginAirport().getAirportLocation();
         AirportLocation destination = route.getDestinationAirport().getAirportLocation();
 
-        String coordLine = origin.getLongitude() + "," + origin.getLatitude() + " " +
+        String coordLine = origin.getLongitude() + "," + origin.getLatitude() + "\n        " +
                 destination.getLongitude() + "," + destination.getLatitude();
 
         return "<Placemark>\n" +
-                "      <name>" + escapeXml(route.getRouteName()) + "</name>\n" +
-                "      <description>" + escapeXml(route.getStatus() + " | " + route.getDistanceKm() + " km") + "</description>\n" +
+                "      <name><![CDATA[" + route.getRouteName() + "]]></name>\n" +
+                "      <description><![CDATA[" + route.getStatus() + " | " + route.getDistanceKm() + " km]]></description>\n" +
                 "      <LineString>\n" +
                 "        <coordinates>" + coordLine + "</coordinates>\n" +
                 "      </LineString>\n" +
-                "    </Placemark>";
+                "    </Placemark>\n";
     }
 
     private String formatCoords(AirportLocation location) {
@@ -96,18 +96,5 @@ public class RouteExportService {
             );
         }
         return "[" + location.getLongitude() + ", "+ location.getLatitude() + "]";
-    }
-
-    private String escapeXml(String value) {
-        if (value == null) {
-            return "";
-        }
-
-        return value
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&apos;");
     }
 }
