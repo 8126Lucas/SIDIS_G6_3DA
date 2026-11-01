@@ -34,6 +34,7 @@ docs/
 ├── container-diagram-c4-level2.puml       # C4 Level 2: Container Architecture Diagram (PlantUML)
 ├── global-logical-view-level1.puml        # UML Logical View Level 1 (Socket/Lollipop P2P Forwarding)
 ├── physical-view-deployment.puml          # Physical View: Docker deployment, ports, instances per component
+├── domain-model-ddd.puml                  # UML class diagram of the domain model per bounded context (DDD)
 ├── global-network-and-ports.md            # Network topology, ports, routing, security, inter-service calls
 ├── ci-cd-pipelines.md                     # GitHub Actions CI (tests on the running system) and CD (Docker images)
 └── postman/
@@ -61,7 +62,11 @@ docs/
 * **File:** `physical-view-deployment.puml`
 * **Scope:** The containers started by `docker-compose.yml` (one per component, two Eureka nodes), host port mappings, the in-memory H2 database inside each service container, and how an extra instance of a service is added (same image, `SERVER_PORT` in its reserved range, own H2).
 
-### 3.5. CI/CD
+### 3.5. Domain Model (DDD) — UML Class Diagram
+* **File:** `domain-model-ddd.puml`
+* **Scope:** One package per bounded context (Flight Operations, Maintenance, Route, Aircraft, Identity and Access, Airport) with its aggregate roots, entities and value objects as mapped in JPA. Contexts reference each other only by identifier (registration number, IATA code, route id, usernames), resolved over HTTP/REST.
+
+### 3.6. CI/CD
 * **File:** `ci-cd-pipelines.md`
 * **Scope:** The CI workflow starts the whole system on the runner and runs the end-to-end tests; the CD workflow publishes Docker images to the GitHub Container Registry after a successful CI run.
 
@@ -107,5 +112,6 @@ To ensure a complete and successful project submission, the root `/docs/` folder
 - [x] **C4 Level 2 — Container Diagram** (`.puml` + `.png`)
 - [x] **UML Logical View — Level 1** (`.puml`) showing system component interfaces (*Lollipop / Socket*), `<<instance>>` clones and peer-to-peer forwarding.
 - [x] **Physical View — Deployment Diagram** (`.puml`) showing the containers, ports and multiple instances per component.
+- [x] **Domain Model (DDD) — UML Class Diagram** (`.puml`) with aggregates, entities and value objects per bounded context.
 - [ ] **Master Network & Security Topology Document** (`04-global-network-and-ports.md`) detailing JWT authentication flow, Eureka load balancing, and port allocations.
 - [ ] **Global Postman Integration Test Collection** (`postman/AISafe-Global-System.postman_collection.json`) featuring end-to-end user journeys across all microservices.
