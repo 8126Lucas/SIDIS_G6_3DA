@@ -105,9 +105,10 @@ public class AirportService {
     }
 
     public List<RouteResponse> findRoutesByAirport(String iataCode) {
-        airportRepository.findByIataCode(iataCode)
-                .orElseThrow(() -> new DomainException("Airport does not exist"));
-        return routeRepository.getRoutesFromAirport(iataCode);
+        airportRepository.findByIataCode(iataCode).orElseThrow(() -> new DomainException("Airport does not exist"));
+        return routeRepository.getRoutes().stream()
+                .filter(route -> iataCode.equals(route.originAirportIata()) || iataCode.equals(route.destinationAirportIata()))
+                .toList();
     }
 
     public List<AirportRouteStatistic> busiestAirports() {
@@ -130,6 +131,7 @@ public class AirportService {
         return airports.stream().collect(Collectors.groupingBy(airport -> switch (criteria) {
             case "country" -> airport.getAirportLocation().getCountry();
             case "city" -> airport.getAirportLocation().getCity();
+            case "region" -> airport.getAirportLocation().getRegion();
             default -> throw new DomainException("Unknown grouping criteria: " + criteria);
         }));
     }

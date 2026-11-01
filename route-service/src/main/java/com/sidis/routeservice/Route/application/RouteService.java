@@ -109,6 +109,10 @@ public class RouteService {
                 route.getRouteHistory().endRoute(LocalDate.now());
             }
         }
+
+        if (history != null) {
+            route.updateRouteHistory(history);
+        }
         return routeRepository.save(route);
     }
 

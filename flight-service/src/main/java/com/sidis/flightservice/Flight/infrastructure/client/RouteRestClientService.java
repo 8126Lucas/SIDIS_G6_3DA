@@ -3,21 +3,29 @@ package com.sidis.flightservice.Flight.infrastructure.client;
 import com.sidis.flightservice.Flight.infrastructure.client.route.RouteClientDTO;
 import com.sidis.flightservice.Flight.infrastructure.client.route.RouteResponse;
 import com.sidis.flightservice.Flight.infrastructure.client.route.UpdateRouteRequest;
+import com.sidis.flightservice.exceptions.DomainException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
 
-@Service
+@Component
 public class RouteRestClientService {
     private final RestClient routesClient;
 
-    public RouteRestClientService(@Qualifier("routeFlightsRestClient") RestClient routesRestClient) {
-        this.routesClient = routesRestClient;
+    public RouteRestClientService(@Qualifier("globalLoadBalancedBuilder") RestClient.Builder globalBuilder) {
+        this.routesClient = globalBuilder.clone()
+                .baseUrl("http://route-service")
+                .build();
     }
 
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public List<RouteResponse> findByOriginAirport_IataCodeOrDestinationAirport_IataCode(String origin, String destination) {
         List<RouteClientDTO> routes = routesClient.get()
                 .uri(uriBuilder -> uriBuilder
@@ -37,6 +45,7 @@ public class RouteRestClientService {
                 .toList();
     }
 
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public List<RouteResponse> getRoutesFromAirport(String airportIataCode) {
         List<RouteClientDTO> routes = routesClient.get()
                 .uri("/api/routes/from/{airportIataCode}", airportIataCode)
@@ -66,14 +75,17 @@ public class RouteRestClientService {
     }
 
     public RouteResponse findByRouteId(Long routeId) {
-        RouteClientDTO route = routesClient.get()
+        try{RouteClientDTO route = routesClient.get()
                 .uri("/api/routes/{routeId}", routeId)
                 .retrieve()
                 .body(new ParameterizedTypeReference<RouteClientDTO>() {});
-        if (route == null) {
-            return null;
+            if (route == null) {
+                return null;
+            }
+            return RouteResponse.from(route);
+        } catch (HttpClientErrorException.Conflict ex) {
+            throw new DomainException("Route does not exist");
         }
-        return RouteResponse.from(route);
     }
 
         public RouteResponse update(Long routeId, UpdateRouteRequest request) {

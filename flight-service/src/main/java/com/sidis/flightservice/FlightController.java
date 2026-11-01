@@ -7,6 +7,7 @@ import com.sidis.flightservice.Flight.application.RouteService;
 import com.sidis.flightservice.Flight.domain.Flight;
 import com.sidis.flightservice.Flight.domain.FlightStatus;
 import com.sidis.flightservice.Flight.infrastructure.client.aircraft.AircraftClientDTO;
+import com.sidis.flightservice.Flight.infrastructure.client.aircraft.AircraftModelDTO;
 import com.sidis.flightservice.exceptions.DomainException;
 import com.sidis.flightservice.exceptions.ResourceNotFoundException;
 import jakarta.validation.Valid;
@@ -47,8 +48,8 @@ public class FlightController {
         AircraftClientDTO aircraft = aircraftSearchService
                 .spotAircraftInHangar(request.aircraftRegistrationNumber())
                 .orElseThrow(() -> new DomainException("Aircraft does not exist"));
-
-        return FlightResponse.from(routeService.scheduleFlight(request.routeId(),
+        AircraftModelDTO model=aircraftSearchService.spotAircraftModelInCatalog(aircraft.modelName()).orElseThrow(() -> new DomainException("Aircraft does not exist"));
+        return FlightResponse.from(routeService.scheduleFlight(request.routeId(),model,
                 aircraft, request.scheduledDeparture(), request.scheduledArrival()));
     }
 

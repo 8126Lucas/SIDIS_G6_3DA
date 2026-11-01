@@ -3,6 +3,7 @@ package com.sidis.flightservice.Flight.application;
 import com.sidis.flightservice.Flight.infrastructure.FlightRepository;
 import com.sidis.flightservice.Flight.infrastructure.client.aircraft.AircraftAvailability;
 import com.sidis.flightservice.Flight.infrastructure.client.aircraft.AircraftClientDTO;
+import com.sidis.flightservice.Flight.infrastructure.client.aircraft.AircraftModelDTO;
 import com.sidis.flightservice.Flight.infrastructure.client.airport.AirportClientDTO;
 import com.sidis.flightservice.Flight.infrastructure.client.airport.AirportStatus;
 import com.sidis.flightservice.Flight.infrastructure.client.route.RouteHistoryDTO;
@@ -35,19 +36,19 @@ public class RouteService {
         this.airportRepository = airportRepository;
     }
 
-    public Flight scheduleFlight(Long routeId, AircraftClientDTO aircraft, LocalDateTime scheduledDeparture, LocalDateTime scheduledArrival) {
+    public Flight scheduleFlight(Long routeId, AircraftModelDTO modelDTO, AircraftClientDTO aircraft, LocalDateTime scheduledDeparture, LocalDateTime scheduledArrival) {
         RouteResponse route = routeClientRepository.findByRouteId(routeId);
         AirportClientDTO airportOrigin=airportRepository.findAirportByIataCode(route.originAirportIata());
         AirportClientDTO airportDestination=airportRepository.findAirportByIataCode(route.destinationAirportIata());
 
-        validateFlightSchedule(route, aircraft, scheduledDeparture, scheduledArrival,airportOrigin,airportDestination);
+        validateFlightSchedule(modelDTO,route, aircraft, scheduledDeparture, scheduledArrival,airportOrigin,airportDestination);
 
         RouteReference newRoute=new RouteReference(route.routeId(),route.originAirportIata(),route.routeName(),route.destinationAirportIata());
         AircraftReference newAircraft=new AircraftReference(aircraft.registrationNumber());
         Flight flight = new Flight(newRoute, newAircraft, scheduledDeparture, scheduledArrival);
 
         RouteHistoryDTO newHistory=new RouteHistoryDTO(route.routeHistoryDTO().routeBegin(),
-                route.routeHistoryDTO().routeBegin(),route.routeHistoryDTO().routeUsage()+1);
+                route.routeHistoryDTO().routeFinish(),route.routeHistoryDTO().routeUsage()+1);
 
         UpdateRouteRequest updatedRoute=new UpdateRouteRequest(route.destinationAirportIata(),
                 route.estimatedFlightTimeHours(),RouteStatus.valueOf(route.routeStatus()),newHistory);
@@ -60,34 +61,37 @@ public class RouteService {
         return flightRepository.findByAircraftRegistrationNumber_RegistrationNumber(registrationNumber);
     }
 
-    public void validateFlightSchedule(RouteResponse route, AircraftClientDTO aircraft, LocalDateTime scheduledDeparture, LocalDateTime scheduledArrival,AirportClientDTO airportOrigin, AirportClientDTO airportDestination) {
+    public void validateFlightSchedule(AircraftModelDTO modelDTO,RouteResponse route, AircraftClientDTO aircraft, LocalDateTime scheduledDeparture, LocalDateTime scheduledArrival,AirportClientDTO airportOrigin, AirportClientDTO airportDestination) {
         if (aircraft == null) {
             throw new DomainException("Aircraft does not exist");
         }
-
         if (scheduledDeparture == null || scheduledArrival == null
                 || !scheduledArrival.isAfter(scheduledDeparture)) {
             throw new DomainException("Scheduled arrival must be after departure");
         }
-
         if (!Objects.equals(route.routeStatus(), RouteStatus.ACTIVE.toString())) {
             throw new DomainException("Route is not active");
         }
-
         if (!Objects.equals(airportOrigin.status(), AirportStatus.OPERATIONAL.toString()) ||
                 !Objects.equals(airportDestination.status(), AirportStatus.OPERATIONAL.toString())) {
             throw new DomainException("Airport is not operational");
         }
-
         if (!Objects.equals(aircraft.status(), AircraftAvailability.AVAILABLE.toString())) {
             throw new DomainException("Aircraft is not available");
         }
-
-        if (aircraftRange(aircraft) < requiredRange(route)) {
+        if (aircraftRange(aircraft,modelDTO) < requiredRange(route)) {
             throw new DomainException("Aircraft range does not comply with route requirements");
         }
 
-        boolean aircraftBusy = flightRepository.existsByAircraftRegistrationNumber_RegistrationNumberAndScheduledDepartureLessThanAndScheduledArrivalGreaterThan(
+        Integer requiredCapacity = route.routeRequirementsDTO() != null ? route.routeRequirementsDTO().requiredCapacity(): null;
+        Integer aircraftCapacity = modelDTO.specs().standardSeatingCapacity();
+
+        if (requiredCapacity != null
+                && (aircraftCapacity == null || aircraftCapacity < requiredCapacity)) {
+            throw new DomainException("Aircraft has insufficient capacity");
+        }
+        boolean aircraftBusy = flightRepository
+                .existsByAircraftRegistrationNumber_RegistrationNumberAndScheduledDepartureLessThanAndScheduledArrivalGreaterThan(
                         aircraft.registrationNumber(), scheduledArrival, scheduledDeparture);
         if (aircraftBusy) {
             throw new DomainException("Aircraft is already scheduled for this period");
@@ -102,10 +106,15 @@ public class RouteService {
         return route.distanceKm();
     }
 
-    private Double aircraftRange(AircraftClientDTO aircraft) {
-        if (aircraft.meanRange() != null) {
+    private Double aircraftRange(AircraftClientDTO aircraft, AircraftModelDTO modelDTO) {
+        if(aircraft.meanRange()==null||modelDTO.specs().maximumRangeKm()==null){
+            throw new DomainException("Aircraft range information is unavailable");
+        }
+        if(aircraft.meanRange()==0){
+            return modelDTO.specs().maximumRangeKm();
+        }else{
             return aircraft.meanRange();
         }
-        return aircraft.modelDTO().aircraftModelSpecsDTO().maximumRangeKm();
+
     }
 }

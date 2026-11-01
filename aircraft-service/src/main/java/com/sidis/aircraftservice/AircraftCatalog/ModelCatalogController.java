@@ -42,6 +42,22 @@ public class ModelCatalogController {
     }
 
     /**
+     * Returns an aircraft model by its model name.
+     *
+     * @param modelName the name of the aircraft model
+     * @return the aircraft model details
+     */
+    @GetMapping("/{modelName}")
+    public ModelResponse getModelByName(@PathVariable String modelName) {
+        AircraftModel model = aircraftModelSearchService.spotAircraftInCatalog(modelName)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Model does not exist in catalog"
+                ));
+        //preciso disto para o flight, o api/hangar/aircraft nao expoe os detalhes do model, apenas o nome
+        return ModelResponse.from(model);
+    }
+
+    /**
      * Adds a new aircraft model to the catalog.
      */
     @PostMapping("/model")

@@ -29,44 +29,57 @@ public class AircraftSearchService {
         return aircraftRepository.findAircraftByRegistration(id);
     }
 
+    public Optional<AircraftModelDTO> spotAircraftModelInCatalog(String modelName) {
+        return aircraftRepository.findAircraftModel(modelName);
+    }
+
     public Page<AircraftClientDTO> findAircraftsMatchingFilter(String model, String status, LocalDate manufacturingDate, Pageable pageable) {
         Stream<AircraftClientDTO> spec = aircraftRepository.findAll().stream();
-        if (model != null) {
+        if (model != null && !model.isBlank()) {
             spec = spec.filter(a ->
-                    a.modelDTO() != null &&
-                            a.modelDTO().modelName().equalsIgnoreCase(model));
+                    a.modelName() != null &&
+                            a.modelName().equalsIgnoreCase(model)
+            );
         }
-
-        if (status != null) {
+        if (status != null && !status.isBlank()) {
             spec = spec.filter(a ->
                     a.status() != null &&
-                            a.status().equalsIgnoreCase(status));
+                            a.status().equalsIgnoreCase(status)
+            );
         }
-
         if (manufacturingDate != null) {
             spec = spec.filter(a ->
-                    manufacturingDate.equals(a.manufacturingDate()));
+                    manufacturingDate.equals(a.manufacturingDate())
+            );
         }
-
         List<AircraftClientDTO> filtered = spec.toList();
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), filtered.size());
-        List<AircraftClientDTO> pageContent = start >= filtered.size()
-                ? Collections.emptyList()
-                : filtered.subList(start, end);
+        List<AircraftClientDTO> pageContent = start >= filtered.size() ? Collections.emptyList(): filtered.subList(start, end);
         return new PageImpl<>(pageContent, pageable, filtered.size());
     }
 
     public List<Map.Entry<AircraftModelDTO, Double>> findMostUsedModelsByFlyingAircraftHours() {
-        return aircraftRepository.findAll().stream()
-                .filter(aircraft -> aircraft.modelDTO() != null)
-                .filter(aircraft -> aircraft.totalFlightHours() != null)
+        Map<String, Double> hoursByModel = aircraftRepository.findAll().stream()
+                .filter(a -> a.modelName() != null)
+                .filter(a -> a.totalFlightHours() != null)
                 .collect(Collectors.groupingBy(
-                        AircraftClientDTO::modelDTO,
-                        Collectors.summingDouble(AircraftClientDTO::totalFlightHours)
-                ))
-                .entrySet()
-                .stream()
+                        AircraftClientDTO::modelName,
+                        Collectors.summingDouble(
+                                AircraftClientDTO::totalFlightHours
+                        )
+                ));
+        return hoursByModel.entrySet().stream()
+                .map(entry -> {
+                    AircraftModelDTO model = aircraftRepository
+                            .findAircraftModel(entry.getKey())
+                            .orElse(null);
+
+                    return model == null
+                            ? null
+                            : Map.entry(model, entry.getValue());
+                })
+                .filter(Objects::nonNull)
                 .sorted(Map.Entry.<AircraftModelDTO, Double>
                         comparingByValue().reversed())
                 .toList();

@@ -166,6 +166,12 @@ public class Route {
                 estimatedFlightTimeHours;
     }
 
+    public void updateRouteHistory(RouteHistory history) {
+        if (history != null) {
+            this.routeHistory = history;
+        }
+    }
+
     public void changeDestination(AirportReference newDestination) {
         if (newDestination == null) {
             throw new IllegalArgumentException(

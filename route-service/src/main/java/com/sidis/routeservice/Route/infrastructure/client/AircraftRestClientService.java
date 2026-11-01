@@ -2,6 +2,8 @@ package com.sidis.routeservice.Route.infrastructure.client;
 
 import com.sidis.routeservice.Route.infrastructure.client.aircraft.AircraftClientDTO;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
@@ -15,10 +17,13 @@ import java.util.Optional;
 public class AircraftRestClientService {
     private final RestClient aircraftRestClient;
 
-    public AircraftRestClientService(@Qualifier("aircraftRestClient") RestClient aircraftRestClient) {
-        this.aircraftRestClient = aircraftRestClient;
+    public AircraftRestClientService(@Qualifier("globalLoadBalancedBuilder") RestClient.Builder builder) {
+        this.aircraftRestClient = builder.clone()
+                .baseUrl("http://aircraft-service")
+                .build();
     }
 
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public List<AircraftClientDTO> findAll() {
         try {
             return Collections.singletonList(aircraftRestClient.get()
@@ -30,6 +35,7 @@ public class AircraftRestClientService {
         }
     }
 
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public Optional<AircraftClientDTO> findAircraftByRegistration(String registrationNumber) {
         try {
             AircraftClientDTO dto = aircraftRestClient.get()
