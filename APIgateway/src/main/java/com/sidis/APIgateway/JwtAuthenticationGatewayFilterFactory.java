@@ -6,11 +6,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import io.jsonwebtoken.Jwts;
+import org.springframework.beans.factory.annotation.Value;
 
 @Component
 public class JwtAuthenticationGatewayFilterFactory extends AbstractGatewayFilterFactory<JwtAuthenticationGatewayFilterFactory.Config> {
 
-    private final String SECRET_KEY = "ProjetoSIDISG63DA20261241008120110712308501231121";
+    @Value("${security.jwt.secret}")
+    private String SECRET_KEY;;
 
     public JwtAuthenticationGatewayFilterFactory() {
         super(Config.class);

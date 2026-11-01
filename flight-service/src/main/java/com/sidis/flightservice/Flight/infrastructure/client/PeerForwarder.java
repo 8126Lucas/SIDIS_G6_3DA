@@ -1,6 +1,7 @@
 package com.sidis.flightservice.Flight.infrastructure.client;
 
 import com.sidis.flightservice.exceptions.ResourceNotFoundException;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
@@ -13,7 +14,7 @@ public class PeerForwarder {
     private final RestClient restClient;
     @Value("${server.port}") private int localPort;
 
-    public PeerForwarder(DiscoveryClient discoveryClient, RestClient.Builder builder) {
+    public PeerForwarder(DiscoveryClient discoveryClient, @Qualifier("globalLoadBalancedBuilder") RestClient.Builder builder) {
         this.discoveryClient = discoveryClient;
         this.restClient = builder.build();
     }

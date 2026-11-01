@@ -6,6 +6,7 @@ import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @Component
 public class PeerForwarder {
@@ -13,7 +14,7 @@ public class PeerForwarder {
     private final RestClient restClient;
     @Value("${server.port}") private int localPort;
 
-    public PeerForwarder(DiscoveryClient discoveryClient, RestClient.Builder builder) {
+    public PeerForwarder(DiscoveryClient discoveryClient, @Qualifier("globalLoadBalancedBuilder") RestClient.Builder builder) {
         this.discoveryClient = discoveryClient;
         this.restClient = builder.build();
     }

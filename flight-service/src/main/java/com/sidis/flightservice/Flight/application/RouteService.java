@@ -107,14 +107,12 @@ public class RouteService {
     }
 
     private Double aircraftRange(AircraftClientDTO aircraft, AircraftModelDTO modelDTO) {
-        if(aircraft.meanRange()==null||modelDTO.specs().maximumRangeKm()==null){
-            throw new DomainException("Aircraft range information is unavailable");
-        }
-        if(aircraft.meanRange()==0){
-            return modelDTO.specs().maximumRangeKm();
-        }else{
+        if (aircraft.meanRange() != null && aircraft.meanRange() > 0) {
             return aircraft.meanRange();
         }
-
+        if (modelDTO.specs() != null && modelDTO.specs().maximumRangeKm() != null) {
+            return modelDTO.specs().maximumRangeKm();
+        }
+        throw new DomainException("Aircraft range information is unavailable");
     }
 }
