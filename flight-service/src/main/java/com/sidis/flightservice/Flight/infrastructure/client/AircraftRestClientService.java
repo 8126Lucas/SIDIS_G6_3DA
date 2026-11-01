@@ -3,8 +3,11 @@ package com.sidis.flightservice.Flight.infrastructure.client;
 import com.sidis.flightservice.Flight.infrastructure.client.aircraft.AircraftAvailability;
 import com.sidis.flightservice.Flight.infrastructure.client.aircraft.AircraftAvailableResponse;
 import com.sidis.flightservice.Flight.infrastructure.client.aircraft.AircraftClientDTO;
+import com.sidis.flightservice.Flight.infrastructure.client.aircraft.AircraftModelDTO;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
@@ -15,21 +18,41 @@ import java.util.*;
 public class AircraftRestClientService {
     private final RestClient aircraftRestClient;
 
-    public AircraftRestClientService(@Qualifier("aircraftFlightRestClient") RestClient aircraftRestClient) {
-        this.aircraftRestClient = aircraftRestClient;
+    public AircraftRestClientService(@Qualifier("globalLoadBalancedBuilder") RestClient.Builder globalBuilder) {
+        this.aircraftRestClient = globalBuilder.clone()
+                .baseUrl("http://aircraft-service")
+                .build();
     }
 
-    public List<AircraftClientDTO> findAll() {
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
+    public Optional<AircraftModelDTO> findAircraftModel(String modelName) {
         try {
-            return Collections.singletonList(aircraftRestClient.get()
-                    .uri("/api/hangar/aircraft")
+            AircraftModelDTO dto = aircraftRestClient.get()
+                    .uri("/api/catalog/{modelName}", modelName)
                     .retrieve()
-                    .body(AircraftClientDTO.class));
+                    .body(AircraftModelDTO.class);
+
+            return Optional.ofNullable(dto);
+
         } catch (HttpClientErrorException e) {
-            return new ArrayList<>();
+            return Optional.empty();
         }
     }
 
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
+    public List<AircraftClientDTO> findAll() {
+        try {
+            List<AircraftClientDTO> aircraft = aircraftRestClient.get()
+                    .uri("/api/hangar/aircraft")
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<AircraftClientDTO>>() {});
+            return aircraft != null ? aircraft : List.of();
+        } catch (HttpClientErrorException e) {
+            return List.of();
+        }
+    }
+
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public Optional<AircraftClientDTO> findAircraftByRegistration(String registrationNumber) {
         try {
             AircraftClientDTO dto = aircraftRestClient.get()
@@ -43,6 +66,7 @@ public class AircraftRestClientService {
         }
     }
 
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public long countByStatus(AircraftAvailability availability) {
         try {
             Map<AircraftAvailability, Long> response = aircraftRestClient.get()

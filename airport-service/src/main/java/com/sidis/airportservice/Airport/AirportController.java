@@ -26,7 +26,7 @@ public class AirportController {
     }
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)//ok
+    @ResponseStatus(HttpStatus.CREATED)
     public void registerAirport(@Valid @RequestBody AddAirportRequest request) {
         AirportLocation location = new AirportLocation(
                 request.location().city(),
@@ -207,20 +207,25 @@ public class AirportController {
 
     record ContactRequest(String type, String value) {}
 
-    record AddCertificationRequest(String name, String category,
-                                   LocalDate startsAt, LocalDate expiresAt) {}
+    record AddCertificationRequest(String name, String category, LocalDate startsAt, LocalDate expiresAt) {
+        @jakarta.validation.constraints.AssertTrue(
+                message = "Expiry date cannot be before start date"
+        )
+        public boolean isExpiryDateValid() {
+            return startsAt == null || expiresAt == null
+                    || !expiresAt.isBefore(startsAt);
+        }
+    }
 
     record UpdateAirportStatusRequest(String status) {}
 
     record UpdateAirportDetailsRequest(String name, String operationalHours,
                                           List<ContactRequest> contacts) {}
 
-    public record AirportResponse(String iataCode, String airportType,
-                                  String name, AirportStatus status, AirportLocationResponse location,
-                                  FacilitiesResponse facilities, Double routeDistance,
-                                  List<RunwayResponse> runways,
-                                  List<CertificationResponse> certifications,
-                                  List<ContactResponse> contacts, List<String> airportPhotos) {
+    public record AirportResponse(String iataCode, String airportType, String name,
+            AirportStatus status, AirportLocationResponse location, FacilitiesResponse facilities,
+            Double routeDistance, List<RunwayResponse> runways, List<CertificationResponse> certifications,
+            List<ContactResponse> contacts, List<String> airportPhotos, String operationalHours) {
         static AirportResponse from(Airport airport) {
             return new AirportResponse(
                     airport.getIataCode(),
@@ -239,7 +244,8 @@ public class AirportController {
                     airport.getContacts().stream()
                             .map(ContactResponse::from)
                             .toList(),
-                    airport.getAirportPhotos()
+                    airport.getAirportPhotos(),
+                    airport.getOperationalHours()
             );
         }
     }

@@ -5,7 +5,7 @@ import java.util.List;
 
 public record AircraftClientDTO (
         String registrationNumber,
-        AircraftModelDTO modelDTO,
+        String modelName,
         String status,
         LocalDate manufacturingDate,
         Double totalFlightHours,

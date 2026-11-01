@@ -3,6 +3,7 @@ package com.sidis.routeservice.Route.application;
 import com.sidis.routeservice.Route.infrastructure.client.aircraft.AircraftClientDTO;
 import com.sidis.routeservice.Route.domain.Route;
 import com.sidis.routeservice.Route.infrastructure.RouteRepository;
+import com.sidis.routeservice.Route.infrastructure.client.aircraft.AircraftModelDTO;
 import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,18 +16,19 @@ public class RouteSearchService {
         this.routeRepository = routeRepository;
     }
 
-    public List<Route> findCompatibleRoutes(AircraftClientDTO aircraft) {
+    public List<Route> findCompatibleRoutes(AircraftClientDTO aircraft, AircraftModelDTO modelDTO) {
         int capacity;
-        if (aircraft.seatingPackDTO() != null && aircraft.seatingPackDTO().seatingCapacity() != null) {
+        if (aircraft.seatingPackDTO() != null
+                && aircraft.seatingPackDTO().seatingCapacity() != null) {
             capacity = aircraft.seatingPackDTO().seatingCapacity();
         } else {
-            capacity = aircraft.modelDTO().aircraftModelSpecsDTO().standardSeatingCapacity();
+            capacity = modelDTO.aircraftModelSpecsDTO().standardSeatingCapacity();
         }
         double range;
-        if(aircraft.meanRange() == null) {
-            range=aircraft.modelDTO().aircraftModelSpecsDTO().maximumRangeKm();
-        }else{
-            range= aircraft.meanRange();
+        if (aircraft.meanRange() != null && aircraft.meanRange() > 0) {
+            range = aircraft.meanRange();
+        } else {
+            range = modelDTO.aircraftModelSpecsDTO().maximumRangeKm();
         }
         List<Route> compatibleRoutes = new ArrayList<>();
         for (Route route : routeRepository.findAll()) {

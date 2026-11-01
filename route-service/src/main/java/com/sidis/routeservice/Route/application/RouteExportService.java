@@ -76,8 +76,8 @@ public class RouteExportService {
                 destination.getLongitude() + "," + destination.getLatitude();
 
         return "<Placemark>\n" +
-                "      <name>" + route.getRouteName() + "</name>\n" +
-                "      <description>" + route.getStatus() + " | " + route.getDistanceKm() + " km</description>\n" +
+                "      <name>" + escapeXml(route.getRouteName()) + "</name>\n" +
+                "      <description>" + escapeXml(route.getStatus() + " | " + route.getDistanceKm() + " km") + "</description>\n" +
                 "      <LineString>\n" +
                 "        <coordinates>" + coordLine + "</coordinates>\n" +
                 "      </LineString>\n" +
@@ -96,5 +96,18 @@ public class RouteExportService {
             );
         }
         return "[" + location.getLongitude() + ", "+ location.getLatitude() + "]";
+    }
+
+    private String escapeXml(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&apos;");
     }
 }

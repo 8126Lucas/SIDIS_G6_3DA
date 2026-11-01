@@ -21,7 +21,7 @@ public class Flight {
     @Embedded
     @AttributeOverride(
             name = "registrationNumber",
-            column = @Column(name = "aircraft_registration", nullable = false, length = 10)
+            column = @Column(name = "aircraft_registration", nullable = false)
     )
     private AircraftReference aircraftRegistrationNumber;
 

@@ -52,6 +52,8 @@ public class Airport {
     @Column(name = "image_url")
     private List<String> airportPhotos = new ArrayList<>();
 
+    private String operationalHours="07:00-22:00";
+
     public Airport() {
     }
 
@@ -104,6 +106,10 @@ public class Airport {
         return airportRunways;
     }
 
+    public String getOperationalHours() {
+        return operationalHours;
+    }
+
     public List<Certification> getCertifications() {
         return certifications;
     }
@@ -125,10 +131,24 @@ public class Airport {
         this.status = status;
     }
 
-    public void updateDetails(String name, String operationalHours,
-            List<Contact> contacts) {
+    public void changeOperationalHours(String operationalHours) {
+        if (operationalHours == null || operationalHours.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Operational hours cannot be empty"
+            );
+        }
+
+        this.operationalHours = operationalHours;
+    }
+
+    public void updateDetails(String name, String operationalHours, List<Contact> contacts) {
         this.name = name;
-        this.contacts = contacts == null ? new ArrayList<>() : new ArrayList<>(contacts);
+        if (operationalHours != null) {
+            changeOperationalHours(operationalHours);
+        }
+        this.contacts = contacts == null
+                ? new ArrayList<>()
+                : new ArrayList<>(contacts);
     }
 
 }
