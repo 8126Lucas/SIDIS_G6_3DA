@@ -33,6 +33,7 @@ docs/
 ├── system-context-c4-level1.puml          # C4 Level 1: System Context Diagram (PlantUML)
 ├── container-diagram-c4-level2.puml       # C4 Level 2: Container Architecture Diagram (PlantUML)
 ├── global-logical-view-level1.puml        # UML Logical View Level 1 (Socket/Lollipop P2P Forwarding)
+├── physical-view-deployment.puml          # Physical View: Docker deployment, ports, instances per component
 ├── global-network-and-ports.md            # Network topology, ports, routing, security, inter-service calls
 ├── ci-cd-pipelines.md                     # GitHub Actions CI (tests on the running system) and CD (Docker images)
 └── postman/
@@ -52,7 +53,15 @@ docs/
 * **File:** `container-diagram-c4-level2.puml`
 * **Scope:** Illustrates the internal container structure, showing how the **API Gateway** routes traffic to microservices, how services register with the two **Eureka Discovery Service** nodes, their dedicated **H2 In-Memory Databases**, and inter-service REST interactions (see `global-network-and-ports.md`, section 6).
 
-### 3.3. CI/CD
+### 3.3. UML Logical View — Level 1
+* **File:** `global-logical-view-level1.puml`
+* **Scope:** Each component with two `<<instance>>` clones, its provided REST interface (lollipop) and the interfaces it requires from other components (socket). Shows the peer forwarding between clones as implemented: it works in Aircraft Service; Maintenance Service forwards to the wrong service id (`aircraft-service`); Airport, Flight and Route have a `PeerForwarder` class that no controller calls.
+
+### 3.4. Physical View — Deployment
+* **File:** `physical-view-deployment.puml`
+* **Scope:** The containers started by `docker-compose.yml` (one per component, two Eureka nodes), host port mappings, the in-memory H2 database inside each service container, and how an extra instance of a service is added (same image, `SERVER_PORT` in its reserved range, own H2).
+
+### 3.5. CI/CD
 * **File:** `ci-cd-pipelines.md`
 * **Scope:** The CI workflow starts the whole system on the runner and runs the end-to-end tests; the CD workflow publishes Docker images to the GitHub Container Registry after a successful CI run.
 
@@ -96,6 +105,7 @@ To ensure a complete and successful project submission, the root `/docs/` folder
 
 - [x] **C4 Level 1 — System Context Diagram** (`.puml` + `.png`)
 - [x] **C4 Level 2 — Container Diagram** (`.puml` + `.png`)
-- [ ] **UML Logical View — Level 1** (`.puml` + `.png`) showing system component interfaces (*Lollipop / Socket*) and peer-to-peer forwarding.
+- [x] **UML Logical View — Level 1** (`.puml`) showing system component interfaces (*Lollipop / Socket*), `<<instance>>` clones and peer-to-peer forwarding.
+- [x] **Physical View — Deployment Diagram** (`.puml`) showing the containers, ports and multiple instances per component.
 - [ ] **Master Network & Security Topology Document** (`04-global-network-and-ports.md`) detailing JWT authentication flow, Eureka load balancing, and port allocations.
 - [ ] **Global Postman Integration Test Collection** (`postman/AISafe-Global-System.postman_collection.json`) featuring end-to-end user journeys across all microservices.

@@ -1,83 +1,95 @@
 @startuml
 title Logical View (Level 1) - AISafe Flight Management System
 
-left to right direction
+top to bottom direction
 skinparam componentStyle uml2
 skinparam packageStyle rectangle
-skinparam nodesep 40
-skinparam ranksep 50
-skinparam linetype ortho
+skinparam nodesep 50
+skinparam ranksep 70
+skinparam defaultTextAlignment center
 
-' --- CLIENTE EXTERNO ---
-component [API Client (Postman)] as Client
+' --- ENTRY ---
+actor "API Client\n(Postman)" as Client
+interface "HTTPS :7979" as IF_GW
 
-package "AISafe Infrastructure Boundary" {
-    interface "HTTP/HTTPS REST" as Gateway_IF
-    component [API Gateway\n(Port 7979, HTTPS)] as Gateway
-    component [Eureka Discovery Service\n(Ports 8761 / 8762)] as Eureka
+component "API Gateway" as Gateway
+component "Discovery Service\n(Eureka :8761 / :8762)" as Eureka
+
+Client -( IF_GW
+IF_GW - Gateway
+Gateway .right.> Eureka : resolve lb://
+
+' --- PROVIDED INTERFACES (lollipops) ---
+interface "/api/auth" as IF_Auth
+interface "/api/hangar\n/api/catalog" as IF_Aircraft
+interface "/api/airports" as IF_Airport
+interface "/api/flights" as IF_Flight
+interface "/api/maintenance" as IF_Maint
+interface "/api/routes" as IF_Route
+
+' --- COMPONENTS WITH CLONES ---
+package "Business Components" {
+    component "Auth Service" as Auth {
+        component "Instance1 :8101" as AU1 <<instance>>
+        component "Instance2 :8102" as AU2 <<instance>>
+    }
+    component "Aircraft Service" as Aircraft {
+        component "Instance1 :8081" as AC1 <<instance>>
+        component "Instance2 :8082" as AC2 <<instance>>
+    }
+    component "Airport Service" as Airport {
+        component "Instance1 :8091" as AP1 <<instance>>
+        component "Instance2 :8092" as AP2 <<instance>>
+    }
+    component "Flight Service" as Flight {
+        component "Instance1 :8111" as FL1 <<instance>>
+        component "Instance2 :8112" as FL2 <<instance>>
+    }
+    component "Maintenance Service" as Maint {
+        component "Instance1 :8121" as MT1 <<instance>>
+        component "Instance2 :8122" as MT2 <<instance>>
+    }
+    component "Route Service" as Route {
+        component "Instance1 :8131" as RT1 <<instance>>
+        component "Instance2 :8132" as RT2 <<instance>>
+    }
 }
 
-package "Core Business Microservices" {
+' --- GATEWAY -> COMPONENTS (socket -> lollipop) ---
+Gateway -down-( IF_Auth
+Gateway -down-( IF_Aircraft
+Gateway -down-( IF_Airport
+Gateway -down-( IF_Flight
+Gateway -down-( IF_Maint
+Gateway -down-( IF_Route
 
-    package "Auth & Hangar Context" {
-        component [Auth Service\n(Ports 8101-8110)] as AuthService
-        component [Aircraft Service\n(Ports 8081-8090)] as AircraftService
-        component [Airport Service\n(Ports 8091-8100)] as AirportService
-    }
+IF_Auth -down- Auth
+IF_Aircraft -down- Aircraft
+IF_Airport -down- Airport
+IF_Flight -down- Flight
+IF_Maint -down- Maint
+IF_Route -down- Route
 
-    package "Operations & Maintenance Context" {
-        component [Maintenance Service\n(Ports 8121-8130)] as MaintService
-        component [Route Service\n(Ports 8131-8140)] as RouteService
-        component [Flight Operations Service\n(Ports 8111-8120)] as FlightService
-    }
-}
+' --- INTER-COMPONENT DEPENDENCIES (HTTP/REST via Eureka) ---
+Flight ..> Aircraft : GET
+Flight ..> Airport : GET
+Flight ..> Route : GET / PATCH
+Route ..> Airport : GET
+Airport ..> Route : GET
+Aircraft ..> Flight : GET
+Aircraft ..> Route : GET
+Maint ..> Aircraft : GET
 
-' --- INTERFACES REST EXPOSTAS (Lollipops) ---
-interface "/api/auth/**" as IF_Auth
-interface "/api/hangar/**\n/api/catalog/**" as IF_Aircraft
-interface "/api/airports/**" as IF_Airport
-interface "/api/flights/**" as IF_Flight
-interface "/api/maintenance/**" as IF_Maint
-interface "/api/routes/**" as IF_Route
+' --- INTRA-COMPONENT PEER FORWARDING ---
+AC1 <.right.> AC2 : forward GET
+MT1 <.right.> MT2 : forward GET*
 
-' --- ENTRADA E ROUTING DO GATEWAY ---
-Client -- Gateway_IF
-Gateway_IF - Gateway
-Gateway ..> Eureka 
-
-Gateway --> IF_Auth
-Gateway --> IF_Aircraft
-Gateway --> IF_Airport
-Gateway --> IF_Flight
-Gateway --> IF_Maint
-Gateway --> IF_Route
-
-' --- LIGAÇÕES DIRETAS DAS INTERFACES AOS SERVIÇOS ---
-IF_Auth -- AuthService
-IF_Aircraft -- AircraftService
-IF_Airport -- AirportService
-IF_Flight -- FlightService
-IF_Maint -- MaintService
-IF_Route -- RouteService
-
-' --- DEPENDÊNCIAS REST INTER-SERVIÇOS (RestClient) ---
-
-' 1. Validações do Flight Service
-FlightService ..> RouteService
-FlightService ..> AircraftService
-FlightService ..> AirportService
-
-' 2. Validações do Route Service
-RouteService ..> AirportService
-
-' 3. Validações do Maintenance Service
-MaintService ..> AircraftService
-
-' 4. Dependências do Aircraft Service
-AircraftService ..> FlightService
-AircraftService ..> RouteService
-
-' 5. Dependências do Airport Service
-AirportService ..> RouteService
+legend bottom left
+  Lollipop = REST interface provided | socket = interface required by the gateway
+  Dashed arrow = HTTP/REST call between components (resolved through Eureka)
+  forward GET = instance asks its clone when the resource is not in its own H2
+  * maintenance forwards with service id "aircraft-service" (bug): the lookup reaches Aircraft, not the clone
+  Airport, Flight, Route and Auth have no forwarding wired: data held only by the other clone returns 404
+endlegend
 
 @enduml

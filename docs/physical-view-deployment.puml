@@ -1,0 +1,110 @@
+@startuml
+title Physical View (Deployment) - AISafe Flight Management System
+
+left to right direction
+skinparam nodesep 30
+skinparam ranksep 50
+
+node "Client workstation" as ClientHost {
+    artifact "Postman\n(AISafe-Global-System collection)" as Postman
+}
+
+node "Docker host (docker compose up -d --build)" as Host {
+
+    node "Compose network (default bridge)" as Net {
+
+        node "discovery-node1\n<<container>>\nhost 8761 -> 8761" as DN1 {
+            artifact "discovery-service.jar\nprofile node1" as DA1
+        }
+        node "discovery-node2\n<<container>>\nhost 8762 -> 8762" as DN2 {
+            artifact "discovery-service.jar\nprofile node2" as DA2
+        }
+
+        node "api-gateway\n<<container>>\nhost 7979 -> 7979 (HTTPS)" as GWN {
+            artifact "APIgateway.jar\nsidis-keystore.p12" as GWA
+        }
+
+        node "auth-service\n<<container>>\nhost 8101 -> 8101" as AUN {
+            artifact "auth-service.jar" as AUA
+            database "H2 (in-memory)" as AUDB
+        }
+
+        node "aircraft-service\n<<container>>\nhost 8081 -> 8081" as ACN {
+            artifact "aircraft-service.jar" as ACA
+            database "H2 aircrafttestdb" as ACDB
+        }
+
+        node "airport-service\n<<container>>\nhost 8091 -> 8091" as APN {
+            artifact "airport-service.jar" as APA
+            database "H2 airporttestdb" as APDB
+        }
+
+        node "flight-service\n<<container>>\nhost 8111 -> 8111" as FLN {
+            artifact "flight-service.jar" as FLA
+            database "H2 flighttestdb" as FLDB
+        }
+
+        node "maintenance-service\n<<container>>\nhost 8121 -> 8121" as MTN {
+            artifact "maintenance-service.jar" as MTA
+            database "H2 (in-memory)" as MTDB
+        }
+
+        node "route-service\n<<container>>\nhost 8131 -> 8131" as RTN {
+            artifact "route-service.jar" as RTA
+            database "H2 routetestdb" as RTDB
+        }
+
+        node "<<extra instance>>\naircraft-service #2\nSERVER_PORT=8082" as ACN2 {
+            artifact "aircraft-service.jar" as ACA2
+            database "H2 (own copy)" as ACDB2
+        }
+
+        node "<<extra instance>>\nmaintenance-service #2\nSERVER_PORT=8122" as MTN2 {
+            artifact "maintenance-service.jar" as MTA2
+            database "H2 (own copy)" as MTDB2
+        }
+    }
+}
+
+' --- CLIENT ---
+Postman --> GWN : HTTPS :7979\nAuthorization: Bearer <JWT>
+
+' --- EUREKA ---
+DN1 <--> DN2 : peer replication (HTTP)
+GWN ..> DN1 : register / fetch registry
+GWN ..> DN2 : register / fetch registry
+
+' --- GATEWAY ROUTING ---
+GWN --> AUN : HTTP lb://auth-service
+GWN --> ACN : HTTP lb://aircraft-service
+GWN --> APN : HTTP lb://airport-service
+GWN --> FLN : HTTP lb://flight-service
+GWN --> MTN : HTTP lb://maintenance-service
+GWN --> RTN : HTTP lb://route-service
+GWN --> ACN2 : HTTP lb:// (round robin)
+GWN --> MTN2 : HTTP lb:// (round robin)
+
+' --- PEER FORWARDING ---
+ACN <..> ACN2 : peer forwarding GET
+MTN2 ..> ACN : peer forwarding GET\n(targets aircraft-service, bug)
+
+note right of Net
+  Each container: eclipse-temurin:21-jre-alpine,
+  memory limit 300M, EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+  = discovery-node1:8761 and discovery-node2:8762.
+  Instances register by IP (prefer-ip-address) and call
+  each other through Eureka, never by fixed host name.
+  Every business call must carry X-Gateway-Secret.
+end note
+
+note bottom of ACN2
+  Extra instances are not declared in docker-compose.yml.
+  Any business service can be cloned the same way:
+  same image, SERVER_PORT set to the next port of its
+  reserved range (aircraft 8081-8090, airport 8091-8100,
+  auth 8101-8110, flight 8111-8120, maintenance 8121-8130,
+  route 8131-8140). Each clone has its own in-memory H2,
+  so data is partitioned between clones.
+end note
+
+@enduml
