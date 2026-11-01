@@ -1,0 +1,65 @@
+@startuml
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 180
+skinparam boxPadding 10
+skinparam participantPadding 10
+skinparam shadowing false
+
+title Sequence Diagram - Scenario 1: Service Registration and Gateway Resolution (As Implemented)
+
+autonumber
+
+participant "aircraft-service\n<<Eureka Client>>" as service
+participant "discovery-node1\n<<Eureka Server>> :8761" as node1
+participant "discovery-node2\n<<Eureka Server>> :8762" as node2
+participant "API Gateway\n<<Eureka Client>>" as gateway
+actor "Client" as client
+
+box "Discovery Service [Containers]" #LightGreen
+    participant node1
+    participant node2
+end box
+
+== Registration ==
+
+service -> node1 : POST /eureka/apps/AIRCRAFT-SERVICE\n(instance info: host/IP, port, status UP)
+activate node1
+node1 --> service : 204 No Content
+node1 -> node2 : replicate registration\n(only if peer URL is reachable)
+deactivate node1
+
+loop every 30 s
+    service -> node1 : PUT /eureka/apps/AIRCRAFT-SERVICE/{instanceId} (heartbeat)
+    node1 --> service : 200 OK
+end
+
+== Registry fetch ==
+
+loop every 30 s
+    gateway -> node1 : GET /eureka/apps/delta
+    node1 --> gateway : registry changes
+    gateway -> gateway : update local registry cache
+end
+
+== Resolution ==
+
+client -> gateway : GET /api/hangar/... (valid token)
+activate gateway
+gateway -> gateway : lb://aircraft-service\n-> pick instance from local cache (round robin)
+alt instance found
+    gateway -> service : GET http://<instance>/api/hangar/...
+    activate service
+    service --> gateway : 200 OK
+    deactivate service
+    gateway --> client : 200 OK
+else no instance in cache yet
+    gateway --[#red]> client : 503 Service Unavailable
+end
+deactivate gateway
+
+== Shutdown ==
+
+service -> node1 : DELETE /eureka/apps/AIRCRAFT-SERVICE/{instanceId}
+node1 -> node2 : replicate cancel
+
+@enduml

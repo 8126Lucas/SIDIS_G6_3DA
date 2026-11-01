@@ -79,6 +79,8 @@ For specific component-level architecture, REST API endpoints, sequence diagrams
 * 📄 [Maintenance Service Documentation](../maintenance-service/docs/README.md)
 * 📄 [Route Service Documentation](../route-service/docs/README.md)
 * 📄 [Auth Service Documentation](../auth-service/docs/README.md)
+* 📄 [API Gateway Documentation](../APIgateway/docs/README.md)
+* 📄 [Discovery Service Documentation](../discovery-service/docs/README.md)
 
 ---
 
