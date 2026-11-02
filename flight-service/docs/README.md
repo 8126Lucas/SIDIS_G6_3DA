@@ -10,16 +10,21 @@ The service is a Spring Boot microservice focused on flight scheduling and route
 
 Current implemented responsibilities:
 
-* Create a scheduled flight using synchronous validations against external services.
-* Query scheduled flights for one aircraft registration.
-* Produce route utilization report grouped by route with flight count.
+* Schedule a flight after synchronous checks against `aircraft-service`, `route-service` and `airport-service` (US212).
+* List all flights and the flights of one aircraft (US213).
+* Produce a route utilization report with the number of flights per route (US229).
+* Increment the route usage counter in `route-service` each time a flight is scheduled.
+* Reject requests that do not come through the API Gateway (`X-Gateway-Secret` filter).
 * Return standardized API errors via `GlobalExceptionHandler`.
 
 Important implementation notes:
 
-* There is optimistic locking on `Flight` via `@Version`.
-* The utilization report currently aggregates `flightCount` per route (not accumulated flight hours).
-* There is no maintenance-service integration in the current code.
+* There is optimistic locking on `Flight` via `@Version`; conflicts map to `409`.
+* Every request (except H2 console and Swagger paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403` (see `domain-and-resilience.md`, section 6).
+* Flights are only created as `SCHEDULED`; there are no endpoints to start, complete or cancel a flight.
+* The utilization report counts flights per route; it does not sum flight hours.
+* Outgoing calls have 2-second timeouts. Several client methods are marked `@Retryable`, but `@EnableRetry` is missing, so they are not retried.
+* There is no `maintenance-service` integration.
 
 ---
 
@@ -27,16 +32,26 @@ Important implementation notes:
 
 | Resource / Parameter | Current Value | Description |
 | :--- | :--- | :--- |
-| Service Port | `8084` | Configured in `application.properties` |
+| Service Port | `8111` | Configured in `application.properties` |
 | API Prefix | `/api/flights` | Base mapping in `FlightController` |
 | Database | `H2 In-Memory` | `jdbc:h2:mem:flighttestdb` |
-| H2 Console Path | `/api/flight/h2-console` | Spring H2 console path |
+| Schema Strategy | `update` | `spring.jpa.hibernate.ddl-auto` |
+| H2 Console Path | `/api/flight/h2-console` | Spring H2 console path (singular `flight`) |
+| Service Registry | `http://localhost:8761/eureka/` | Eureka client registration (`prefer-ip-address=true`); only the first discovery node |
+| Gateway Secret | `sidis-g6-secret` | Hardcoded in `FlightSecurityConfig` and `JwtTokenInterceptor` |
+| Outgoing Call Timeouts | `2000` ms connect / `2000` ms read | `GlobalRestClientConfig` |
 
-External client base URLs configured in code:
+External client base URLs configured in code (resolved through Eureka via the shared `@LoadBalanced` `RestClient.Builder`):
 
+* `aircraft-service`: `http://aircraft-service`
 * `route-service`: `http://route-service`
-* `aircraft-service`: `https://aircraft-service`
 * `airport-service`: `http://airport-service`
+
+All outgoing calls go through `JwtTokenInterceptor`, which adds `X-Gateway-Secret` and forwards the caller's `Authorization: Bearer` header.
+
+API Gateway routing (`https://localhost:7979`):
+
+* `/api/flights/**` is routed to `lb://flight-service` with the `JwtAuthentication` filter, which validates the JWT issued by `auth-service` and adds `X-User-Name` and `X-Gateway-Secret`.
 
 ---
 
@@ -44,13 +59,13 @@ External client base URLs configured in code:
 
 This `docs/` directory is organized as follows:
 
-* `api-specification.md`: Real API contract implemented by controller and services.
-* `domain-and-resilience.md`: Domain model, scheduling rules, exception mapping, and concurrency notes.
+* `api-specification.md`: Real API contract implemented by the controller and services.
+* `domain-and-resilience.md`: Domain model, scheduling rules, integrations, exception mapping, concurrency, and security notes.
 * `architecture/architecture-c4-level3.md`: Component-level architecture aligned with current classes.
 * `architecture/architecture-c4-level3.puml`: PlantUML source of the architecture diagram.
 * `sequence-diagrams/README.md`: Dynamic behavior narrative for read and write flows.
 * `sequence-diagrams/scenario-1-query-flights.puml`: Sequence for read/report flows.
-* `sequence-diagrams/scenario-2-schedule-flight.puml`: Sequence for scheduling flow.
+* `sequence-diagrams/scenario-2-schedule-flight.puml`: Sequence for the scheduling flow.
 
 ---
 
@@ -62,9 +77,19 @@ Run locally:
 ./mvnw spring-boot:run
 ```
 
-Open H2 console:
+Call the API through the gateway (requires a token from `POST /api/auth/login` in `auth-service`):
 
-* URL: `http://localhost:8084/api/flight/h2-console`
+```bash
+curl -k -H "Authorization: Bearer <token>" https://localhost:7979/api/flights
+```
+
+Calling `http://localhost:8111/api/...` directly without `X-Gateway-Secret` returns `403` (`"Unauthorized Access! Please use the API Gateway!"`).
+
+Open H2 console (exempt from the gateway secret filter):
+
+* URL: `http://localhost:8111/api/flight/h2-console`
 * JDBC URL: `jdbc:h2:mem:flighttestdb`
 * User: `sa`
 * Password: empty
+
+There is no Swagger UI: `springdoc-openapi` is not a dependency of this service.

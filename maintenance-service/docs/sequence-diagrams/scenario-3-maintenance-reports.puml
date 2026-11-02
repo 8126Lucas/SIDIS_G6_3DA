@@ -82,24 +82,27 @@ record_repo --> alert_svc : List<MaintenanceRecord>
 
 alert_svc -> aircraft_client : findAll()
 activate aircraft_client
-aircraft_client -> interceptor : GET /api/hangar/aircraft
+aircraft_client -> interceptor : GET /api/hangar/aircraft?size=1000
 activate interceptor
-interceptor -> aircraft_api : GET /api/hangar/aircraft\n(+ X-Gateway-Secret, Authorization)
+interceptor -> aircraft_api : GET /api/hangar/aircraft?size=1000\n(+ X-Gateway-Secret, Authorization)
 activate aircraft_api
-aircraft_api --> interceptor : AircraftResponse[] (JSON array, first page)
+aircraft_api --> interceptor : AircraftResponse[] (JSON array)
 deactivate aircraft_api
 interceptor --> aircraft_client : response
 deactivate interceptor
-aircraft_client -> aircraft_client : body(AircraftClientDTO.class)\n(array into single object)
-aircraft_client -[#red]> exception_handler : deserialization error (not HttpClientErrorException, not caught)
+aircraft_client --> alert_svc : List<AircraftClientDTO>\n(empty list on 4xx)
 deactivate aircraft_client
+
+loop each aircraft
+    alert_svc -> alert_svc : last COMPLETED record by endDate\nreasons: none / days >= threshold / flight hours >= threshold
+end
+alert_svc --> controller : List<MaintenanceAlert>
 deactivate alert_svc
-activate exception_handler
-exception_handler --> client : 500 Internal Server Error (ErrorDetails JSON)
-deactivate exception_handler
+controller --> gateway : 200 OK (MaintenanceAlertResponse[])
+gateway --> client : 200 OK Response
 deactivate controller
 deactivate gateway
 
-note over alert_svc, aircraft_api : Intended logic (not reached): for each aircraft, find the last COMPLETED record,\nalert if none, if days since endDate >= threshold, or if totalFlightHours >= threshold.\nWith the current AircraftClientDTO, aircraftRegistration would also be null (field is registrationNumber).
+note over aircraft_client, aircraft_api : Client calls: 2 s timeouts, @Retryable (3 attempts); other errors end in 500.\nAn aircraft with totalFlightHours = null makes the comparison throw (500).
 
 @enduml

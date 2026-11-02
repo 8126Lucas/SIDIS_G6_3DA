@@ -30,7 +30,7 @@ end box
 
 client -> gateway : GET /api/routes/export/geojson\n(or /export/kml)
 activate gateway
-gateway -> controller : Forward request
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> export_uc : exportAsGeoJson() / exportAsKml()
@@ -48,15 +48,15 @@ loop for each route
     export_uc -> export_uc : origin / destination AirportLocation\n-> LineString (lon, lat)
 end
 
-alt every route has AirportLocation
+alt every route has AirportLocation with coordinates (seeded routes do)
     export_uc --> controller : GeoJSON FeatureCollection / KML Document (String)
     deactivate export_uc
     controller --> gateway : 200 OK (application/geo+json\nor application/vnd.google-earth.kml+xml)
     gateway --> client : 200 OK Response
-else a route has no AirportLocation (all seeded routes)
-    export_uc -[#red]> exception_handler : NullPointerException
+else a route has no location / coordinates
+    export_uc -[#red]> exception_handler : GeoJSON: IllegalStateException\nKML: NullPointerException
     activate exception_handler
-    exception_handler --> client : 500 Internal Server Error (ErrorDetails JSON)
+    exception_handler --> client : GeoJSON: 409 Conflict / KML: 500 Internal Server Error
     deactivate exception_handler
 end
 deactivate controller
@@ -66,7 +66,7 @@ deactivate gateway
 
 client -> gateway : GET /api/routes/total-distance
 activate gateway
-gateway -> controller : Forward request
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> route_uc : calculateTotalRouteDistance()

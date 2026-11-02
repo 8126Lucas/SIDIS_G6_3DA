@@ -1,0 +1,34 @@
+@startuml
+skinparam linetype polyline
+skinparam nodesep 60
+skinparam ranksep 70
+skinparam shadowing false
+skinparam componentStyle uml2
+
+title Registry Topology - Discovery Service (As Implemented)
+
+package "Discovery Service [Container x2]" {
+    component "discovery-node1\n<<Eureka Server>>\nprofile node1 :8761" as node1
+    component "discovery-node2\n<<Eureka Server>>\nprofile node2 :8762" as node2
+}
+
+component "API Gateway\n<<Eureka Client>>" as gateway
+component "auth / aircraft / maintenance\n<<Eureka Clients>>\ndefaultZone: 8761, 8762" as clients_both
+component "airport / route / flight\n<<Eureka Clients>>\ndefaultZone: 8761 only (local)" as clients_one
+
+node1 <--> node2 : "Peer replication\n(register + fetch)\n[HTTP]\nlocalhost only: not working in Docker"
+
+gateway --> node1 : "Register, heartbeat,\nfetch registry"
+gateway ..> node2 : "Failover"
+
+clients_both --> node1 : "Register, heartbeat,\nfetch registry"
+clients_both ..> node2 : "Failover"
+
+clients_one --> node1 : "Register, heartbeat,\nfetch registry"
+
+note bottom of clients_one
+  In Docker Compose all clients receive both
+  nodes via EUREKA_CLIENT_SERVICEURL_DEFAULTZONE.
+end note
+
+@enduml

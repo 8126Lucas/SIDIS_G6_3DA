@@ -15,40 +15,43 @@ System_Ext(postman, "API Client (Postman)", "Tool used to simulate HTTP/REST req
 System_Boundary(aisafe_boundary, "AISafe Flight Management System") {
 
     ' Entry Point & Infrastructure
-    Container(api_gateway, "API Gateway", "Spring Cloud Gateway (WebFlux)", "Single entry point on port 8443.\nRoutes external HTTPS requests to internal microservices.")
-    Container(discovery_service, "Discovery Service", "Spring Cloud Netflix Eureka", "Service registry on port 8761\nfor dynamic service lookup and load balancing.")
+    Container(api_gateway, "API Gateway", "Spring Cloud Gateway (WebFlux)", "Single entry point on port 7979 (HTTPS).\nValidates the JWT and routes requests through Eureka.")
+    Container(discovery_service, "Discovery Service", "Spring Cloud Netflix Eureka", "Two peer nodes on ports 8761 and 8762\nfor service registry and load balancing.")
 
     ' Security / Auth
-    Container(auth_service, "Auth Service", "Java 21, Spring Boot Security, JWT", "Handles user authentication, JWT token issuance,\nand user management on port 8101.")
-    ContainerDb(auth_db, "Auth DB", "H2 In-Memory", "Stores user accounts and security credentials.")
+    Container(auth_service, "Auth Service", "Java 21, Spring Boot Security, JWT", "Authenticates collaborators and issues JWTs on port 8101.")
+    ContainerDb(auth_db, "Auth DB", "H2 In-Memory", "Stores collaborators and roles.")
 
     ' Core Business Services
     Container(aircraft_service, "Aircraft Service", "Java 21, Spring Boot Web, JPA", "Manages aircraft models and fleet instances on port 8081.")
-    ContainerDb(aircraft_db, "Aircraft DB", "H2 In-Memory", "Stores aircraft models and operational specifications.")
+    ContainerDb(aircraft_db, "Aircraft DB", "H2 In-Memory", "Stores aircraft models and fleet.")
 
-    Container(airport_service, "Airport Service", "Spring Boot Web, JPA, OpenCSV", "Manages airport registrations, runways,\nand certifications on port 8082.")
+    Container(airport_service, "Airport Service", "Spring Boot Web, JPA, OpenCSV", "Manages airport registrations, runways,\nand certifications on port 8091.")
     ContainerDb(airport_db, "Airport DB", "H2 In-Memory", "Stores airport profiles and runway data.")
 
     Container(maintenance_service, "Maintenance Service", "Java 21, Spring Boot Web, JPA", "Manages maintenance records, templates,\nand checklists on port 8121.")
-    ContainerDb(maintenance_db, "Maintenance DB", "H2 In-Memory", "Stores maintenance templates and log entries.")
+    ContainerDb(maintenance_db, "Maintenance DB", "H2 In-Memory", "Stores maintenance templates and records.")
 
-    Container(route_service, "Route Service", "Spring Boot Web, JPA", "Manages flight route definitions and distance history on port 8086.")
-    ContainerDb(route_db, "Route DB", "H2 In-Memory", "Stores flight routes and network distance details.")
+    Container(route_service, "Route Service", "Spring Boot Web, JPA", "Manages flight routes and their history on port 8131.")
+    ContainerDb(route_db, "Route DB", "H2 In-Memory", "Stores flight routes and network distances.")
 
-    Container(flight_service, "Flight Operations Service", "Spring Boot Web", "Handles flight scheduling, route assignments,\nand real-time operations on port 8084.")
+    Container(flight_service, "Flight Operations Service", "Spring Boot Web, JPA", "Schedules flights and reports route utilization on port 8111.")
+    ContainerDb(flight_db, "Flight DB", "H2 In-Memory", "Stores scheduled flights.")
 }
 
-' External Client -> Gateway & Auth
-Rel_D(postman, api_gateway, "Sends REST requests\n[HTTPS/JSON]", "Port 8443")
-Rel_R(postman, auth_service, "Authenticates via /auth/login\n[HTTPS/JSON]", "Port 8101")
+' External Client -> Gateway
+Rel_D(postman, api_gateway, "Sends REST requests\n(login on /api/auth/**, Bearer JWT elsewhere)\n[HTTPS/JSON]", "Port 7979")
 
-' API Gateway Routing (Setas direcionadas para baixo com quebra de linha)
-Rel_D(api_gateway, airport_service, "Routes /api/airports/**\n[HTTP]", "Port 8082")
-Rel_D(api_gateway, route_service, "Routes /api/routes/**\n[HTTP]", "Port 8086")
-Rel_D(api_gateway, maintenance_service, "Routes /api/maintenance/**\n[HTTP]", "Port 8121")
-Rel_D(api_gateway, aircraft_service, "Routes /api/hangar/**\n[HTTP]", "Port 8081")
+' API Gateway Routing
+Rel_D(api_gateway, auth_service, "Routes /api/auth/**\n[HTTP]")
+Rel_D(api_gateway, aircraft_service, "Routes /api/hangar/**, /api/catalog/**\n[HTTP + X-Gateway-Secret]")
+Rel_D(api_gateway, airport_service, "Routes /api/airports/**\n[HTTP + X-Gateway-Secret]")
+Rel_D(api_gateway, flight_service, "Routes /api/flights/**\n[HTTP + X-Gateway-Secret]")
+Rel_D(api_gateway, maintenance_service, "Routes /api/maintenance/**\n[HTTP + X-Gateway-Secret]")
+Rel_D(api_gateway, route_service, "Routes /api/routes/**\n[HTTP + X-Gateway-Secret]")
+Rel_U(api_gateway, discovery_service, "Registers & Discovers", "Eureka")
 
-' Service Discovery (Setas direcionadas estritamente para cima)
+' Service Discovery
 Rel_U(auth_service, discovery_service, "Registers & Discovers", "Eureka")
 Rel_U(aircraft_service, discovery_service, "Registers & Discovers", "Eureka")
 Rel_U(airport_service, discovery_service, "Registers & Discovers", "Eureka")
@@ -56,15 +59,22 @@ Rel_U(maintenance_service, discovery_service, "Registers & Discovers", "Eureka")
 Rel_U(route_service, discovery_service, "Registers & Discovers", "Eureka")
 Rel_U(flight_service, discovery_service, "Registers & Discovers", "Eureka")
 
-' Database Connections (Setas direcionadas para as bases de dados)
+' Database Connections
 Rel_D(auth_service, auth_db, "Reads/Writes", "JDBC / H2")
 Rel_D(aircraft_service, aircraft_db, "Reads/Writes", "JDBC / H2")
 Rel_D(airport_service, airport_db, "Reads/Writes", "JDBC / H2")
 Rel_D(maintenance_service, maintenance_db, "Reads/Writes", "JDBC / H2")
 Rel_D(route_service, route_db, "Reads/Writes", "JDBC / H2")
+Rel_D(flight_service, flight_db, "Reads/Writes", "JDBC / H2")
 
-' Inter-Service REST Calls
-Rel_R(maintenance_service, aircraft_service, "Validates aircraft status via RestClient\n[HTTPS / AIRCRAFT-SERVICE]")
-Rel_D(aircraft_service, flight_service, "Queries flight metrics via RestClient\n[HTTPS / FLIGHT-SERVICE]")
+' Inter-Service REST Calls (RestClient over Eureka, with X-Gateway-Secret)
+Rel_R(maintenance_service, aircraft_service, "Aircraft checks, model names, alerts\n[HTTP]")
+Rel(aircraft_service, flight_service, "Flights for rankings and fuel metrics\n[HTTP]")
+Rel(aircraft_service, route_service, "Routes for compatibility and fuel metrics\n[HTTP]")
+Rel(flight_service, aircraft_service, "Aircraft and model for scheduling\n[HTTP]")
+Rel(flight_service, route_service, "Route checks and usage update\n[HTTP]")
+Rel(flight_service, airport_service, "Airport status\n[HTTP]")
+Rel(route_service, airport_service, "Airport status and location\n[HTTP]")
+Rel(airport_service, route_service, "Routes per airport\n[HTTP]")
 
 @enduml

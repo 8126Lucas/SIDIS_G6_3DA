@@ -31,7 +31,7 @@ end box
 client -> gateway : GET /api/flights/aircraft/{registrationNumber}
 activate gateway
 
-gateway -> controller : Forward GET /api/flights/aircraft/{registrationNumber}
+gateway -> controller : Forward GET /api/flights/aircraft/{registrationNumber}\n(+ X-Gateway-Secret, X-User-Name; checked by gatewaySecretFilter)
 activate controller
 
 controller -> route_svc : getScheduledFlightsForAircraft(registrationNumber)
@@ -62,7 +62,7 @@ deactivate gateway
 client -> gateway : GET /api/flights/reports/route-utilization
 activate gateway
 
-gateway -> controller : Forward GET /api/flights/reports/route-utilization
+gateway -> controller : Forward GET /api/flights/reports/route-utilization\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> report_svc : getRouteUtilizationReport()
@@ -76,9 +76,9 @@ activate db
 db --> repo : List<Flight> entities
 deactivate db
 
-report_svc --> report_svc : Group by route and count flights
-repo --> report_svc : RouteUtilizationReport data
+repo --> report_svc : List<Flight>
 deactivate repo
+report_svc -> report_svc : group by route, count flights,\nsort by count desc, route name asc
 
 report_svc --> controller : Report DTO list
 deactivate report_svc
@@ -89,12 +89,30 @@ deactivate controller
 gateway --> client : 200 OK Response
 deactivate gateway
 
-== Exception Handling Flow (Alternative Path) ==
+== Flow C: All Flights ==
 
-note over controller, exception_handler : If invalid input or unhandled exception occurs
-controller -[#red]> exception_handler : Throws Exception / DomainException
-activate exception_handler
-exception_handler --> client : 400 / 409 / 500 (ErrorDetails JSON)
-deactivate exception_handler
+client -> gateway : GET /api/flights
+activate gateway
+gateway -> controller : Forward GET /api/flights\n(+ X-Gateway-Secret, X-User-Name)
+activate controller
+controller -> repo : flightSearchService.findAll()
+activate repo
+repo -> db : SELECT * FROM company_flights
+db --> repo : List<Flight> entities
+repo --> controller : List<Flight>
+deactivate repo
+controller --> gateway : 200 OK (FlightResponse[])
+deactivate controller
+gateway --> client : 200 OK Response
+deactivate gateway
+
+== Rejected Requests ==
+
+client -> gateway : request without a valid Bearer token
+activate gateway
+gateway --[#red]> client : 401 Unauthorized (empty body)
+deactivate gateway
+
+note over controller, exception_handler : A direct call to port 8111 without X-Gateway-Secret is stopped by\ngatewaySecretFilter with 403 (plain text) before the controller runs.
 
 @enduml

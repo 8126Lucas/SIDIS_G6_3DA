@@ -14,12 +14,12 @@ participant "API Gateway\n<<Gateway>>" as gateway
 participant "FlightController\n<<REST Controller>>" as controller
 participant "AircraftSearchService\n<<Application Service>>" as aircraft_search
 participant "RouteService\n<<UseCase>>" as route_svc
-participant "Route Service\n<<External Microservice>>" as route_api
-participant "Aircraft Service\n<<External Microservice>>" as aircraft_svc
-participant "Airport Service\n<<External Microservice>>" as airport_svc
 participant "FlightRepository\n<<JPA Repository>>" as repo
 database "H2 Database\n<<In-Memory DB>>" as db
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
+participant "Aircraft Service\n<<External Microservice>>" as aircraft_svc
+participant "Route Service\n<<External Microservice>>" as route_api
+participant "Airport Service\n<<External Microservice>>" as airport_svc
 
 box "Flight Operations Service [Container]" #LightBlue
     participant controller
@@ -29,74 +29,67 @@ box "Flight Operations Service [Container]" #LightBlue
     participant exception_handler
 end box
 
-== Flight Scheduling & External Validation Flow ==
-
-client -> gateway : POST /api/flights/scheduled\n(routeId, aircraftRegistrationNumber, scheduled times)
+client -> gateway : POST /api/flights/scheduled\n(routeId, aircraftRegistrationNumber, scheduledDeparture, scheduledArrival)
 activate gateway
-
-gateway -> controller : Forward POST /api/flights/scheduled
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
+
+note over controller, airport_svc : Every outgoing call goes through JwtTokenInterceptor (+ X-Gateway-Secret, Authorization)\nwith 2 s timeouts; @Retryable is present but inactive (no @EnableRetry).
 
 controller -> aircraft_search : spotAircraftInHangar(registration)
 activate aircraft_search
-
 aircraft_search -> aircraft_svc : GET /api/hangar/aircraft/{registration}
-activate aircraft_svc
-aircraft_svc --> aircraft_search : 200 OK (Aircraft details)
-deactivate aircraft_svc
-
+aircraft_svc --> aircraft_search : AircraftResponse (status, modelName, meanRange, ...) or 404
 aircraft_search --> controller : Optional<AircraftClientDTO>
+controller -> aircraft_search : spotAircraftModelInCatalog(modelName)
+aircraft_search -> aircraft_svc : GET /api/catalog/{modelName}
+aircraft_svc --> aircraft_search : ModelResponse (specs) or 404
+aircraft_search --> controller : Optional<AircraftModelDTO>
 deactivate aircraft_search
 
-controller -> route_svc : scheduleFlight(routeId, aircraft, departure, arrival)
-activate route_svc
-
-' External REST Validations
-group External REST Validations [RestClient]
-    route_svc -> route_api : GET /api/routes/{routeId}
-    activate route_api
-    route_api --> route_svc : 200 OK (Route details)
-    deactivate route_api
-
-    route_svc -> airport_svc : GET /api/airports/{originIata}
-    activate airport_svc
-    airport_svc --> route_svc : 200 OK (Origin airport)
-    deactivate airport_svc
-
-    route_svc -> airport_svc : GET /api/airports/{destinationIata}
-    activate airport_svc
-    airport_svc --> route_svc : 200 OK (Destination airport)
-    deactivate airport_svc
-end
-
-' Domain Rules & Persistence
-route_svc -> route_svc : Validate dates, route status, airports,\naircraft availability, range, and local overlap
-
-alt Validation Successful
-    route_svc -> route_api : PATCH /api/routes/{routeId} (route usage update)
-
-    route_svc -> repo : save(flightEntity)
-    activate repo
-    repo -> db : INSERT INTO company_flights
-    activate db
-    db --> repo : Saved Flight Entity
-    deactivate db
-    repo --> route_svc : Flight Entity
-    deactivate repo
-
-    route_svc --> controller : Scheduled Flight entity
-    controller --> gateway : 201 Created (Flight JSON Payload)
-    gateway --> client : 201 Created Response
-else Business Rule Validation Failed
-    route_svc -[#red]> exception_handler : throw DomainException(...)
+alt aircraft or model not found
+    controller -[#red]> exception_handler : throw DomainException("Aircraft does not exist")
     activate exception_handler
-    exception_handler --> controller : Error Response Payload
-    controller --> gateway : 409 Conflict
-    deactivate controller
-    gateway --> client : 409 Conflict (ErrorDetails JSON)
+    exception_handler --> client : 409 Conflict (ErrorDetails JSON)
     deactivate exception_handler
+else found
+    controller -> route_svc : scheduleFlight(routeId, model, aircraft, departure, arrival)
+    activate route_svc
+
+    route_svc -> route_api : GET /api/routes/{routeId}
+    route_api --> route_svc : RouteResponse (409 -> DomainException "Route does not exist")
+    route_svc -> airport_svc : GET /api/airports/{originIata}
+    airport_svc --> route_svc : AirportResponse (4xx -> DomainException "Airport does not exist")
+    route_svc -> airport_svc : GET /api/airports/{destinationIata}
+    airport_svc --> route_svc : AirportResponse
+
+    route_svc -> route_svc : validateFlightSchedule: dates, route ACTIVE, airports OPERATIONAL,\naircraft AVAILABLE, range, capacity
+    route_svc -> repo : exists overlapping flight for the aircraft? (last check)
+    repo --> route_svc : boolean
+
+    alt a rule fails
+        route_svc -[#red]> exception_handler : throw DomainException(...)
+        activate exception_handler
+        exception_handler --> client : 409 Conflict (ErrorDetails JSON)
+        deactivate exception_handler
+    else all rules pass
+        route_svc -> route_api : PATCH /api/routes/{routeId}\n(same destination, flight time, status; history with routeUsage + 1)
+        route_api --> route_svc : 200 OK
+        route_svc -> repo : save(new Flight(SCHEDULED))
+        activate repo
+        repo -> db : INSERT INTO company_flights
+        db --> repo : Flight
+        repo --> route_svc : Flight
+        deactivate repo
+        route_svc --> controller : Flight
+        controller --> gateway : 201 Created (FlightResponse)
+        gateway --> client : 201 Created Response
+    end
+    deactivate route_svc
 end
-deactivate route_svc
+deactivate controller
 deactivate gateway
+
+note right of route_svc : The route usage is patched before the flight is saved\nand is not rolled back if the save fails.
 
 @enduml

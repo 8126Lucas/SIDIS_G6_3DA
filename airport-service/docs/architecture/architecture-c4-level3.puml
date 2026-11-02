@@ -13,12 +13,14 @@ component "Route Service\n<<Microservice>>" as route_service
 component "Flight Service\n<<Microservice>>" as flight_service
 
 package "Airport Service [Container]" {
+    component "AirportSecurityConfig\n<<SecurityFilterChain + gatewaySecretFilter>>" as security_filter
     component "AirportController\n<<Spring REST Controller>>" as airport_controller
 
     component "AirportService\n<<UseCase>>" as airport_uc
     component "AirportCsvService\n<<Spring Service>>" as csv_svc
 
-    component "RouteRestClientService\n<<RestClient Adapter>>" as route_client
+    component "RouteRestClientService\n<<RestClient Adapter>>\n@Retryable (inactive)" as route_client
+    component "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>\n(shared builder, 2 s timeouts)" as jwt_interceptor
 
     component "Bootstrap\n<<ApplicationRunner>>" as bootstrapper
 
@@ -36,16 +38,17 @@ package "Airport Service [Container]" {
     component "ErrorDetails\n<<DTO Payload>>" as error_details
 }
 
-api_gateway --> airport_controller : "Routes /api/airports/**\n[HTTPS/JSON]"
-flight_service --> airport_controller : "GET /api/airports/{iataCode}"
-route_service --> airport_controller : "GET /api/airports/{iataCode}"
+api_gateway --> security_filter : "Routes /api/airports/**\n(JWT validated, X-Gateway-Secret added)\n[HTTP/JSON]"
+flight_service --> security_filter : "GET /api/airports/{iataCode}\n(X-Gateway-Secret)"
+route_service --> security_filter : "GET /api/airports/{iataCode}\n(X-Gateway-Secret)"
+security_filter --> airport_controller : "secret OK"
 
 airport_controller --> airport_uc : "register, queries, updates,\ncertifications, analytics"
 airport_controller --> csv_svc : "POST /import (parse)"
 airport_controller ..> airport_uc : "execute(airport) per CSV row"
 
 airport_uc --> airport_repo : "findByIataCode / Specification / save"
-airport_uc --> route_client : "routes from airport / all routes"
+airport_uc --> route_client : "all routes"
 bootstrapper --> airport_repo : "Seeds airports"
 
 airport_repo --> airport_entity : "Manages persistence"
@@ -61,6 +64,7 @@ airport_repo <--> airport_db : "company_registered_airports\n[JDBC/JPA]"
 
 exception_handler --> error_details : "Constructs and returns"
 
-route_client --> route_service : "HTTP RestClient"
+route_client --> jwt_interceptor : "outgoing request"
+jwt_interceptor --> route_service : "HTTP RestClient\n(X-Gateway-Secret, Authorization)"
 
 @enduml

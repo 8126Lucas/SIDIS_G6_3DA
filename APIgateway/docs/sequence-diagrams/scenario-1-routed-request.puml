@@ -1,0 +1,77 @@
+@startuml
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 180
+skinparam boxPadding 10
+skinparam participantPadding 10
+skinparam shadowing false
+
+title Sequence Diagram - Scenario 1: Routed Request through the API Gateway (As Implemented)
+
+autonumber
+
+actor "Client / Postman" as client
+participant "Route Predicates\n<<application.properties>>" as routes
+participant "JwtAuthenticationGatewayFilterFactory\n<<GatewayFilter>>" as jwt_filter
+participant "Spring Cloud LoadBalancer" as load_balancer
+participant "Discovery Service\n<<Eureka>>" as eureka
+participant "Target Service\n(auth-service / aircraft-service)" as service
+
+box "API Gateway [Container]" #LightYellow
+    participant routes
+    participant jwt_filter
+    participant load_balancer
+end box
+
+== Public route ==
+
+client -> routes : POST https://localhost:7979/api/auth/login
+activate routes
+routes -> load_balancer : route auth-service (no filter)
+activate load_balancer
+load_balancer -> eureka : instances of auth-service\n(cached registry)
+eureka --> load_balancer : instance list
+load_balancer -> service : POST http://<instance>/api/auth/login
+activate service
+service --> load_balancer : 200 OK { "token": "..." }
+deactivate service
+load_balancer --> client : 200 OK
+deactivate load_balancer
+deactivate routes
+
+== Protected route ==
+
+client -> routes : GET /api/hangar/analytics/status-summary\nAuthorization: Bearer <token>
+activate routes
+routes -> jwt_filter : route aircraft-service (JwtAuthentication)
+activate jwt_filter
+
+alt Authorization missing or not "Bearer "
+    jwt_filter --[#red]> client : 401 Unauthorized (empty body)
+else Bearer token present
+    jwt_filter -> jwt_filter : Jwts.parser().setSigningKey(secret)\n.parseClaimsJws(token)
+    alt invalid signature / expired / malformed
+        jwt_filter --[#red]> client : 401 Unauthorized (empty body)
+    else valid
+        jwt_filter -> jwt_filter : add X-User-Name = sub\nadd X-Gateway-Secret = sidis-g6-secret
+        jwt_filter -> load_balancer : lb://aircraft-service
+        activate load_balancer
+        load_balancer -> eureka : instances of aircraft-service\n(cached registry)
+        eureka --> load_balancer : instance list
+        alt no instance registered
+            load_balancer --[#red]> client : 503 Service Unavailable
+        else instance available (round robin)
+            load_balancer -> service : GET http://<instance>/api/hangar/analytics/status-summary
+            activate service
+            service --> load_balancer : 200 OK (JSON)
+            deactivate service
+            load_balancer --> client : 200 OK
+        end
+        deactivate load_balancer
+    end
+end
+deactivate jwt_filter
+deactivate routes
+
+note over jwt_filter : The roles claim is not read:\nany valid token can call any protected route.
+
+@enduml

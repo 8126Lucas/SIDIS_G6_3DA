@@ -105,9 +105,9 @@ Scenario 3 describes flows that depend on other microservices:
 
 Note:
 
-* `GET /api/flights` is not exposed by `flight-service` in the current code; the resulting `RestClient` error is returned as `500`.
-* Even with that endpoint, `FlightClientDTO.aircraftRegistration` does not match `flight-service`'s `aircraftRegistrationNumber`, so the aircraft lookups would miss and the average would be `0.0`.
-* Flow A now reads capacity from `routeRequirements.requiredCapacity`; `originAirportIata` and `destinationAirportIata` are still `null` in the response.
+* `FlightClientDTO` maps `aircraftRegistrationNumber` through `@JsonAlias`, so aircraft lookups by registration work.
+* Every client call has a 2-second timeout and up to 3 attempts; after that the error is returned as `500`.
+* Flow A reads capacity from `routeRequirements.requiredCapacity`; `originAirportIata` and `destinationAirportIata` are still `null` in the response.
 
 ---
 
@@ -124,4 +124,4 @@ Note:
 | `IllegalStateException` | `409 Conflict` |
 | `Exception` | `500 Internal Server Error` |
 
-Optimistic locking exists (`@Version` on `Aircraft`) and conflicts map to `409`. Downstream `RestClient` failures are not handled separately (`500`). The `403` from `gatewaySecretFilter` and the `401` from the gateway are not `ErrorDetails` payloads.
+Optimistic locking exists (`@Version` on `Aircraft`) and conflicts map to `409`. Downstream `RestClient` calls have 2-second timeouts and are retried up to 3 times; after that they are not handled separately (`500`). The `403` from `gatewaySecretFilter` and the `401` from the gateway are not `ErrorDetails` payloads.

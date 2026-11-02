@@ -11,21 +11,22 @@ The service is a Spring Boot microservice focused on the company route network (
 Current implemented responsibilities:
 
 * Create routes between two operational airports validated through `airport-service`.
-* Update a route's destination, estimated flight time, and status.
+* Update a route's destination, estimated flight time, status, and history (used by `flight-service` to count route usage).
 * Query routes by id, by origin airport, and by origin/destination filters.
 * List active routes sorted by popularity or distance, and find routes for the same origin/destination pair.
 * Calculate the total distance of the route network.
 * Export the route network as GeoJSON and KML (US228).
+* Reject requests that do not come through the API Gateway (`X-Gateway-Secret` filter).
 * Return standardized API errors via `GlobalExceptionHandler`.
 
 Important implementation notes:
 
-* There is optimistic locking on `Route` via `@Version`.
-* `POST /api/routes` cannot currently succeed against the real `airport-service`: the airport DTO does not match its response and the request ends in `500` (see `domain-and-resilience.md`, section 4).
+* There is optimistic locking on `Route` via `@Version`; conflicts map to `409`.
 * Routes created through the API always get `distanceKm = 1.0` (hardcoded in the `Route` constructor).
-* The GeoJSON and KML exports fail with `500` on the seeded data, because seeded routes have no airport coordinates.
 * A missing route is reported as `DomainException` (`409 Conflict`), not `404`.
-* `RouteSearchService`, `AircraftRestClientService`, and `FlightRestClientService` exist but are not used by any endpoint.
+* `RouteSearchService`, `AircraftRestClientService`, `FlightRestClientService` and `PeerForwarder` exist but are not used by any endpoint.
+* Every request (except H2 console and Swagger paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403` (see `domain-and-resilience.md`, section 6).
+* Calls to `airport-service` have 2-second timeouts. The client methods are marked `@Retryable`, but `@EnableRetry` is missing, so they are not retried.
 
 ---
 
@@ -38,17 +39,21 @@ Important implementation notes:
 | Database | `H2 In-Memory` | `jdbc:h2:mem:routetestdb` |
 | Schema Strategy | `update` | `spring.jpa.hibernate.ddl-auto` (SQL logging enabled) |
 | H2 Console Path | `/api/routes/h2-console` | Spring H2 console path |
-| Service Registry | `http://localhost:8761/eureka/` | Eureka client registration |
+| Service Registry | `http://localhost:8761/eureka/` | Eureka client registration (`prefer-ip-address=true`); only the first discovery node |
+| Gateway Secret | `sidis-g6-secret` | Hardcoded in `RouteSecurityConfig` and `JwtTokenInterceptor` |
+| Outgoing Call Timeouts | `2000` ms connect / `2000` ms read | `GlobalRestClientConfig` |
 
-External client base URLs configured in code (resolved through Eureka via `@LoadBalanced` `RestClient.Builder`):
+External client base URLs configured in code (resolved through Eureka via the shared `@LoadBalanced` `RestClient.Builder`):
 
 * `airport-service`: `http://airport-service`
-* `aircraft-service`: `https://aircraft-service` (client not used)
+* `aircraft-service`: `http://aircraft-service` (client not used)
 * `flight-service`: `http://flight-service` (client has no methods)
 
-API Gateway routing:
+All outgoing calls go through `JwtTokenInterceptor`, which adds `X-Gateway-Secret` and forwards the caller's `Authorization: Bearer` header.
 
-* `/api/routes/**` is routed to `lb://route-service` by the gateway, so every endpoint of this service is reachable through it.
+API Gateway routing (`https://localhost:7979`):
+
+* `/api/routes/**` is routed to `lb://route-service` with the `JwtAuthentication` filter, which validates the JWT issued by `auth-service` and adds `X-User-Name` and `X-Gateway-Secret`.
 
 ---
 
@@ -75,7 +80,15 @@ Run locally:
 ./mvnw spring-boot:run
 ```
 
-Open H2 console:
+Call the API through the gateway (requires a token from `POST /api/auth/login` in `auth-service`):
+
+```bash
+curl -k -H "Authorization: Bearer <token>" https://localhost:7979/api/routes/active
+```
+
+Calling `http://localhost:8131/api/...` directly without `X-Gateway-Secret` returns `403` (`"Unauthorized Access! Please use the API Gateway!"`).
+
+Open H2 console (exempt from the gateway secret filter):
 
 * URL: `http://localhost:8131/api/routes/h2-console`
 * JDBC URL: `jdbc:h2:mem:routetestdb`

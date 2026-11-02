@@ -28,7 +28,7 @@ The `auth-service` currently exposes two controllers and the following main comp
 * **`GlobalExceptionHandler`**
    * Cross-cutting HTTP error normalization (`ErrorDetails`).
 * **`UseCaseLoggingAdvice`**
-   * AOP logging intended for `@UseCase` classes (pointcut currently matches no class).
+   * AOP logging of `@UseCase` classes (`@within` pointcut); arguments of `@SuppressArgLogging` classes are logged as `[SUPPRESSED]`.
 * **`Bootstrap`**
    * Seeds five collaborators, one per role.
 

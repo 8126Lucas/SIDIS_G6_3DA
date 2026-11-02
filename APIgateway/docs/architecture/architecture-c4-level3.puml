@@ -1,0 +1,37 @@
+@startuml
+skinparam linetype polyline
+skinparam nodesep 60
+skinparam ranksep 70
+skinparam shadowing false
+skinparam componentStyle uml2
+
+title Component Diagram (C4 - Level 3) - API Gateway (As Implemented)
+
+actor "Client / Postman" as client
+component "Discovery Service\n<<Eureka Server>>\n8761 / 8762" as eureka
+component "auth-service" as auth_service
+component "Protected Services\n(aircraft, airport, maintenance,\nroute, flight)" as protected_services
+
+package "API Gateway [Container]" {
+    component "Netty HTTPS Server\n<<sidis-keystore.p12>>\n:7979" as https_server
+    component "Route Definitions\n<<application.properties>>" as routes
+    component "JwtAuthenticationGatewayFilterFactory\n<<GatewayFilterFactory>>" as jwt_filter
+    component "Spring Cloud LoadBalancer\n<<ReactorLoadBalancer>>" as load_balancer
+    component "Eureka Client\n<<@EnableDiscoveryClient>>" as eureka_client
+}
+
+client --> https_server : "HTTPS request"
+https_server --> routes : "Match path predicate"
+
+routes --> load_balancer : "/api/auth/**\n(no filter)"
+routes --> jwt_filter : "/api/hangar, /api/catalog,\n/api/airports, /api/maintenance,\n/api/routes, /api/flights"
+jwt_filter --> load_balancer : "Valid token:\n+ X-User-Name\n+ X-Gateway-Secret"
+jwt_filter --> client : "401 (empty body)"
+
+load_balancer --> eureka_client : "Get instances\nof lb://<service>"
+eureka_client <--> eureka : "Register + fetch registry\n[HTTP]"
+
+load_balancer --> auth_service : "Forward [HTTP]"
+load_balancer --> protected_services : "Forward [HTTP]"
+
+@enduml

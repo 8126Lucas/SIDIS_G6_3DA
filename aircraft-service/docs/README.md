@@ -10,7 +10,7 @@ The service is a Spring Boot microservice focused on the aircraft model catalog 
 
 Current implemented responsibilities:
 
-* Register and update aircraft models in the catalog (US101, US201, US202).
+* Register, update and look up aircraft models in the catalog (US101, US201, US202).
 * Register aircraft instances in the hangar and change their availability (US102, US105).
 * Query aircraft by registration and by filters (model, status, manufacturing date) (US103, US104).
 * Find routes compatible with an aircraft using `route-service` data (US203).
@@ -26,6 +26,8 @@ Important implementation notes:
 * Every request (except H2 console and Swagger UI paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403`. JWT validation happens only in the API Gateway (see `domain-and-resilience.md`, section 7).
 * The utilization view (`/api/hangar/view/utilization`) now has a placeholder `utilization.html` template that does not render the computed data.
 * Some calls to other services target endpoints or fields that are not exposed by those services (see `domain-and-resilience.md`, section 4).
+* Outgoing calls have 2-second timeouts and up to 3 attempts (`@Retryable`, enabled with `@EnableRetry`).
+* `GET /api/hangar/aircraft/{registrationNumber}` asks other instances of the service (`PeerForwarder`) when the aircraft is not in the local database (see `domain-and-resilience.md`, section 6).
 
 ---
 
@@ -39,7 +41,8 @@ Important implementation notes:
 | H2 Console Path | `/api/hangar/h2-console` | Spring H2 console path |
 | OpenAPI Docs | `/api/docs` | springdoc API docs path |
 | Swagger UI | `/api/swagger-ui` | springdoc Swagger UI path |
-| Service Registry | `http://localhost:8761/eureka/` | Eureka client registration |
+| Service Registry | `http://localhost:8761/eureka/,http://localhost:8762/eureka/` | Eureka client registration (both discovery nodes) |
+| Outgoing Call Timeouts | `2000` ms connect / `2000` ms read | `GlobalRestClientConfig` |
 | Gateway Secret | `sidis-g6-secret` | Hardcoded in `AircraftSecurityConfig` and `JwtTokenInterceptor` |
 
 External client base URLs configured in code (resolved through Eureka via `@LoadBalanced` `RestClient.Builder`):

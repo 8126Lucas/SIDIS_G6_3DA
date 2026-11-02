@@ -8,18 +8,22 @@ This document describes the current internal component architecture at C4 Level 
 
 The `route-service` currently exposes one controller and the following main application services:
 
+* **`RouteSecurityConfig`**
+   * Stateless `SecurityFilterChain` with `gatewaySecretFilter`, which rejects requests without `X-Gateway-Secret` (`403`).
 * **`RouteController`** (`/api/routes`)
    * Creation and update (`POST /`, `PATCH /{routeId}`).
    * Queries (`GET /{routeId}`, `GET /{routeId}/history`, `GET /`, `GET /from/{airportIataCode}`, `GET /active`, `GET /alternatives`).
    * Network analytics and export (`GET /total-distance`, `GET /export/geojson`, `GET /export/kml`).
 * **`RouteService`** (`@UseCase`)
-   * Creation rules (IATA format, distinct airports, unique name, operational airports), updates and status transitions, lookups, `Specification`-based search, sorting, and total distance.
+   * Creation rules (IATA format, distinct airports, unique name, operational airports), updates, status transitions and history replacement, lookups, `Specification`-based search, sorting, and total distance.
 * **`RouteExportService`** (`@UseCase`)
    * GeoJSON and KML generation (US228).
 * **`RouteSearchService`**
    * Compatible-route filtering by aircraft capacity and range (not used by any endpoint).
 * **`AirportRestClientService`** / **`AircraftRestClientService`** / **`FlightRestClientService`**
-   * `RestClient` adapters for `airport-service` (used), `aircraft-service` (not injected), and `flight-service` (no methods).
+   * `RestClient` adapters for `airport-service` (used), `aircraft-service` (not injected), and `flight-service` (no methods), built from the shared `GlobalRestClientConfig` builder (2 s timeouts, `JwtTokenInterceptor`). Their `@Retryable` annotations are inactive (no `@EnableRetry`).
+* **`PeerForwarder`**
+   * Forwards a GET to other instances of a service; not used by any controller.
 * **`RouteRepository`**
    * Spring Data JPA persistence with `JpaSpecificationExecutor`.
 * **`GlobalExceptionHandler`**
@@ -45,9 +49,9 @@ PlantUML source file:
 
 ## 3. Data Flow and Dependencies
 
-1. Inbound requests arrive through the API Gateway for `/api/routes/**`.
+1. Inbound requests arrive through the API Gateway for `/api/routes/**`; the gateway validates the JWT and adds `X-Gateway-Secret`, which `gatewaySecretFilter` checks (`403` when missing).
 2. Creation and update go from `RouteController` to `RouteService`, which validates the airports through `AirportRestClientService` and persists through `RouteRepository`.
 3. Read and analytics flows use `RouteService` over `RouteRepository`.
 4. Export flows use `RouteExportService`, which reads all routes and builds the GeoJSON / KML text.
-5. `aircraft-service`, `airport-service`, and `flight-service` call the read endpoints of this service.
+5. `aircraft-service` and `airport-service` call the read endpoints of this service; `flight-service` reads a route and then patches its history when it schedules a flight.
 6. Exceptions are transformed by `GlobalExceptionHandler` into `ErrorDetails` payloads.

@@ -31,17 +31,18 @@ All endpoints additionally return `403` when `X-Gateway-Secret` is missing (and 
 | Method | Endpoint Path | Description | User Story | Status Codes |
 | :--- | :--- | :--- | :--- | :--- |
 | `POST` | `/api/maintenance/templates` | Create a maintenance template | US115 | `200`, `400` |
-| `GET` | `/api/maintenance/templates/{id}` | Get one template | US117 | `200`, `409` |
+| `GET` | `/api/maintenance/templates/{id}` | Get one template | US117 | `200`, `404` |
 | `GET` | `/api/maintenance/templates` | List all templates | US117 | `200` |
 | `POST` | `/api/maintenance/record` | Create a maintenance record for an aircraft | US116 | `200`, `400`, `404`, `500` |
-| `GET` | `/api/maintenance/records/{id}` | Get one record | US119 | `200`, `409` |
-| `PATCH` | `/api/maintenance/records/{id}/status` | Move a record to `ONGOING` | US119 | `200`, `400`, `409` |
-| `PATCH` | `/api/maintenance/records/{id}` | Change the component attribute of a record's template | US217 | `200`, `400`, `409` |
-| `GET` | `/api/maintenance/records` | Search records by aircraft, attribute and dates | US218 | `409`, `500` |
+| `GET` | `/api/maintenance/records/{id}` | Get one record | US119 | `200`, `404` |
+| `PATCH` | `/api/maintenance/records/{id}/status` | Move a record to `ONGOING` | US119 | `200`, `400`, `404` |
+| `PATCH` | `/api/maintenance/records/{id}/complete` | Complete a record | US119 | `200`, `400`, `404`, `409` |
+| `PATCH` | `/api/maintenance/records/{id}` | Change the component attribute of a record's template | US217 | `200`, `400`, `404` |
+| `GET` | `/api/maintenance/records` | Search records by aircraft, attribute and dates | US218 | `200`, `404`, `500` |
 | `GET` | `/api/maintenance/ongoing` | Records in `ONGOING` status | US219 | `200` |
 | `GET` | `/api/maintenance/reports/costs?groupBy=` | Parts cost per aircraft or per model | US220 | `200`, `500` |
 | `GET` | `/api/maintenance/turnaround-average` | Average maintenance days per aircraft model | US221 | `200`, `500` |
-| `GET` | `/api/maintenance/alerts` | Aircraft due for maintenance | US222 | `500` |
+| `GET` | `/api/maintenance/alerts` | Aircraft due for maintenance | US222 | `200`, `500` |
 | `GET` | `/api/maintenance/parts/inventory` | Used parts summary | US226 | `200` |
 | `GET` | `/api/maintenance/parts/low-stock?threshold=` | Parts used at or above a threshold | US226 | `200` |
 | `GET` | `/api/welcome` | Landing message (not routed by the gateway) | — | `200` |
@@ -110,7 +111,7 @@ Both return `MaintenanceTemplateResponse` (single object or JSON array) with the
 
 Note:
 
-* A missing template throws `DomainException("Maintenance Template does not exist")` → `409`, not `404`.
+* When the template is not in the local database, the controller calls `PeerForwarder.forwardGet("aircraft-service", "/api/maintenance/templates/{id}", ...)`. The service id should be `maintenance-service`; with `aircraft-service` it asks the wrong service, the call fails, and the endpoint returns `404` (`"Resource not found in any instance"`).
 
 ---
 
@@ -144,13 +145,13 @@ Execution steps:
 
 1. Controller calls `aircraft-service` `GET /api/hangar/aircraft/{registrationNumber}` → `404` (`"Aircraft does not exist in hangar"`) if it returns `404`.
 2. Controller loads the template → `404` (`"Maintenance Template does not exist"`) if missing.
-3. Controller calls `AddMaintenanceRecordUseCase.executeShort(aircraftDto.aircraftRegistration(), ...)`.
+3. Controller calls `AddMaintenanceRecordUseCase.executeShort(aircraftDto.aircraftRegistration(), ...)` (the registration is mapped from `aircraft-service`'s `registrationNumber`).
 4. The use case looks up the aircraft again and saves a new `MaintenanceRecord` with status `INLINE`.
 
 Notes:
 
-* `AircraftClientDTO` expects `aircraftRegistration`, but `aircraft-service` returns `registrationNumber`, so `aircraftDto.aircraftRegistration()` is always `null`. Step 4 therefore looks up the aircraft with a `null` registration (`GET /api/hangar/aircraft/`), which does not resolve to the single-aircraft endpoint; the downstream error is not caught and the request ends in `500`. If that lookup succeeded, the record would be stored with a `null` `aircraftRegistration`.
-* Only `HttpClientErrorException.NotFound` is caught in `AircraftRestClientService`; any other downstream error (`403`, `5xx`, connection error) becomes `500`.
+* The aircraft is fetched twice from `aircraft-service` (controller and use case).
+* Only `HttpClientErrorException.NotFound` is caught in `AircraftRestClientService`; any other downstream error (`403`, `5xx`, timeout) is retried up to 3 times and then becomes `500`.
 * The endpoint returns `200`, not `201`.
 
 ---
@@ -186,7 +187,7 @@ Notes:
 
 Notes:
 
-* A missing record throws `DomainException("Maintenance Record does not exist")` → `409`.
+* A missing record throws `DomainException("Maintenance Record does not exist")` → `404`.
 * The response does not include `endDate`, `usedParts`, `techniciansUsername`, `supervisorUsername`, or the `doneList`.
 
 ---
@@ -212,15 +213,55 @@ Transition rules (`MaintenanceRecordProgressService.advanceStatus`):
 | Requested Status | Result |
 | :--- | :--- |
 | `ONGOING` | `markAsOngoing()`, saved → `200` |
-| `COMPLETED` | `DomainException("Use the complete endpoint to mark as completed")` → `409` |
-| `INLINE` | `DomainException("Invalid status transition")` → `409` |
+| `COMPLETED` | `DomainException("Use the complete endpoint to mark as completed")` → `404` |
+| `INLINE` | `DomainException("Invalid status transition")` → `404` |
 | Unknown value | `IllegalArgumentException` from `valueOf` → `400` |
 
 Notes:
 
-* There is no "complete endpoint": `completeRecord(...)` exists in the service but no controller method calls it, so records cannot be completed through the API.
+* Rejected transitions return `404` because `DomainException` is mapped to `Not Found`.
 * `markAsOngoing()` has no guard, so a `COMPLETED` record can be moved back to `ONGOING`.
-* A missing record → `409` (`"Maintenance record does not exist"`).
+* A missing record → `404` (`"Maintenance record does not exist"`).
+
+---
+
+### 3.5.1. Complete Record (US119)
+
+* **Endpoint:** `PATCH /api/maintenance/records/{id}/complete`
+* **Request body:** `notes` (text), `tasksDone` (map of task → done flag), `endDate` (ISO date). There are no bean validation annotations.
+
+#### Request Example
+
+```json
+{
+  "notes": "All checks passed",
+  "tasksDone": {
+    "Replace fuel pump": true,
+    "Replace oil filter": true,
+    "Ground engine test": true
+  },
+  "endDate": "2026-11-01"
+}
+```
+
+#### Successful Response (`200 OK`)
+
+The completed record (`MaintenanceRecordResponse`, same shape as section 3.4, with `status: "COMPLETED"`).
+
+Rules (`MaintenanceRecord.markAsCompleted(notes, tasksDone, endDate)`):
+
+| Case | Result |
+| :--- | :--- |
+| Record not found | `404` (`"Maintenance record does not exist"`) |
+| Record already `COMPLETED` | `IllegalStateException` → `409` |
+| `endDate` missing | `IllegalArgumentException` → `400` |
+| `endDate` before `startDate` | `IllegalArgumentException` → `400` |
+
+Notes:
+
+* An `INLINE` record can be completed directly; it does not have to be `ONGOING` first.
+* `tasksDone` is not compared with the template checklist.
+* The response does not include `endDate` or the done list, even though both are stored.
 
 ---
 
@@ -245,7 +286,7 @@ Notes:
 * The attribute is changed on the record's `MaintenanceTemplate`, not on the record, so every record that shares that template changes category.
 * There is no explicit `save`; the change is persisted by dirty checking, because open-session-in-view keeps the template managed across the two service calls.
 * `attribute` is not validated: an empty body or `"attribute": null` sets the template attribute to `null`. An unknown value fails JSON parsing → `400`.
-* A missing record → `409`.
+* A missing record → `404`.
 
 ---
 
@@ -270,15 +311,15 @@ Note:
 ```json
 [
   { "group": "CS-TUA", "totalCost": 6700.0 },
-  { "group": "DA-BXA", "totalCost": 5600.0 },
-  { "group": "FH-XKA", "totalCost": 0.0 }
+  { "group": "D-ABXA", "totalCost": 5600.0 },
+  { "group": "F-HXKA", "totalCost": 0.0 }
 ]
 ```
 
 Notes:
 
 * Any `groupBy` other than `model` (case-insensitive) groups by aircraft.
-* `groupBy=model` calls `aircraft-service` once per record. The model name is `""` when the aircraft is not found; the seeded registrations `DA-BXA` and `FH-XKA` do not exist in `aircraft-service` (it seeds `D-ABXA` and `F-HXKA`), so they are grouped under `""`.
+* `groupBy=model` calls `aircraft-service` once per record. The model name is `""` when the aircraft is not found.
 
 ---
 
@@ -297,9 +338,9 @@ Notes:
 
 Notes:
 
-* The seeded completed records have end dates (2003, 2013, 2023) earlier than their start dates (relative to today), so the seeded averages are large negative numbers.
+* With the seeded data (all completed yesterday, started 10, 5 and 2 days ago) the result is `737-800` → `6.5` (`CS-TUA` 9 days, `D-ABXA` 4 days) and `A320neo` → `1.0` (`F-HXKA`).
 * Unknown aircraft are grouped under `""`.
-* Any non-`404` error from `aircraft-service` ends in `500`.
+* Any non-`404` error from `aircraft-service` is retried up to 3 times and then ends in `500`.
 
 ---
 
@@ -311,25 +352,22 @@ Notes:
   * `attribute`: `MaintenanceAttribute` name.
   * `initialDate`, `finalDate`: ISO dates, compared with `startDate`.
   * `page` (default `0`), `size` (default `10`).
-* **Intended response:** page content as `MaintenanceRecordResponse[]` (no paging metadata).
+* **Response:** page content as `MaintenanceRecordResponse[]` (no paging metadata).
 
 Current behavior:
 
-* When `aircraft` is set, the controller first checks it in `aircraft-service` → `409` (`"Aircraft does not exist"`) if missing.
-* Without `aircraft`, `MaintenanceRecordSearchService` calls `aircraftRegistration.isEmpty()` on `null` → `NullPointerException` → `500`.
-* With `aircraft`, the `Specification` uses `root.get("aircraft")`, but the entity field is `aircraftRegistration`; the query fails and the error is returned as `500`.
-* An unknown `attribute` value also fails inside the `Specification` (`500`).
-
-So the endpoint does not currently return results for any combination of parameters.
+* When `aircraft` is set, the controller first checks it in `aircraft-service` → `404` (`"Aircraft does not exist"`) if missing; then the `Specification` filters on `aircraftRegistration` and the other given filters → `200`.
+* Without `aircraft`, `MaintenanceRecordSearchService` calls `aircraftRegistration.isEmpty()` on `null` → `NullPointerException` → `500`. Searching only by attribute or dates is therefore not possible.
+* An unknown `attribute` value fails inside the `Specification` (`500`).
 
 ---
 
 ### 3.11. Maintenance Alerts (US222)
 
 * **Endpoint:** `GET /api/maintenance/alerts?calendarDaysThreshold=180&flightHoursThreshold=500`
-* **Intended description:** For every aircraft in `aircraft-service`, raise an alert if there is no completed maintenance, if the last completed maintenance is at least `calendarDaysThreshold` days old, or if `totalFlightHours >= flightHoursThreshold`.
+* **Description:** For every aircraft in `aircraft-service`, raise an alert if there is no completed maintenance, if the last completed maintenance is at least `calendarDaysThreshold` days old, or if `totalFlightHours >= flightHoursThreshold`.
 
-#### Intended Response Shape (seeded data, evaluated on 2026-10-29)
+#### Response Example (`200 OK`, seeded data evaluated on 2026-11-01, first entry)
 
 ```json
 [
@@ -337,18 +375,18 @@ So the endpoint does not currently return results for any combination of paramet
     "registrationNumber": "CS-TUA",
     "aircraftModel": "737-800",
     "totalFlightHours": 9800.0,
-    "lastMaintenanceDate": "2003-03-01",
-    "daysSinceLastMaintenance": 8643,
-    "alertReason": "Last maintenance was 8643 days ago (threshold: 180); Total flight hours 9800.0 reached threshold of 500.0"
+    "lastMaintenanceDate": "2026-10-31",
+    "daysSinceLastMaintenance": 1,
+    "alertReason": "Total flight hours 9800.0 reached threshold of 500.0"
   }
 ]
 ```
 
-Current behavior:
+Notes:
 
-* `AircraftRestClientService.findAll()` reads the JSON array returned by `GET /api/hangar/aircraft` into a single `AircraftClientDTO`. The deserialization error is not an `HttpClientErrorException`, so it is not caught and the endpoint always returns `500`.
-* `GET /api/hangar/aircraft` is paged (default size `10`), so even a fixed client would only see the first 10 aircraft.
-* With the current `AircraftClientDTO`, `aircraftRegistration` would be `null` (no record would match) and a `null` `totalFlightHours` would fail the threshold comparison.
+* `AircraftRestClientService.findAll()` calls `GET /api/hangar/aircraft?size=1000`, so only the first 1000 aircraft are checked.
+* A `4xx` from `aircraft-service` returns an empty list (no alerts); other errors are retried up to 3 times and then end in `500`.
+* An aircraft with `totalFlightHours = null` makes the threshold comparison throw (`500`).
 
 ---
 
@@ -400,8 +438,8 @@ Error payload model: `ErrorDetails`
 ```json
 {
   "timestamp": "2026-10-29T12:00:00",
-  "status": 409,
-  "error": "Conflict",
+  "status": 404,
+  "error": "Not Found",
   "message": "Maintenance Record does not exist",
   "path": "/api/maintenance/records/99",
   "validationErrors": null
@@ -416,12 +454,13 @@ Error payload model: `ErrorDetails`
 | `MethodArgumentNotValidException` | `400 Bad Request` (`validationErrors` filled) |
 | `HttpMessageNotReadableException` | `400 Bad Request` |
 | `IllegalArgumentException` | `400 Bad Request` |
-| `DomainException` | `409 Conflict` |
+| `DomainException` | `404 Not Found` |
 | `ObjectOptimisticLockingFailureException` | `409 Conflict` (`"The record was modified by another user."`) |
 | `IllegalStateException` | `409 Conflict` |
 | `Exception` | `500 Internal Server Error` (message is the exception message; stack trace printed) |
 
 Notes:
 
-* There is no dedicated handler for `RestClient` errors from `aircraft-service`; they map to `500`.
+* `DomainException` is used both for missing resources and for business-rule rejections (for example invalid status transitions), so both are reported as `404`.
+* There is no dedicated handler for `RestClient` errors from `aircraft-service`; after the retries they map to `500`.
 * The `403` from the gateway secret filter is written directly by the filter as plain text, not as `ErrorDetails`.

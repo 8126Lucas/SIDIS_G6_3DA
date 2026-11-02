@@ -45,10 +45,11 @@ New records start as `INLINE`.
 | From | To | How |
 | :--- | :--- | :--- |
 | any | `ONGOING` | `PATCH /records/{id}/status` with `ONGOING` |
-| any | `COMPLETED` | Not reachable through the API (`completeRecord(...)` is not exposed) |
-| any | `INLINE` | Rejected (`409`) |
+| `INLINE` / `ONGOING` | `COMPLETED` | `PATCH /records/{id}/complete` (`completeRecord(...)`), with notes, done tasks and end date |
+| `COMPLETED` | `COMPLETED` | Rejected (`IllegalStateException`, `409`) |
+| any | `INLINE` | Rejected (`DomainException`, reported as `404`) |
 
-`updateProgress(...)` (duration and used parts) and `completeRecord(...)` exist in `MaintenanceRecordProgressService` but are not called by any controller. As a result, used parts, technicians, the supervisor, the done list and the end date can only be set by `Bootstrap`.
+`updateProgress(...)` (duration and used parts) exists in `MaintenanceRecordProgressService` but is not called by any controller. As a result, used parts, technicians and the supervisor can only be set by `Bootstrap`.
 
 ## 3. Use Cases
 
@@ -57,13 +58,13 @@ New records start as `INLINE`.
 | `AddMaintenanceTemplateUseCase` (`@UseCase`) | Persist a new template | US115 |
 | `AddMaintenanceRecordUseCase` (`@UseCase`) | Check aircraft in `aircraft-service`, persist a new record | US116 |
 | `MaintenanceTemplateSearchService` | Template lookup and listing | US117 |
-| `MaintenanceRecordProgressService` (`@UseCase`) | Record lookup, `ONGOING` transition, attribute change | US119, US217 |
+| `MaintenanceRecordProgressService` (`@UseCase`) | Record lookup, `ONGOING` and `COMPLETED` transitions, attribute change | US119, US217 |
 | `MaintenanceRecordSearchService` | `Specification`-based record search | US218 |
 | `MaintenanceReportService` (`@UseCase`) | Ongoing list, costs, turnaround average | US219, US220, US221 |
 | `MaintenanceAlertService` (`@UseCase`) | Alerts by days since last maintenance and flight hours | US222 |
 | `PartsInventoryService` (`@UseCase`) | Used parts summary and low-stock alerts | US226 |
 
-Classes annotated with `@UseCase` are `@Service`, `@Validated` and `@Transactional`. `UseCaseLoggingAdvice` is meant to log them (method, arguments, execution time, with `@SuppressArgLogging` to hide arguments), but its pointcut is `within(com.sidis.maintenanceservice.UseCase)`, which matches the annotation type itself instead of classes annotated with it, so no use case is logged. `@SuppressArgLogging` is not used on any class.
+Classes annotated with `@UseCase` are `@Service`, `@Validated` and `@Transactional`. `UseCaseLoggingAdvice` logs their calls (method, arguments, execution time) through the pointcut `@within(com.sidis.maintenanceservice.UseCase)`; `@SuppressArgLogging` would hide the arguments but is not used on any class.
 
 ## 4. External Integrations
 
@@ -73,15 +74,13 @@ Synchronous `RestClient` integration with `aircraft-service` (Eureka load-balanc
 | :--- | :--- | :--- |
 | `findAircraftByRegistration(...)` | `GET /api/hangar/aircraft/{registrationNumber}` | Record creation (twice), record search |
 | `findAircraftModelNameByRegistrationNumber(...)` | same as above, returns `modelName` or `""` | Costs by model, turnaround average |
-| `findAll()` | `GET /api/hangar/aircraft` | Alerts |
+| `findAll()` | `GET /api/hangar/aircraft?size=1000` (JSON array) | Alerts |
 
 `JwtTokenInterceptor` adds `X-Gateway-Secret: sidis-g6-secret` to every outgoing call and copies the incoming `Authorization: Bearer` header, so calls pass `aircraft-service`'s gateway secret filter.
 
-Contract gaps in the current code:
+`AircraftClientDTO` maps `registrationNumber` (as `aircraftRegistration` through `@JsonProperty`), `modelName` and `totalFlightHours`, which matches `aircraft-service`'s response.
 
-* `AircraftClientDTO` expects `aircraftRegistration`, `modelName`, `totalFlightHours`, while `aircraft-service` returns `registrationNumber`, `modelName`, `totalFlightHours` (plus other fields). `aircraftRegistration` is always `null`, which breaks record creation (section 3.3 of `api-specification.md`) and alert matching.
-* `findAll()` deserializes the JSON array from `GET /api/hangar/aircraft` into a single `AircraftClientDTO`; the error is not caught, so alerts always return `500`. That endpoint is also paged (default `10`).
-* Only `HttpClientErrorException.NotFound` (and, in `findAll()`, `HttpClientErrorException`) is caught; other errors propagate as `500`.
+Error handling in the client: `HttpClientErrorException.NotFound` (and, in `findAll()`, any `HttpClientErrorException`) is caught and turned into an empty result; other errors are retried (section 6) and then propagate as `500`.
 
 Inbound consumers of this service:
 
@@ -105,15 +104,27 @@ Optimistic locking:
 Exception handling:
 
 * Centralized by `GlobalExceptionHandler`.
-* `DomainException`, `IllegalStateException` and `ObjectOptimisticLockingFailureException` map to `409 Conflict`.
+* `DomainException` and `ResourceNotFoundException` map to `404 Not Found`.
+* `IllegalStateException` and `ObjectOptimisticLockingFailureException` map to `409 Conflict`.
 * Bean validation, malformed JSON, and `IllegalArgumentException` map to `400 Bad Request`.
-* `ResourceNotFoundException` maps to `404 Not Found` (used only in record creation).
 * Unhandled exceptions map to `500 Internal Server Error`.
+
+Outgoing calls:
+
+* `GlobalRestClientConfig` sets a 2-second connect timeout and a 2-second read timeout on every `RestClient`.
+* `AircraftRestClientService` methods are `@Retryable` (any `Exception`, 3 attempts, backoff 1 s then 2 s); `@EnableRetry` is on `MaintenanceServiceApplication`. Exceptions caught inside a method (`404`, or any `4xx` in `findAll()`) are not retried. There is no `@Recover` method, so after the third failure the error becomes `500`.
+
+Peer forwarding (`PeerForwarder`):
+
+* Used only by `GET /templates/{id}` when the template is not found locally.
+* Asks Eureka for the instances of the given service id, skips the one with the same port as the current instance, and calls the same path on each (with `X-Gateway-Secret` and the caller's `Authorization`); any error is ignored. If none answers, it throws `ResourceNotFoundException` (`404`).
+* The controller passes `aircraft-service` as the service id, so it asks `aircraft-service` for `/api/maintenance/templates/{id}`, which that service does not have.
+* The `RestClient` comes from the `@LoadBalanced` builder, which treats the peer's host name or IP as a service id, so the forwarded call fails even with the right service id.
 
 Current gaps:
 
-* Missing templates and records use `DomainException` (`409`) instead of `ResourceNotFoundException` (`404`).
-* No timeout, retry, or circuit breaker around `RestClient` calls; any downstream failure becomes `500`.
+* `DomainException` is used for both missing resources and rule violations, so rule violations are reported as `404` instead of `409`.
+* No circuit breaker or fallback around `RestClient` calls.
 * Costs by model and turnaround call `aircraft-service` once per record (no caching).
 
 ## 7. Security
@@ -141,13 +152,12 @@ Known weaknesses:
 
 | Template (id) | Operation / Attribute | Record | Aircraft | Status | Used Parts |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `ENGINE-INSPECTION` (1) | `INSPECTION` / `ENGINE` | 1 | `CS-TUA` | `COMPLETED` (end `2003-03-01`) | `ENG-001` ×2 @ 1500 |
-| `LANDING-GEAR-CHECK` (2) | `INSPECTION` / `AIRFRAME` | 2 | `DA-BXA` | `COMPLETED` (end `2013-04-12`) | `TIRE-900` ×4 @ 800, `BRAKE-200` ×2 @ 1200 |
-| `AVIONICS-DIAGNOSTIC` (3) | `INSPECTION` / `AVIONICS` | 3 | `FH-XKA` | `COMPLETED` (end `2023-09-21`) | none |
-| `ENGINE-REPAIR` (4) | `OVERHAUL` / `ENGINE` | 4 | `CS-TUA` | `INLINE` ("In Progress") | `FUEL-PUMP-01` ×1 @ 3200, `OIL-FILTER-22` ×2 @ 250 |
+| `ENGINE-INSPECTION` (1) | `INSPECTION` / `ENGINE` | 1 | `CS-TUA` | `COMPLETED` (start `today - 10`, end `today - 1`) | `ENG-001` ×2 @ 1500 |
+| `LANDING-GEAR-CHECK` (2) | `INSPECTION` / `AIRFRAME` | 2 | `D-ABXA` | `COMPLETED` (start `today - 5`, end `today - 1`) | `TIRE-900` ×4 @ 800, `BRAKE-200` ×2 @ 1200 |
+| `AVIONICS-DIAGNOSTIC` (3) | `INSPECTION` / `AVIONICS` | 3 | `F-HXKA` | `COMPLETED` (start `today - 2`, end `today - 1`) | none |
+| `ENGINE-REPAIR` (4) | `OVERHAUL` / `ENGINE` | 4 | `CS-TUA` | `INLINE` ("In Progress", start `today`) | `FUEL-PUMP-01` ×1 @ 3200, `OIL-FILTER-22` ×2 @ 250 |
 
-Data issues in the seed:
+Notes on the seed:
 
-* Start dates are relative to today (`now - 10`, `now - 5`, `now - 2`, `now`), but the end dates are fixed in the past, so completed records end before they start. The unchecked `markAsCompleted(doneList, endDate)` overload allows it.
-* `DA-BXA` and `FH-XKA` do not exist in `aircraft-service`, which seeds `D-ABXA` and `F-HXKA`.
+* Dates are relative to the start-up day, and the registrations match aircraft seeded by `aircraft-service`.
 * Record 4 is described as "In Progress" but is `INLINE`, so `GET /ongoing` starts empty.

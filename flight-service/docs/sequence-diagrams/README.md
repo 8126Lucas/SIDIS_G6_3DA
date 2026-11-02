@@ -8,10 +8,14 @@ This document describes runtime behavior aligned with the current code implement
 
 ### Description
 
-Scenario 1 contains two read operations currently exposed by `FlightController`:
+Scenario 1 contains the read operations exposed by `FlightController`:
 
-* **Flow A:** `GET /api/flights/aircraft/{registrationNumber}`
-* **Flow B:** `GET /api/flights/reports/route-utilization`
+* **Flow A:** `GET /api/flights/aircraft/{registrationNumber}` (US213)
+* **Flow B:** `GET /api/flights/reports/route-utilization` (US229)
+* **Flow C:** `GET /api/flights`
+* **Rejected requests:** gateway `401`, `gatewaySecretFilter` `403`
+
+In every flow the API Gateway first validates the JWT and forwards the request with `X-Gateway-Secret` and `X-User-Name`; `gatewaySecretFilter` lets it through before the controller runs.
 
 ### Sequence Diagram Source
 
@@ -21,23 +25,19 @@ Scenario 1 contains two read operations currently exposed by `FlightController`:
 
 #### Flow A — Flights by Aircraft
 
-1. Client requests flights for one aircraft registration.
-2. Controller delegates to `RouteService.getScheduledFlightsForAircraft(...)`.
-3. Service queries `FlightRepository.findByAircraftRegistrationNumber_RegistrationNumber(...)`.
-4. Repository reads from `company_flights`.
-5. Controller maps entities to `FlightResponse` and returns `200 OK`.
+1. Controller delegates to `RouteService.getScheduledFlightsForAircraft(...)`.
+2. `FlightRepository` reads the flights with that registration (any status).
+3. Controller maps them to `FlightResponse` and returns `200 OK` (`[]` for an unknown registration).
 
 #### Flow B — Route Utilization
 
-1. Client requests route utilization report.
-2. Controller delegates to `FlightUtilizationReportService.getRouteUtilizationReport()`.
-3. Service loads all flights and groups by `RouteReference`.
-4. Service returns route metadata plus `flightCount` per route.
-5. Controller returns `200 OK`.
+1. Controller delegates to `FlightUtilizationReportService.getRouteUtilizationReport()`.
+2. The service loads all flights, groups them by `RouteReference`, and counts them.
+3. Results are sorted by `flightCount` descending, then `routeName` ascending; controller returns `200 OK`.
 
-Note:
+#### Flow C — All Flights
 
-* The report currently aggregates flight count only, not accumulated flight hours.
+1. Controller calls `FlightSearchService.findAll()` and returns every flight as `FlightResponse[]`.
 
 ---
 
@@ -45,17 +45,7 @@ Note:
 
 ### Description
 
-Scenario 2 describes the implemented write flow in `POST /api/flights/scheduled`.
-
-Synchronous external checks are performed against:
-
-* `aircraft-service`
-* `route-service`
-* `airport-service`
-
-Not currently used:
-
-* `maintenance-service`
+Scenario 2 describes `POST /api/flights/scheduled` (US212), which checks `aircraft-service`, `route-service` and `airport-service` synchronously and updates the route usage in `route-service`.
 
 ### Sequence Diagram Source
 
@@ -63,14 +53,16 @@ Not currently used:
 
 ### Key Steps
 
-1. Client sends `POST /api/flights/scheduled` with route and schedule data.
-2. Controller looks up aircraft through `AircraftSearchService`.
-3. Controller delegates scheduling to `RouteService`.
-4. `RouteService` fetches route and airports via RestClient adapters.
-5. Business rules are evaluated (active route, operational airports, available aircraft, range, no local overlap).
-6. Route usage is updated via route-service patch.
-7. New `Flight` is persisted and `201 Created` is returned.
-8. Rule violations throw `DomainException`, returned as `409 Conflict`.
+1. Controller loads the aircraft (`GET /api/hangar/aircraft/{registration}`) and its model (`GET /api/catalog/{modelName}`) from `aircraft-service`; either missing → `409`.
+2. `RouteService` loads the route from `route-service` (`409` if missing) and both airports from `airport-service` (`409` if missing).
+3. Rules: arrival after departure, route `ACTIVE`, airports `OPERATIONAL`, aircraft `AVAILABLE`, range, capacity, no overlapping flight of the same aircraft. Any failure → `DomainException` → `409`.
+4. `RouteService` sends `PATCH /api/routes/{routeId}` with the route history and `routeUsage + 1`.
+5. The new `Flight` is saved as `SCHEDULED` and `201 Created` is returned.
+
+Notes:
+
+* Every outgoing call goes through `JwtTokenInterceptor` and has a 2-second timeout; retries are not active.
+* Downstream errors that the clients do not turn into `DomainException` (unavailable service, timeout, `5xx`) → `500`.
 
 ---
 
@@ -78,11 +70,13 @@ Not currently used:
 
 | Exception Type | Current Mapping |
 | :--- | :--- |
-| `ResourceNotFoundException` | `404 Not Found` |
+| `ResourceNotFoundException` | `404 Not Found` (only thrown by the unused `PeerForwarder`) |
 | `MethodArgumentNotValidException` | `400 Bad Request` |
 | `HttpMessageNotReadableException` | `400 Bad Request` |
 | `IllegalArgumentException` | `400 Bad Request` |
 | `DomainException` | `409 Conflict` |
+| `ObjectOptimisticLockingFailureException` | `409 Conflict` |
+| `IllegalStateException` | `409 Conflict` |
 | `Exception` | `500 Internal Server Error` |
 
-Optimistic locking exists (`@Version` on `Flight`), but there is no dedicated handler for `OptimisticLockingFailureException` in the current `GlobalExceptionHandler`.
+Optimistic locking exists (`@Version` on `Flight`) and conflicts map to `409`. The `403` from `gatewaySecretFilter` and the `401` from the gateway are not `ErrorDetails` payloads.

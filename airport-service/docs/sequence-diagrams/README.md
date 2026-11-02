@@ -12,7 +12,9 @@ Scenario 1 contains local read operations exposed by `AirportController`:
 
 * **Flow A:** `GET /api/airports/{iataCode}`
 * **Flow B:** `GET /api/airports?city=&country=&name=`
-* **Flow C:** `GET /api/airports/grouped?by=country|city`
+* **Flow C:** `GET /api/airports/grouped?by=country|city|region`
+
+In every flow the API Gateway first validates the JWT and forwards the request with `X-Gateway-Secret` and `X-User-Name`; `gatewaySecretFilter` lets it through before the controller runs (a direct call without the secret gets `403`).
 
 ### Sequence Diagram Source
 
@@ -85,7 +87,7 @@ Scenario 2 describes the write flows in `POST /api/airports`, `POST /api/airport
 
 Scenario 3 describes flows that depend on `route-service`:
 
-* **Flow A:** `GET /api/airports/{iataCode}/routes` → `GET /api/routes/from/{iataCode}`
+* **Flow A:** `GET /api/airports/{iataCode}/routes` → `GET /api/routes`
 * **Flow B:** `GET /api/airports/busiest` → `GET /api/routes`
 
 ### Sequence Diagram Source
@@ -97,9 +99,9 @@ Scenario 3 describes flows that depend on `route-service`:
 #### Flow A — Airport Routes
 
 1. Service checks that the airport exists locally (`409` if missing).
-2. `RouteRestClientService` calls `GET /api/routes/from/{iataCode}` on `route-service`.
-3. Each `RouteClientDTO` is mapped to `RouteResponse`.
-4. Controller returns `200 OK` (only routes departing from the airport).
+2. `RouteRestClientService` calls `GET /api/routes` on `route-service` (`JwtTokenInterceptor` adds `X-Gateway-Secret` and copies `Authorization`).
+3. Each `RouteClientDTO` is mapped to `RouteResponse`, and only routes whose origin or destination is the airport are kept.
+4. Controller returns `200 OK` (departing and arriving routes).
 
 #### Flow B — Busiest Airports
 
@@ -110,7 +112,7 @@ Scenario 3 describes flows that depend on `route-service`:
 
 Note:
 
-* There is no timeout, retry, or fallback; any `route-service` error is returned as `500`.
+* Calls have 2-second timeouts. The client methods are `@Retryable`, but retries are not enabled (`@EnableRetry` is missing), so any `route-service` error is returned as `500` on the first failure.
 
 ---
 
@@ -118,11 +120,13 @@ Note:
 
 | Exception Type | Current Mapping |
 | :--- | :--- |
-| `ResourceNotFoundException` | `404 Not Found` (not thrown by current code) |
-| `MethodArgumentNotValidException` | `400 Bad Request` (not raised; no constraints) |
+| `ResourceNotFoundException` | `404 Not Found` (not thrown by the service's own lookups) |
+| `MethodArgumentNotValidException` | `400 Bad Request` (only the certification date check) |
 | `HttpMessageNotReadableException` | `400 Bad Request` |
 | `IllegalArgumentException` | `400 Bad Request` |
 | `DomainException` | `409 Conflict` |
+| `ObjectOptimisticLockingFailureException` | `409 Conflict` |
+| `IllegalStateException` | `409 Conflict` |
 | `Exception` | `500 Internal Server Error` |
 
-Optimistic locking exists (`@Version` on `Airport`), but there is no dedicated handler for `OptimisticLockingFailureException` in the current `GlobalExceptionHandler`. Downstream `RestClient` failures are not handled separately.
+Optimistic locking exists (`@Version` on `Airport`) and conflicts map to `409`. Downstream `RestClient` failures are not handled separately (`500`). The `403` from `gatewaySecretFilter` and the `401` from the gateway are not `ErrorDetails` payloads.

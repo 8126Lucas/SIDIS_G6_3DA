@@ -1,0 +1,242 @@
+@startuml
+title Domain Model (DDD) - AISafe Flight Management System
+
+top to bottom direction
+hide empty methods
+hide circle
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam nodesep 40
+skinparam ranksep 60
+
+' ======================================================
+' FLIGHT OPERATIONS (flight-service)
+' ======================================================
+package "Flight Operations" #F0FBF8 {
+    class Flight <<Aggregate Root>> #DAE8FC {
+        flightId : Long
+        flightStatus : FlightStatus
+        scheduledDeparture : LocalDateTime
+        scheduledArrival : LocalDateTime
+        timeOfDeparture : LocalDateTime
+        timeOfArrival : LocalDateTime
+    }
+    class RouteReference <<Value Object>> {
+        routeId : Long
+        originIata : String
+        destinationIata : String
+        routeName : String
+    }
+    class AircraftReference <<Value Object>> {
+        registrationNumber : String
+    }
+    Flight *-- "1" RouteReference
+    Flight *-- "1" AircraftReference
+}
+
+' ======================================================
+' MAINTENANCE MANAGEMENT (maintenance-service)
+' ======================================================
+package "Maintenance Management" #F0FBF0 {
+    class MaintenanceRecord <<Aggregate Root>> #DAE8FC {
+        recordId : Long
+        aircraftRegistration : String
+        description : String
+        techniciansUsername : List<String>
+        supervisorUsername : String
+        startDate : LocalDate
+        endDate : LocalDate
+        durationHours : Double
+        status : MaintenanceStatus
+    }
+    class MaintenanceTemplate <<Aggregate Root>> #DAE8FC {
+        templateId : Long
+        name : String
+        expectedDuration : Double
+        templateChecklist : Map<String, Boolean>
+        operation : MaintenanceType
+        attribute : MaintenanceAttribute
+    }
+    class DoneList <<Value Object>> {
+        completionNotes : String
+        tasksDone : Map<String, Boolean>
+    }
+    class UsedPart <<Value Object>> {
+        partSerialNumber : String
+        quantity : Integer
+        price : Double
+    }
+    MaintenanceRecord "*" --> "1" MaintenanceTemplate : template
+    MaintenanceRecord *-- "0..1" DoneList : completed tasks
+    MaintenanceRecord *-- "*" UsedPart : used parts
+}
+
+' ======================================================
+' ROUTE MANAGEMENT (route-service)
+' ======================================================
+package "Route Management" #FFF5EB {
+    class Route <<Aggregate Root>> #DAE8FC {
+        routeId : Long
+        routeName : String
+        status : RouteStatus
+        type : RouteType
+        estimatedFlightTimeHours : Double
+        distanceKm : Double
+    }
+    class RouteHistory <<Value Object>> {
+        routeBegin : LocalDate
+        routeFinish : LocalDate
+        routeUsage : Integer
+    }
+    class RouteRequirements <<Value Object>> {
+        requiredRange : Double
+        requiredCapacity : Integer
+    }
+    class AirportReference <<Value Object>> {
+        iataCode : String
+        airportLocation : AirportLocation
+    }
+    Route *-- "1" RouteHistory
+    Route *-- "1" RouteRequirements
+    Route *-- "2" AirportReference : origin and destination
+}
+
+' ======================================================
+' AIRCRAFT MANAGEMENT (aircraft-service)
+' ======================================================
+package "Aircraft Management" #FDF2FD {
+    class Aircraft <<Aggregate Root>> #DAE8FC {
+        registrationNumber : String
+        status : AircraftAvailability
+        manufacturingDate : LocalDate
+        totalOperationalHours : Double
+        totalFlightHours : Double
+        meanRange : Double
+        features : List<String>
+    }
+    class AircraftModel <<Aggregate Root>> #DAE8FC {
+        modelName : String
+        manufacturer : String
+        modelImage : List<String>
+    }
+    class AircraftSpecs <<Value Object>> {
+        fuelCapacityLiters : Double
+        maximumRangeKm : Double
+        cruisingSpeedKph : Double
+        standardSeatingCapacity : Integer
+    }
+    class SeatingPack <<Value Object>> {
+        seatingCapacity : Integer
+        seatingOrientation : String
+    }
+    class InstalledComponent <<Entity>> #F5F5F5 {
+        serialNumber : String
+        partNumber : String
+        status : String
+    }
+    class AircraftCertification <<Entity>> #F5F5F5 {
+        aircraftCertificationId : Long
+        name : String
+        category : String
+        startAt : LocalDate
+        expiresAt : LocalDate
+    }
+    Aircraft "*" --> "1" AircraftModel : model
+    AircraftModel *-- "1" AircraftSpecs
+    Aircraft *-- "0..1" SeatingPack : seating configuration
+    Aircraft *-- "*" InstalledComponent : components
+    Aircraft *-- "*" AircraftCertification : certifications
+}
+
+' ======================================================
+' IDENTITY AND ACCESS MANAGEMENT (auth-service)
+' ======================================================
+package "Identity and Access Management" #F3F3FD {
+    class Collaborator <<Aggregate Root>> #DAE8FC {
+        collaboratorId : UUID
+        username : String
+        password : String
+        email : String
+    }
+    enum Role {
+        ADMIN
+        ATCC
+        BACKOFFICE
+        MAINTENANCE_TECHNICIAN
+        MAINTENANCE_SUPERVISOR
+    }
+    Collaborator --> "1..*" Role : roles
+}
+
+' ======================================================
+' AIRPORT MANAGEMENT (airport-service)
+' ======================================================
+package "Airport Management" #EBFCFD {
+    class Airport <<Aggregate Root>> #DAE8FC {
+        iataCode : String
+        name : String
+        airportType : String
+        status : AirportStatus
+        routeDistance : Double
+        operationalHours : String
+        airportPhotos : List<String>
+    }
+    class AirportLocation <<Value Object>> {
+        city : String
+        country : String
+        timezone : String
+        region : String
+        latitude : Double
+        longitude : Double
+    }
+    class Runway <<Entity>> #F5F5F5 {
+        runwayId : Long
+        runwayName : String
+        length : Double
+        orientation : String
+        status : RunwayStatus
+    }
+    class Certification <<Entity>> #F5F5F5 {
+        certificationId : Long
+        name : String
+        category : String
+        startsAt : LocalDate
+        expiresAt : LocalDate
+    }
+    class Facilities <<Value Object>> {
+        terminalCount : Integer
+        gateCount : Integer
+        services : List<String>
+    }
+    class Contact <<Value Object>> {
+        type : ContactType
+        value : String
+    }
+    Airport *-- "1" AirportLocation
+    Airport *-- "*" Runway
+    Airport *-- "*" Certification
+    Airport *-- "1" Facilities
+    Airport *-- "*" Contact
+}
+
+' ======================================================
+' CROSS-CONTEXT REFERENCES (by identifier, resolved over HTTP/REST)
+' ======================================================
+RouteReference ..> Route : route reference\n(routeId)
+AircraftReference ..> Aircraft : reference by\nregistration number
+MaintenanceRecord ..> Aircraft : aircraft\nregistration number
+MaintenanceRecord ..> Collaborator : responsible staff\nusernames
+AirportReference ..> Airport : reference by\nIATA code
+
+' --- layout hints ---
+Route -[hidden]right- Aircraft
+Aircraft -[hidden]right- Collaborator
+
+legend bottom right
+  Blue = aggregate root | grey = entity | white = value object
+  Solid diamond = composition inside the aggregate
+  Dashed arrow = reference to another bounded context by id only
+  (each context lives in its own service and H2 database)
+endlegend
+
+@enduml

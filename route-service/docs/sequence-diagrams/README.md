@@ -60,18 +60,19 @@ Scenario 2 describes the write flows in `POST /api/routes` and `PATCH /api/route
 1. Client sends `POST /api/routes` with name, airports, flight time, type, and requirements.
 2. Controller rejects missing `requirements` (`409`).
 3. `RouteService` validates IATA codes, distinct airports, positive flight time, and unique name (`409`).
-4. For each airport, `AirportRestClientService` calls `GET /api/airports/{iataCode}` on `airport-service`.
+4. For each airport, `AirportRestClientService` calls `GET /api/airports/{iataCode}` on `airport-service` (with `X-Gateway-Secret` and `Authorization`); a `4xx` becomes `DomainException("Airport does not exist")` → `409`.
 5. Non-operational airports are rejected (`409`).
-6. The airport DTO is converted into an `AirportReference`; with the current DTO mismatch (`location` vs `airportLocation`) this throws `NullPointerException` → `500`.
-7. Intended result (not reachable today): the route is saved as `ACTIVE` with `distanceKm = 1.0` and `201 Created` is returned.
+6. Each airport DTO, including its location, is converted into an `AirportReference`.
+7. The route is saved as `ACTIVE` with `distanceKm = 1.0` and `201 Created` is returned.
 
 #### Flow B — Update Route
 
-1. Client sends `PATCH /api/routes/{routeId}` with any of destination, flight time, status.
+1. Client sends `PATCH /api/routes/{routeId}` with any of destination, flight time, status, history.
 2. Service loads the route (`409` if missing).
-3. A new destination is validated and loaded from `airport-service` (same `500` as Flow A for operational airports).
-4. Flight time and status changes are applied through domain methods; invalid transitions throw `IllegalStateException` → `500`.
-5. The route is saved (version incremented) and `200 OK` is returned.
+3. A new destination is validated and loaded from `airport-service` (`409` if missing or not operational).
+4. Flight time and status changes are applied through domain methods; invalid transitions throw `IllegalStateException` → `409`.
+5. A non-null `history` replaces the route history (this is how `flight-service` increments `routeUsage`).
+6. The route is saved (version incremented) and `200 OK` is returned.
 
 ---
 
@@ -100,7 +101,8 @@ Scenario 3 describes the network-wide flows:
 
 Note:
 
-* Seeded routes have no `AirportLocation`, so step 3 throws `NullPointerException` → `500` while they exist.
+* Seeded routes carry the airport coordinates, so the export works on seeded data.
+* A route without coordinates makes the GeoJSON export fail with `409` (`IllegalStateException`) and the KML export with `500` (`NullPointerException`).
 
 #### Flow C — Total Distance
 
@@ -113,11 +115,13 @@ Note:
 
 | Exception Type | Current Mapping |
 | :--- | :--- |
-| `ResourceNotFoundException` | `404 Not Found` (not thrown by current code) |
+| `ResourceNotFoundException` | `404 Not Found` (only thrown by the unused `PeerForwarder`) |
 | `MethodArgumentNotValidException` | `400 Bad Request` (not raised; no constraints) |
 | `HttpMessageNotReadableException` | `400 Bad Request` |
 | `IllegalArgumentException` | `400 Bad Request` |
 | `DomainException` | `409 Conflict` |
-| `Exception` (incl. `IllegalStateException`, `RestClient` errors) | `500 Internal Server Error` |
+| `ObjectOptimisticLockingFailureException` | `409 Conflict` |
+| `IllegalStateException` | `409 Conflict` |
+| `Exception` (incl. `RestClient` errors other than `4xx` from `airport-service`) | `500 Internal Server Error` |
 
-Optimistic locking exists (`@Version` on `Route`), but there is no dedicated handler for `OptimisticLockingFailureException` in the current `GlobalExceptionHandler`. Downstream `RestClient` failures are not handled separately.
+Optimistic locking exists (`@Version` on `Route`) and conflicts map to `409`. Calls to `airport-service` have 2-second timeouts; `@Retryable` is present but inactive (no `@EnableRetry`). The `403` from `gatewaySecretFilter` and the `401` from the gateway are not `ErrorDetails` payloads.

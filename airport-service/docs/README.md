@@ -14,17 +14,19 @@ Current implemented responsibilities:
 * Bulk import airports from a CSV file (OpenCSV).
 * Add certifications to an existing airport.
 * Query airports by IATA code and by filters (city, country, name).
-* Change airport status and update airport details (name, contacts).
-* Group airports by country or city.
-* List the routes departing from an airport and rank airports by number of routes using `route-service` data.
+* Change airport status and update airport details (name, operational hours, contacts).
+* Group airports by country, city or region.
+* List the routes departing from or arriving at an airport and rank airports by number of routes using `route-service` data.
+* Reject requests that do not come through the API Gateway (`X-Gateway-Secret` filter).
 * Return standardized API errors via `GlobalExceptionHandler`.
 
 Important implementation notes:
 
-* There is optimistic locking on `Airport` via `@Version`.
-* A missing airport is reported as `DomainException` (`409 Conflict`), not `404`; `ResourceNotFoundException` exists but is never thrown.
-* Request records have no Bean Validation constraints, so `@Valid` has no effect; invalid input fails in the domain, in enum parsing, or at persistence.
-* `operationalHours` is accepted by `PATCH /details` but is not stored (no such field in `Airport`).
+* There is optimistic locking on `Airport` via `@Version`; conflicts map to `409`.
+* A missing airport is reported as `DomainException` (`409 Conflict`), not `404`; `ResourceNotFoundException` exists but is not thrown by the service's own lookups.
+* Only the certification request has a Bean Validation rule (expiry not before start); other invalid input fails in the domain, in enum parsing, or at persistence.
+* Every request (except H2 console and Swagger UI paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403` (see `domain-and-resilience.md`, section 6).
+* Calls to `route-service` have 2-second timeouts. The client methods are marked `@Retryable`, but `@EnableRetry` is missing, so they are not retried.
 * The `UseCaseLoggingAdvice` pointcut does not match `AirportService` (see `domain-and-resilience.md`, section 6).
 
 ---
@@ -38,15 +40,21 @@ Important implementation notes:
 | Database | `H2 In-Memory` | `jdbc:h2:mem:airporttestdb` |
 | Schema Strategy | `update` | `spring.jpa.hibernate.ddl-auto` |
 | H2 Console Path | `/api/airports/h2-console` | Spring H2 console path |
-| Service Registry | `http://localhost:8761/eureka/` | Eureka client registration |
+| OpenAPI Docs | `/api/docs` | springdoc API docs path |
+| Swagger UI | `/api/swagger-ui` | springdoc Swagger UI path |
+| Service Registry | `http://localhost:8761/eureka/` | Eureka client registration (`prefer-ip-address=true`); only the first discovery node |
+| Gateway Secret | `sidis-g6-secret` | Hardcoded in `AirportSecurityConfig` and `JwtTokenInterceptor` |
+| Outgoing Call Timeouts | `2000` ms connect / `2000` ms read | `GlobalRestClientConfig` |
 
 External client base URLs configured in code (resolved through Eureka via `@LoadBalanced` `RestClient.Builder`):
 
 * `route-service`: `http://route-service`
 
-API Gateway routing:
+All outgoing calls go through `JwtTokenInterceptor`, which adds `X-Gateway-Secret` and forwards the caller's `Authorization: Bearer` header.
 
-* `/api/airports/**` is routed to `lb://airport-service` by the gateway, so every endpoint of this service is reachable through it.
+API Gateway routing (`https://localhost:7979`):
+
+* `/api/airports/**` is routed to `lb://airport-service` with the `JwtAuthentication` filter, which validates the JWT issued by `auth-service` and adds `X-User-Name` and `X-Gateway-Secret`.
 
 ---
 
@@ -73,11 +81,22 @@ Run locally:
 ./mvnw spring-boot:run
 ```
 
-Open H2 console:
+Call the API through the gateway (requires a token from `POST /api/auth/login` in `auth-service`):
+
+```bash
+curl -k -H "Authorization: Bearer <token>" https://localhost:7979/api/airports/OPO
+```
+
+Calling `http://localhost:8091/api/...` directly without `X-Gateway-Secret` returns `403` (`"Unauthorized Access! Please use the API Gateway!"`).
+
+Open H2 console (exempt from the gateway secret filter):
 
 * URL: `http://localhost:8091/api/airports/h2-console`
 * JDBC URL: `jdbc:h2:mem:airporttestdb`
 * User: `sa`
 * Password: empty
 
-There is no Swagger UI: `springdoc-openapi` is not a dependency of this service.
+Open Swagger UI:
+
+* URL: `http://localhost:8091/api/swagger-ui`
+* The OpenAPI document at `/api/docs` is not in the filter's exemption list (it only exempts paths containing `/api-docs`), so the spec request returns `403`.

@@ -28,7 +28,7 @@ end box
 
 client -> gateway : GET /api/airports/{iataCode}
 activate gateway
-gateway -> controller : Forward request
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> airport_uc : getAirportByIata(iataCode)
@@ -60,7 +60,7 @@ deactivate gateway
 
 client -> gateway : GET /api/airports?city=&country=&name=
 activate gateway
-gateway -> controller : Forward request
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> airport_uc : searchAirports(city, country, name)
@@ -84,9 +84,9 @@ deactivate gateway
 
 == Flow C: Grouped Airports ==
 
-client -> gateway : GET /api/airports/grouped?by=country|city
+client -> gateway : GET /api/airports/grouped?by=country|city|region
 activate gateway
-gateway -> controller : Forward request
+gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 controller -> airport_uc : groupAirportsBy(by)
@@ -98,8 +98,8 @@ db --> repo : Airport rows
 repo --> airport_uc : List<Airport>
 deactivate repo
 
-alt by is country or city
-    airport_uc -> airport_uc : groupingBy(country | city)
+alt by is country, city or region
+    airport_uc -> airport_uc : groupingBy(country | city | region)
     airport_uc --> controller : Map<String, List<Airport>>
     deactivate airport_uc
     controller --> gateway : 200 OK (Map<String, List<AirportResponse>>)
