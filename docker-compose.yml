@@ -27,6 +27,7 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=node2
       - EUREKA_INSTANCE_HOSTNAME=discovery-node2
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     deploy:
       resources:
         limits:
@@ -43,9 +44,6 @@ services:
       - SERVER_PORT=7979
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC1}
-    depends_on:
-      - discovery-node1
-      - discovery-node2
     deploy:
       resources:
         limits:
@@ -64,9 +62,9 @@ services:
     environment:
       - SERVER_PORT=8101
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC2}
-    depends_on:
-      - discovery-node1
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC2}:auth-service:8101
     deploy:
       resources:
         limits:
@@ -82,9 +80,9 @@ services:
     environment:
       - SERVER_PORT=8102
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC3}
-    depends_on:
-      - discovery-node1
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC3}:auth-service:8102
     deploy:
       resources:
         limits:
@@ -100,9 +98,9 @@ services:
     environment:
       - SERVER_PORT=8081
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC2}
-    depends_on:
-      - discovery-node1
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC2}:aircraft-service:8081
     deploy:
       resources:
         limits:
@@ -118,9 +116,9 @@ services:
     environment:
       - SERVER_PORT=8082
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC5}
-    depends_on:
-      - discovery-node1
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC5}:aircraft-service:8082
     deploy:
       resources:
         limits:
@@ -136,9 +134,9 @@ services:
     environment:
       - SERVER_PORT=8091
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC3}
-    depends_on:
-      - discovery-node1
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC3}:airport-service:8091
     deploy:
       resources:
         limits:
@@ -154,9 +152,9 @@ services:
     environment:
       - SERVER_PORT=8092
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC4}
-    depends_on:
-      - discovery-node1
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC4}:airport-service:8092
     deploy:
       resources:
         limits:
@@ -172,9 +170,9 @@ services:
     environment:
       - SERVER_PORT=8111
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC4}
-    depends_on:
-      - discovery-node1
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC4}:flight-service:8111
     deploy:
       resources:
         limits:
@@ -190,9 +188,9 @@ services:
     environment:
       - SERVER_PORT=8112
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC5}
-    depends_on:
-      - discovery-node1
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC5}:flight-service:8112
     deploy:
       resources:
         limits:
@@ -208,9 +206,9 @@ services:
     environment:
       - SERVER_PORT=8121
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC2}
-    depends_on:
-      - discovery-node1
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC2}:maintenance-service:8121
     deploy:
       resources:
         limits:
@@ -226,9 +224,9 @@ services:
     environment:
       - SERVER_PORT=8122
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC3}
-    depends_on:
-      - discovery-node1
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC3}:maintenance-service:8122
     deploy:
       resources:
         limits:
@@ -244,9 +242,9 @@ services:
     environment:
       - SERVER_PORT=8131
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC4}
-    depends_on:
-      - discovery-node1
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC4}:route-service:8131
     deploy:
       resources:
         limits:
@@ -262,9 +260,9 @@ services:
     environment:
       - SERVER_PORT=8132
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC5}
-    depends_on:
-      - discovery-node1
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC5}:route-service:8132
     deploy:
       resources:
         limits:
