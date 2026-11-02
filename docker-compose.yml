@@ -11,6 +11,7 @@ services:
       - "8761:8761"
     environment:
       - SPRING_PROFILES_ACTIVE=node1
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_HOSTNAME=discovery-node1
     deploy:
       resources:
@@ -43,6 +44,8 @@ services:
     environment:
       - SERVER_PORT=7979
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_HOSTNAME=discovery-node1
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC1}
     deploy:
       resources:
