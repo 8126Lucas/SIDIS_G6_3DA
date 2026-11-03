@@ -2,7 +2,7 @@ name: SIDIS Monorepo CI
 
 on:
   push:
-    branches: [ "main", "1241008" ]
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
