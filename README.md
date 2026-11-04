@@ -11,6 +11,39 @@ Microservices architecture monorepo for the _Sistemas Distribuídos_ (SIDIS) cou
 - Flight Service: 8111 - 8120
 - Maintenance Service: 8121 - 8130
 - Route Service: 8131 - 8140
+- Redis Database: 6379 - 6380
+
+## Database Choices
+- aircraft-service: SQLite (Write) + Redis (Read)
+- airport-service: SQLite (Write) + Redis (Read)
+- flight-service: SQLite (Write) + Redis (Read)
+- route-service: SQLite (Write) + Redis (Read)
+- maintenance-service: SQLite (Write) + Redis (Read)
+
+## PC Workload Distribution
+- PC1:
+  - discovery-service-1
+  - api-gateway-1
+  - redis-database-1
+- PC2:
+  - aircraft-service-1
+  - maintenance-service-1
+  - auth-service-1
+- PC3:
+  - discovery-service-2
+  - airport-service-1
+  - maintenance-service-2
+  - auth-service-2
+- PC4:
+  - api-gateway-2
+  - route-service-1
+  - flight-service-1
+- PC5:
+  - airport-service-2
+  - route-service-2
+  - flight-service-2
+  - aircraft-service-2
+  - redis-database-2
 
 ## Instructions
 - **Start the cluster:** `docker compose up -d --build`

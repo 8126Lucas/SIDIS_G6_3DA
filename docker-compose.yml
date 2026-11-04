@@ -53,6 +53,53 @@ services:
           memory: 300M
 
   # ------------------------------------------------------
+  # REDIS DATABASE
+  # ------------------------------------------------------
+  redis-aircraft-1:
+    image: redis:7-alpine
+    container_name: redis-aircraft-1
+    profiles: ["pc1"]
+    ports:
+      - "6379:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  redis-maintenance-1:
+    image: redis:7-alpine
+    container_name: redis-maintenance-1
+    profiles: ["pc1"]
+    ports:
+      - "6380:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  redis-aircraft-2:
+    image: redis:7-alpine
+    container_name: redis-aircraft-2
+    profiles: ["pc5"]
+    ports:
+      - "6379:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  redis-maintenance-2:
+    image: redis:7-alpine
+    container_name: redis-maintenance-2
+    profiles: ["pc5"]
+    ports:
+      - "6380:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  # ------------------------------------------------------
   # AUTH, AIRCRAFT, AIRPORT, FLIGHT, MAINTENANCE e ROUTE
   # ------------------------------------------------------
   auth-service-1:
@@ -99,6 +146,8 @@ services:
     build: ./aircraft-service
     image: ghcr.io/${REPO_OWNER}/aircraft-service:latest
     container_name: aircraft-service-1
+    volumes:
+      - ./data/aircraft-service-1:/data
     profiles: ["pc2"]
     ports:
       - "8081:8081"
@@ -108,6 +157,7 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC2}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC2}:aircraft-service:8081
+      - REDIS_HOST=redis-aircraft-1
     deploy:
       resources:
         limits:
@@ -117,6 +167,8 @@ services:
     build: ./aircraft-service
     image: ghcr.io/${REPO_OWNER}/aircraft-service:latest
     container_name: aircraft-service-2
+    volumes:
+      - ./data/aircraft-service-2:/data
     profiles: ["pc5"]
     ports:
       - "8082:8082"
@@ -126,6 +178,7 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC5}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC5}:aircraft-service:8082
+      - REDIS_HOST=redis-aircraft-2
     deploy:
       resources:
         limits:
@@ -135,6 +188,8 @@ services:
     build: ./airport-service
     image: ghcr.io/${REPO_OWNER}/airport-service:latest
     container_name: airport-service-1
+    volumes:
+      - ./data/airport-service-1:/data
     profiles: ["pc3"]
     ports:
       - "8091:8091"
@@ -153,6 +208,8 @@ services:
     build: ./airport-service
     image: ghcr.io/${REPO_OWNER}/airport-service:latest
     container_name: airport-service-2
+    volumes:
+      - ./data/airport-service-2:/data
     profiles: ["pc4"]
     ports:
       - "8092:8092"
@@ -171,6 +228,8 @@ services:
     build: ./flight-service
     image: ghcr.io/${REPO_OWNER}/flight-service:latest
     container_name: flight-service-1
+    volumes:
+      - ./data/flight-service-1:/data
     profiles: ["pc4"]
     ports:
       - "8111:8111"
@@ -189,6 +248,8 @@ services:
     build: ./flight-service
     image: ghcr.io/${REPO_OWNER}/flight-service:latest
     container_name: flight-service-2
+    volumes:
+      - ./data/flight-service-2:/data
     profiles: ["pc5"]
     ports:
       - "8112:8112"
@@ -207,6 +268,8 @@ services:
     build: ./maintenance-service
     image: ghcr.io/${REPO_OWNER}/maintenance-service:latest
     container_name: maintenance-service-1
+    volumes:
+      - ./data/maintenance-service-1:/data
     profiles: ["pc2"]
     ports:
       - "8121:8121"
@@ -216,6 +279,7 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC2}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC2}:maintenance-service:8121
+      - REDIS_HOST=redis-maintenance-1
     deploy:
       resources:
         limits:
@@ -225,6 +289,8 @@ services:
     build: ./maintenance-service
     image: ghcr.io/${REPO_OWNER}/maintenance-service:latest
     container_name: maintenance-service-2
+    volumes:
+      - ./data/maintenance-service-2:/data
     profiles: ["pc3"]
     ports:
       - "8122:8122"
@@ -234,6 +300,7 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC3}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC3}:maintenance-service:8122
+      - REDIS_HOST=redis-maintenance-2
     deploy:
       resources:
         limits:
@@ -243,6 +310,8 @@ services:
     build: ./route-service
     image: ghcr.io/${REPO_OWNER}/route-service:latest
     container_name: route-service-1
+    volumes:
+      - ./data/route-service-1:/data
     profiles: ["pc4"]
     ports:
       - "8131:8131"
@@ -261,6 +330,8 @@ services:
     build: ./route-service
     image: ghcr.io/${REPO_OWNER}/route-service:latest
     container_name: route-service-2
+    volumes:
+      - ./data/route-service-2:/data
     profiles: ["pc5"]
     ports:
       - "8132:8132"
