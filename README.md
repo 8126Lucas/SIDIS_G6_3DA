@@ -3,57 +3,35 @@
 Microservices architecture monorepo for the _Sistemas Distribuídos_ (SIDIS) course project.
 
 ## Service Ports
-- Discovery Service (Eureka Server): 8761 - 8762
-- API Gateway: 7979 - 7980
-- Aircraft Service: 8081 - 8090
-- Airport Service: 8091 - 8100
-- Authentication Service: 8101 - 8110
-- Flight Service: 8111 - 8120
-- Maintenance Service: 8121 - 8130
-- Route Service: 8131 - 8140
-- Redis Database: 6379 - 6380
-- Prometheus: 9090
+| **Service** | **Ports** |
+|-------------|-----------|
+| **`discovery-service`** | `8761 - 8762` |
+| **`APIgateway`** | `7979 - 7980` |
+| **`aicraft-service`** | `8081 - 8090` |
+| **`airport-service`** | `8091 - 8100` |
+| **`auth-service`** | `8101 - 8110` |
+| **`flight-service`** | `8111 - 8120` |
+| **`maintenance-service`** | `8121 - 8130` |
+| **`route-service`** | `8131 - 8140` |
+| **`redis-database`** | `6379 - 6380` |
+| **`prometheus`** | `9090` |
 
 ## Database Choices
-- aircraft-service: SQLite (Write) + Redis (Read)
-- airport-service: SQLite (Write) + Redis (Read)
-- flight-service: SQLite (Write) + Redis (Read)
-- route-service: SQLite (Write) + Redis (Read)
-- maintenance-service: SQLite (Write) + Redis (Read)
+- `aircraft-service`: SQLite (Write) + Redis (Read)
+- `airport-service`: SQLite (Write) + Redis (Read)
+- `auth-service`: SQLite
+- `flight-service`: SQLite (Write) + Redis (Read)
+- `route-service`: SQLite (Write) + Redis (Read)
+- `maintenance-service`: SQLite (Write) + Redis (Read)
 
 ## PC Workload Distribution
-- PC1:
-  - discovery-service-1
-  - api-gateway-1
-  - prometheus
-- PC2:
-  - aircraft-service-1
-  - redis-aircraft-1
-  - maintenance-service-1
-  - redis-maintenance-1
-  - auth-service-1
-- PC3:
-  - discovery-service-2
-  - airport-service-1
-  - redis-airport-1
-  - maintenance-service-2
-  - redis-maintenance-2
-  - auth-service-2
-- PC4:
-  - api-gateway-2
-  - route-service-1
-  - redis-route-1
-  - flight-service-1
-  - redis-flight-1
-- PC5:
-  - airport-service-2
-  - redis-airport-2
-  - route-service-2
-  - redis-route-2
-  - flight-service-2
-  - redis-flight-2
-  - aircraft-service-2
-  - redis-aircraft-2
+| **PC** | **Services** |
+|--------|--------------|
+| **PC1** | `discovery-service-1`, `api-gateway-1`, `prometheus` |
+| **PC2** | `aircraft-service-1`, `redis-aircraft-1`, `maintenance-service-1`, `redis-maintenance-1`, `auth-service-1` |
+| **PC3** | `discovery-service-2`, `airport-service-1`, `redis-airport-1`, `maintenance-service-2`, `redis-maintenance-2`, `auth-service-2` |
+| **PC4** | `api-gateway-2`, `route-service-1`, `redis-route-1`, `flight-service-1`, `redis-flight-1` |
+| **PC5** | `airport-service-2`, `redis-airport-2`, `route-service-2`, `redis-route-2`, `flight-service-2`, `redis-flight-2`, `aircraft-service-2`, `redis-aircraft-2` |
 
 ## Instructions
 - **Start the cluster:** `docker compose up -d --build`
@@ -81,7 +59,7 @@ SIDIS_G6_3DA/
 │   │   ├── cd.yml
 │   │   └── ci.yml    
 │   └── CODEOWNERS
-├── aircraft-service
+├── aircraft-service/
 │   ├── docs/
 │   ├── src/
 │   │   ├── main/
@@ -92,6 +70,20 @@ SIDIS_G6_3DA/
 ├── APIgateway/
 ├── auth-service/
 ├── discovery-service/
+├── data/
+│   ├── aircraft-service-1/
+│   │   └── aircraft.db    
+│   ├── aircraft-service-2/
+│   ├── airport-service-1/
+│   ├── airport-service-2/
+│   ├── auth-service-1/
+│   ├── auth-service-2/
+│   ├── flight-service-1/
+│   ├── flight-service-2/
+│   ├── maintenance-service-1/
+│   ├── maintenance-service-2/
+│   ├── route-service-1/
+│   └── route-service-2/
 ├── docs/
 ├── flight-service/
 ├── maintenance-service/
