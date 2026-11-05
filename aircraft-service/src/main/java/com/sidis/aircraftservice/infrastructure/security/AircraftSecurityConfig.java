@@ -40,7 +40,7 @@ public class AircraftSecurityConfig {
             protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                             FilterChain filterChain) throws ServletException, IOException {
                 String path = request.getRequestURI();
-                if (path.contains("/h2-console") || path.contains("/swagger-ui") || path.contains("/api-docs")) {
+                if (path.contains("/actuator") || path.contains("/h2-console") || path.contains("/swagger-ui") || path.contains("/api-docs")) {
                     filterChain.doFilter(request, response);
                     return;
                 }

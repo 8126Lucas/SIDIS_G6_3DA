@@ -34,10 +34,10 @@ services:
         limits:
           memory: 300M
 
-  api-gateway:
+  api-gateway-1:
     build: ./APIgateway
     image: ghcr.io/${REPO_OWNER}/api-gateway:latest
-    container_name: api-gateway
+    container_name: api-gateway-1
     profiles: ["pc1"]
     ports:
       - "7979:7979"
@@ -45,8 +45,28 @@ services:
       - SERVER_PORT=7979
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
-      - EUREKA_INSTANCE_HOSTNAME=discovery-node1
+      - EUREKA_INSTANCE_HOSTNAME=api-gateway-1
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC1}
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC1}:api-gateway:7979
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  api-gateway-2:
+    build: ./APIgateway
+    image: ghcr.io/${REPO_OWNER}/api-gateway:latest
+    container_name: api-gateway-2
+    profiles: ["pc4"]
+    ports:
+      - "7980:7980"
+    environment:
+      - SERVER_PORT=7980
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1},${EUREKA_URL_2}
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_HOSTNAME=api-gateway-2
+      - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC4}
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC4}:api-gateway:7980
     deploy:
       resources:
         limits:
@@ -58,7 +78,7 @@ services:
   redis-aircraft-1:
     image: redis:7-alpine
     container_name: redis-aircraft-1
-    profiles: ["pc1"]
+    profiles: ["pc2"]
     ports:
       - "6379:6379"
     deploy:
@@ -69,7 +89,7 @@ services:
   redis-maintenance-1:
     image: redis:7-alpine
     container_name: redis-maintenance-1
-    profiles: ["pc1"]
+    profiles: ["pc2"]
     ports:
       - "6380:6379"
     deploy:
@@ -94,6 +114,31 @@ services:
     profiles: ["pc5"]
     ports:
       - "6380:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  # ------------------------------------------------------
+  # PROMETHEUS
+  # ------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: prometheus
+    profiles: ["pc1"]
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--enable-feature=expand-env'
+    environment:
+      - IP_PC1=${IP_PC1}
+      - IP_PC2=${IP_PC2}
+      - IP_PC3=${IP_PC3}
+      - IP_PC4=${IP_PC4}
+      - IP_PC5=${IP_PC5}
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
     deploy:
       resources:
         limits:
