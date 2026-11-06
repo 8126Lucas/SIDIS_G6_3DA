@@ -1,7 +1,8 @@
 package com.sidis.aircraftservice.Aircraft.application;
 
 import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
-import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftRepository;
+import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftCommandRepository;
+import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftQueryRepository;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
 import com.sidis.aircraftservice.UseCase;
@@ -20,10 +21,13 @@ import java.time.LocalDate;
 
 @UseCase
 public class AddAircraftUseCase {
-    private final AircraftRepository aircraftRepository;
+    private final AircraftCommandRepository aircraftCommandRepository;
+    private final AircraftQueryRepository aircraftQueryRepository;
 
-    public AddAircraftUseCase(AircraftRepository aircraftRepository) {
-        this.aircraftRepository = aircraftRepository;
+    public AddAircraftUseCase(AircraftCommandRepository aircraftCommandRepository,
+                              AircraftQueryRepository aircraftQueryRepository) {
+        this.aircraftCommandRepository = aircraftCommandRepository;
+        this.aircraftQueryRepository = aircraftQueryRepository;
     }
 
     /**
@@ -37,7 +41,7 @@ public class AddAircraftUseCase {
      */
     public void execute(String registrationNumber, AircraftModel model, LocalDate manufacturingDate,
                         Double totalOperationalHours, Double totalFlightHours) {
-        aircraftRepository.save(new Aircraft(registrationNumber, model,manufacturingDate, totalOperationalHours,totalFlightHours));
+        aircraftCommandRepository.save(new Aircraft(registrationNumber, model,manufacturingDate, totalOperationalHours,totalFlightHours));
     }
 
     /**
@@ -45,6 +49,6 @@ public class AddAircraftUseCase {
      * @param aircraft the model object to be persisted
      */
     public void execute(Aircraft aircraft) {
-        aircraftRepository.save(aircraft);
+        aircraftCommandRepository.save(aircraft);
     }
 }

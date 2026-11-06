@@ -8,8 +8,13 @@ on:
 
 jobs:
   build-and-test:
+    name: Build e Testes Java E2E
     runs-on: ubuntu-latest
-
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
@@ -47,5 +52,56 @@ jobs:
           echo "A aguardar 200 segundos para o Eureka registar todos os nós..."
           sleep 200
 
-      - name: Validar Todos os Módulos
+      - name: Validar Todos os Módulos (Testes Java E2E)
         run: ./mvnw verify
+
+  postman-tests:
+    name: Testes de Integração Postman
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Dar permissões de execução ao Maven Wrapper
+        run: chmod +x mvnw
+
+      - name: Build todos os módulos
+        run: ./mvnw clean package -DskipTests
+
+      - name: Iniciar Eureka e Gateway
+        run: |
+          nohup java -Xmx256m -Dspring.profiles.active=node1 -jar discovery-service/target/*.jar > eureka.log 2>&1 &
+          sleep 15
+          nohup java -Xmx256m -jar APIgateway/target/*.jar > gateway.log 2>&1 &
+
+      - name: Executar Microsserviços
+        run: |
+          nohup java -Xmx256m -jar auth-service/target/*.jar > auth.log 2>&1 &
+          nohup java -Xmx256m -jar aircraft-service/target/*.jar > aircraft.log 2>&1 &
+          nohup java -Xmx256m -jar maintenance-service/target/*.jar > maintenance.log 2>&1 &
+          nohup java -Xmx256m -jar flight-service/target/*.jar > flight.log 2>&1 &
+          nohup java -Xmx256m -jar route-service/target/*.jar > route.log 2>&1 &
+          nohup java -Xmx256m -jar airport-service/target/*.jar > airport.log 2>&1 &
+
+      - name: Esperar pelo registo no Eureka
+        run: |
+          echo "A aguardar 200 segundos para o Eureka registar todos os nós..."
+          sleep 200
+
+      - name: Instalar Newman
+        run: npm install -g newman
+
+      - name: Executar Testes API
+        run: newman run "./docs/postman/SIDIS HTTP Tests.postman_collection.json"

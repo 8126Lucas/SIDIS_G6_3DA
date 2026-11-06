@@ -2,9 +2,12 @@ package com.sidis.aircraftservice.Aircraft.application;
 
 import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
 import com.sidis.aircraftservice.Aircraft.domain.AircraftAvailability;
-import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftRepository;
+import com.sidis.aircraftservice.Aircraft.domain.AircraftRedis;
+import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftCommandRepository;
+import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftQueryRepository;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -15,67 +18,63 @@ import java.util.stream.Collectors;
 
 @Service
 public class AircraftSearchService {
-    private final AircraftRepository aircraftRepository;
+    private final AircraftCommandRepository aircraftCommandRepository;
+    private final AircraftQueryRepository aircraftQueryRepository;
 
-    public AircraftSearchService(AircraftRepository aircraftRepository) {
-        this.aircraftRepository = aircraftRepository;
+    public AircraftSearchService(AircraftCommandRepository aircraftCommandRepository,
+                                 AircraftQueryRepository aircraftQueryRepository) {
+        this.aircraftCommandRepository = aircraftCommandRepository;
+        this.aircraftQueryRepository = aircraftQueryRepository;
     }
 
-    public Optional<Aircraft> spotAircraftInHangar(String id) {
-        return aircraftRepository.findById(id);
+    public Optional<AircraftRedis> spotAircraftInHangar(String id) {
+        return aircraftQueryRepository.findById(id);
     }
 
-    public Page<Aircraft> findAircraftsMatchingFilter(String model,String status,LocalDate manufacturingDate,Pageable pageable) {
-        Specification<Aircraft> spec =
-                (root, query, cb) -> cb.conjunction();
+    public Page<AircraftRedis> findAircraftsMatchingFilter(String model, String status, LocalDate manufacturingDate, Pageable pageable) {
+        List<AircraftRedis> allAircrafts = findAll();
 
-        if (model != null) {
-            spec = spec.and((root, query, cb) ->
-                    cb.equal(root.get("model").get("modelName"), model));
-        }
+        List<AircraftRedis> filteredAircrafts = allAircrafts.stream()
+                .filter(a -> model == null || a.getModelName().equals(model))
+                .filter(a -> status == null || a.getStatus().name().equalsIgnoreCase(status))
+                .filter(a -> manufacturingDate == null || a.getManufacturingDate().equals(manufacturingDate))
+                .toList();
 
-        if (status != null) {
-            spec = spec.and((root, query, cb) ->
-                    cb.equal(
-                            root.get("status"),
-                            AircraftAvailability.valueOf(status.toUpperCase())
-                    ));
-        }
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), filteredAircrafts.size());
 
-        if (manufacturingDate != null) {
-            spec = spec.and((root, query, cb) ->
-                    cb.equal(root.get("manufacturingDate"), manufacturingDate));
-        }
+        List<AircraftRedis> pageContent = (start <= end && start < filteredAircrafts.size())
+                ? filteredAircrafts.subList(start, end)
+                : Collections.emptyList();
 
-        return aircraftRepository.findAll(spec, pageable);
+        return new PageImpl<>(pageContent, pageable, filteredAircrafts.size());
     }
-
-    public List<Map.Entry<AircraftModel, Double>> findMostUsedModelsByFlyingAircraftHours() {
-        return aircraftRepository.findAll().stream()
+    public List<Map.Entry<String, Double>> findMostUsedModelsByFlyingAircraftHours() {
+        return aircraftQueryRepository.findAll().stream()
                 .collect(Collectors.groupingBy(
-                        Aircraft::getModel,
-                        Collectors.summingDouble(Aircraft::getTotalFlightHours)
+                        AircraftRedis::getModelName,
+                        Collectors.summingDouble(AircraftRedis::getTotalFlightHours)
                 ))
                 .entrySet().stream()
-                .sorted(Map.Entry.<AircraftModel, Double>comparingByValue().reversed())
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
                 .toList();
     }
 
-    public List<Aircraft> findAll(){
-        return aircraftRepository.findAll();
+    public List<AircraftRedis> findAll(){
+        return aircraftQueryRepository.findAll();
     }
 
-    public Page<Aircraft> findPages(Pageable pageable) {
-        return aircraftRepository.findAll(pageable);
+    public Page<AircraftRedis> findPages(Pageable pageable) {
+        return aircraftQueryRepository.findAll(pageable);
     }
 
     public long countByAvailability(AircraftAvailability availability) {
-        return aircraftRepository.countByStatus(availability);
+        return aircraftQueryRepository.countByStatus(availability);
     }
 
-    public List<Aircraft> findAircraftsByAvailability(List<Aircraft> aircrafts,AircraftAvailability status) {
-        List<Aircraft> filteredAircrafts = new ArrayList<>();
-        for(Aircraft aircraft : aircrafts){
+    public List<AircraftRedis> findAircraftsByAvailability(List<AircraftRedis> aircrafts, AircraftAvailability status) {
+        List<AircraftRedis> filteredAircrafts = new ArrayList<>();
+        for(AircraftRedis aircraft : aircrafts){
             if(aircraft.getStatus() == status){
                 filteredAircrafts.add(aircraft);
             }
@@ -83,8 +82,8 @@ public class AircraftSearchService {
         return filteredAircrafts;
     }
 
-    public List<Aircraft> findAircraftWithFeature(List<String> searchFeatures) {
-        List<Aircraft> filteredAircrafts = findAll();
+    public List<AircraftRedis> findAircraftWithFeature(List<String> searchFeatures) {
+        List<AircraftRedis> filteredAircrafts = findAll();
 
         if (searchFeatures == null || searchFeatures.isEmpty()) {
             return null;

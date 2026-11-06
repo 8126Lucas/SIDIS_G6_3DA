@@ -1,7 +1,7 @@
 package com.sidis.aircraftservice.AircraftCatalog.application;
 
 import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
-import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftRepository;
+import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftCommandRepository;
 import com.sidis.aircraftservice.infrastructure.client.FlightClientDTO;
 import com.sidis.aircraftservice.infrastructure.client.FlightRestClientService;
 import org.springframework.stereotype.Service;
@@ -14,9 +14,9 @@ import java.util.stream.Collectors;
 @Service
 public class FlightSearchService {
     private final FlightRestClientService flightClient;
-    private final AircraftRepository aircraftRepository;
+    private final AircraftCommandRepository aircraftRepository;
 
-    public FlightSearchService(FlightRestClientService flightClient, AircraftRepository aircraftRepository) {
+    public FlightSearchService(FlightRestClientService flightClient, AircraftCommandRepository aircraftRepository) {
         this.flightClient = flightClient;
         this.aircraftRepository = aircraftRepository;
     }

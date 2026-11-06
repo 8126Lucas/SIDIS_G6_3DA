@@ -1,7 +1,11 @@
 package com.sidis.aircraftservice.Aircraft.application;
 
 import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
-import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftRepository;
+import com.sidis.aircraftservice.Aircraft.domain.AircraftRedis;
+import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftCommandRepository;
+import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftQueryRepository;
+import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
+import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 import com.sidis.aircraftservice.infrastructure.client.FlightClientDTO;
 import com.sidis.aircraftservice.infrastructure.client.FlightRestClientService;
 import com.sidis.aircraftservice.infrastructure.client.RouteClientDTO;
@@ -12,6 +16,7 @@ import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
 //import com.sidis.aircraftservice.Route.domain.Route;
 import com.sidis.aircraftservice.UseCase;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -19,18 +24,22 @@ import java.util.stream.Collectors;
 
 @UseCase
 public class FuelEfficiencyService {
-
-    private final AircraftRepository aircraftRepository;
+    private final AircraftCommandRepository aircraftCommandRepository;
+    private final AircraftQueryRepository aircraftQueryRepository;
     private final FlightRestClientService flightClient;
     private final RouteRestClientService routeClient;
+    private final AircraftModelSearchService aircraftModelSearchService;
 
-    public FuelEfficiencyService(AircraftRepository aircraftRepository,
+    public FuelEfficiencyService(AircraftCommandRepository aircraftCommandRepository,
+                                 AircraftQueryRepository aircraftQueryRepository,
                                  FlightRestClientService flightClient,
-                                 RouteRestClientService routeClient) {
-
-        this.aircraftRepository = aircraftRepository;
+                                 RouteRestClientService routeClient,
+                                 AircraftModelSearchService aircraftModelSearchService) {
+        this.aircraftCommandRepository = aircraftCommandRepository;
+        this.aircraftQueryRepository = aircraftQueryRepository;
         this.flightClient = flightClient;
         this.routeClient = routeClient;
+        this.aircraftModelSearchService = aircraftModelSearchService;
     }
 
     public record AircraftFuelEfficiency(
@@ -52,19 +61,30 @@ public class FuelEfficiencyService {
     ) {}
 
     public List<AircraftFuelEfficiency> getFuelEfficiencyPerAircraft() {
-        return aircraftRepository.findAll().stream()
+        List<AircraftRedis> aircrafts = new ArrayList<>();
+        aircraftQueryRepository.findAll().forEach(aircrafts::add);
+
+        return aircrafts.stream()
                 .map(a -> {
-                    AircraftSpecs specs = a.getModel().getAircraftModelSpecs();
+                    AircraftModel model = aircraftModelSearchService.spotAircraftInCatalog(a.getModelName()).orElse(null);
                     double rate = 0.0;
-                    if (specs.getFuelCapacity() != null && specs.getMaximumRange() != null
-                            && specs.getMaximumRange() > 0) {
-                        rate = Math.round(specs.getFuelCapacity() / specs.getMaximumRange() * 100.0) / 100.0;
+                    Double capacity = 0.0;
+                    Double maxRange = 0.0;
+
+                    if (model != null && model.getAircraftModelSpecs() != null) {
+                        AircraftSpecs specs = model.getAircraftModelSpecs();
+                        capacity = specs.getFuelCapacity();
+                        maxRange = specs.getMaximumRange();
+                        if (capacity != null && maxRange != null && maxRange > 0) {
+                            rate = Math.round(capacity / maxRange * 100.0) / 100.0;
+                        }
                     }
+
                     return new AircraftFuelEfficiency(
                             a.getRegistrationNumber(),
-                            a.getModel().getModelName(),
-                            specs.getFuelCapacity(),
-                            specs.getMaximumRange(),
+                            a.getModelName(),
+                            capacity,
+                            maxRange,
                             rate
                     );
                 })
@@ -88,13 +108,14 @@ public class FuelEfficiencyService {
 
                     double avgRate = flights.stream()
                             .mapToDouble(f -> {
-                                Aircraft aircraft = aircraftRepository.findById(f.aircraftRegistration()).orElse(null);
+                                AircraftRedis aircraft = aircraftQueryRepository.findById(f.aircraftRegistration()).orElse(null);
 
                                 if (aircraft == null) {
                                     return 0.0;
                                 }
 
-                                AircraftSpecs specs = aircraft.getModel().getAircraftModelSpecs();
+                                AircraftModel model = aircraftModelSearchService.spotAircraftInCatalog(aircraft.getModelName()).orElse(null);
+                                AircraftSpecs specs = model.getAircraftModelSpecs();
                                 if (specs.getFuelCapacity() == null || specs.getMaximumRange() == null
                                         || specs.getMaximumRange() == 0) {
                                     return 0.0;
