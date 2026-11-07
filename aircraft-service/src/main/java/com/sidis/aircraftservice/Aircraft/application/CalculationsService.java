@@ -5,6 +5,7 @@ package com.sidis.aircraftservice.Aircraft.application;
 //import com.sidis.aircraftservice.Flight.infrastructure.FlightRepository;
 import com.sidis.aircraftservice.Aircraft.HangarController;
 import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
+import com.sidis.aircraftservice.Aircraft.domain.AircraftRedis;
 import com.sidis.aircraftservice.infrastructure.client.FlightClientDTO;
 import com.sidis.aircraftservice.infrastructure.client.FlightRestClientService;
 import org.springframework.stereotype.Service;
@@ -28,7 +29,7 @@ public class CalculationsService {
 
     public List<HangarController.UtilizationInfo> getUtilizationInfo() {
 
-        List<Aircraft> aircrafts = aircraftSearchService.findAll();
+        List<AircraftRedis> aircrafts = aircraftSearchService.findAll();
 
         return aircrafts.stream()
                 .flatMap(aircraft -> {

@@ -2,14 +2,17 @@ package com.sidis.aircraftservice.AircraftCatalog;
 
 import com.sidis.aircraftservice.Aircraft.application.AircraftSearchService;
 import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
+import com.sidis.aircraftservice.Aircraft.domain.AircraftRedis;
 import com.sidis.aircraftservice.AircraftCatalog.application.AddModelUseCase;
 import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
 import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelUpdater;
 import com.sidis.aircraftservice.AircraftCatalog.application.FlightSearchService;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
+import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModelRedis;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
 
 //import com.sidis.aircraftservice.Flight.application.FlightSearchService;
+import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecsRedis;
 import com.sidis.aircraftservice.exceptions.DomainException;
 import com.sidis.aircraftservice.exceptions.ResourceNotFoundException;
 import com.sidis.aircraftservice.infrastructure.client.FlightClientDTO;
@@ -49,7 +52,7 @@ public class ModelCatalogController {
      */
     @GetMapping("/{modelName}")
     public ModelResponse getModelByName(@PathVariable String modelName) {
-        AircraftModel model = aircraftModelSearchService.spotAircraftInCatalog(modelName)
+        AircraftModelRedis model = aircraftModelSearchService.spotAircraftInCatalog(modelName)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Model does not exist in catalog"
                 ));
@@ -86,19 +89,13 @@ public class ModelCatalogController {
                 &&request.specs()==null){
             throw new DomainException("Bad request");
         }
-        AircraftModel model=aircraftModelSearchService.spotAircraftInCatalog(modelName)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "Model does not exist in catalog"
-                        )
-                );
 
         Double fuel = request.specs() != null ? request.specs().fuelCapacityLiters() : null;
         Double range = request.specs() != null ? request.specs().maximumRangeKm() : null;
         Double speed = request.specs() != null ? request.specs().cruisingSpeedKph() : null;
         Integer seating = request.specs() != null ? request.specs().standardSeatingCapacity() : null;
 
-        aircraftModelUpdater.aircraftModelUpdate(model, request.modelImage(), request.manufacturer(), fuel, range, speed, seating);
+        aircraftModelUpdater.aircraftModelUpdate(modelName, request.modelImage(), request.manufacturer(), fuel, range, speed, seating);
     }
 
     /**
@@ -109,27 +106,27 @@ public class ModelCatalogController {
     @GetMapping("/rankings")
     public List<ModelResponse> getModelRanking(@RequestParam String mode) {
         if ("assignments".equals(mode)) {
-            Map<AircraftModel, Long> ranking = flightSearchService.findMostAssignedAircraftToFly().entrySet().stream()
+            Map<String, Long> ranking = flightSearchService.findMostAssignedAircraftToFly().entrySet().stream()
                     .collect(Collectors.groupingBy(
-                            entry -> entry.getKey().getModel(),
+                            entry -> entry.getKey().getModelName(),
                             Collectors.summingLong(Map.Entry::getValue)
                     ));
 
             return ranking.entrySet().stream()
-                    .sorted(Map.Entry.<AircraftModel, Long>comparingByValue().reversed())
+                    .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                     .limit(5)
                     .map(entry -> ModelResponse.from(entry.getKey()))
                     .toList();
         }
 
         if ("flight-hours".equals(mode)) {
-            Map<AircraftModel, Double> ranking = aircraftSearchService.findMostUsedModelsByFlyingAircraftHours().stream()
+            Map<String, Double> ranking = aircraftSearchService.findMostUsedModelsByFlyingAircraftHours().stream()
                     .collect(Collectors.toMap(
                             Map.Entry::getKey,
                             Map.Entry::getValue
                     ));
             return ranking.entrySet().stream()
-                    .sorted(Map.Entry.<AircraftModel, Double>comparingByValue().reversed())
+                    .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
                     .limit(5)
                     .map(entry -> ModelResponse.from(entry.getKey()))
                     .toList();
@@ -164,6 +161,10 @@ public class ModelCatalogController {
             return new ModelSpecsResponse(specs.getFuelCapacity(), specs.getMaximumRange(),
                     specs.getCruisingSpeed(),specs.getStandardSeatingCapacity());
         }
+        static ModelSpecsResponse from(AircraftSpecsRedis specs) {
+            return new ModelSpecsResponse(specs.getFuelCapacity(), specs.getMaximumRange(),
+                    specs.getCruisingSpeed(),specs.getStandardSeatingCapacity());
+        }
     }
 
     /**
@@ -173,6 +174,14 @@ public class ModelCatalogController {
         static ModelResponse from(AircraftModel model) {
             return new ModelResponse(model.getModelName(),model.getModelImage(),
                     model.getManufacturer(),ModelSpecsResponse.from(model.getAircraftModelSpecs()));
+        }
+        static ModelResponse from(AircraftModelRedis model) {
+            return new ModelResponse(model.getModelName(),model.getModelImage(),
+                    model.getManufacturer(),ModelSpecsResponse.from(model.getAircraftModelSpecs()));
+        }
+
+        public static ModelResponse from(String modelName) {
+            return new ModelResponse(modelName, null, null, null);
         }
     }
 }

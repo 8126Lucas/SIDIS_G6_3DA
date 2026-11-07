@@ -1,8 +1,10 @@
 package com.sidis.maintenanceservice.application;
 
 import com.sidis.maintenanceservice.domain.UsedPart;
-import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordRepository;
+import com.sidis.maintenanceservice.domain.UsedPartRedis;
+import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordCommandRepository;
 import com.sidis.maintenanceservice.UseCase;
+import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordQueryRepository;
 
 import java.util.Comparator;
 import java.util.List;
@@ -12,9 +14,9 @@ import java.util.stream.Collectors;
 @UseCase
 public class PartsInventoryService {
 
-    private final MaintenanceRecordRepository maintenanceRecordRepository;
+    private final MaintenanceRecordQueryRepository maintenanceRecordRepository;
 
-    public PartsInventoryService(MaintenanceRecordRepository maintenanceRecordRepository) {
+    public PartsInventoryService(MaintenanceRecordQueryRepository maintenanceRecordRepository) {
         this.maintenanceRecordRepository = maintenanceRecordRepository;
     }
 
@@ -33,15 +35,15 @@ public class PartsInventoryService {
     ) {}
 
     public List<PartUsageSummary> getPartsUsageSummary() {
-        Map<String, List<UsedPart>> bySerial = maintenanceRecordRepository.findAll()
+        Map<String, List<UsedPartRedis>> bySerial = maintenanceRecordRepository.findAll()
                 .stream()
                 .flatMap(r -> r.getUsedParts().stream())
-                .collect(Collectors.groupingBy(UsedPart::getPartSerialNumber));
+                .collect(Collectors.groupingBy(UsedPartRedis::getPartSerialNumber));
 
         return bySerial.entrySet().stream()
                 .map(e -> {
-                    List<UsedPart> parts = e.getValue();
-                    int totalQty = parts.stream().mapToInt(UsedPart::getQuantity).sum();
+                    List<UsedPartRedis> parts = e.getValue();
+                    int totalQty = parts.stream().mapToInt(UsedPartRedis::getQuantity).sum();
                     double totalCost = parts.stream()
                             .mapToDouble(p -> p.getQuantity() * p.getPrice())
                             .sum();

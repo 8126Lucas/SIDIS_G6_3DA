@@ -1,7 +1,9 @@
 package com.sidis.aircraftservice.AircraftCatalog.application;
 
 import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
-import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftRepository;
+import com.sidis.aircraftservice.Aircraft.domain.AircraftRedis;
+import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftCommandRepository;
+import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftQueryRepository;
 import com.sidis.aircraftservice.infrastructure.client.FlightClientDTO;
 import com.sidis.aircraftservice.infrastructure.client.FlightRestClientService;
 import org.springframework.stereotype.Service;
@@ -14,14 +16,14 @@ import java.util.stream.Collectors;
 @Service
 public class FlightSearchService {
     private final FlightRestClientService flightClient;
-    private final AircraftRepository aircraftRepository;
+    private final AircraftQueryRepository aircraftRepository;
 
-    public FlightSearchService(FlightRestClientService flightClient, AircraftRepository aircraftRepository) {
+    public FlightSearchService(FlightRestClientService flightClient, AircraftQueryRepository aircraftRepository) {
         this.flightClient = flightClient;
         this.aircraftRepository = aircraftRepository;
     }
 
-    public Map<Aircraft, Long> findMostAssignedAircraftToFly() {
+    public Map<AircraftRedis, Long> findMostAssignedAircraftToFly() {
         List<FlightClientDTO> allFlights = flightClient.getAllFlights();
 
         Map<String, Long> countsByRegistration = allFlights.stream()
@@ -31,7 +33,7 @@ public class FlightSearchService {
                         Collectors.counting()
                 ));
 
-        Map<Aircraft, Long> aircraftCounts = new HashMap<>();
+        Map<AircraftRedis, Long> aircraftCounts = new HashMap<>();
         for (Map.Entry<String, Long> entry : countsByRegistration.entrySet()) {
             aircraftRepository.findById(entry.getKey())
                     .ifPresent(aircraft -> aircraftCounts.put(aircraft, entry.getValue()));

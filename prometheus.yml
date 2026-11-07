@@ -1,0 +1,27 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'spring-boot-microservices'
+    metrics_path: '/actuator/prometheus'
+    tls_config:
+      insecure_skip_verify: true
+    eureka_sd_configs:
+      - server: 'http://discovery-node1:8761/eureka'
+    relabel_configs:
+      - source_labels: [__meta_eureka_app_name]
+        target_label: application
+      - source_labels: [__meta_eureka_instance_instance_id]
+        target_label: instance
+      - source_labels: [__meta_eureka_app_instance_metrics_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__meta_eureka_app_name]
+        regex: '(?i).*gateway.*'
+        target_label: __scheme__
+        replacement: https
+      - source_labels: [__address__, __meta_eureka_instance_hostname]
+        regex: '192\.168\.137\.1:(\d+);(.+)'
+        target_label: __address__
+        replacement: '${2}:${1}'

@@ -1,9 +1,9 @@
 package com.sidis.maintenanceservice.application;
 
-//import com.sidis.maintenanceservice.Aircraft.domain.Aircraft;
 import com.sidis.maintenanceservice.domain.MaintenanceAttribute;
 import com.sidis.maintenanceservice.domain.MaintenanceRecord;
-import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordRepository;
+import com.sidis.maintenanceservice.domain.MaintenanceRecordRedis;
+import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordQueryRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -12,20 +12,20 @@ import java.time.LocalDate;
 
 @Service
 public class MaintenanceRecordSearchService {
-    private final MaintenanceRecordRepository maintenanceRecordRepository;
+    private final MaintenanceRecordQueryRepository maintenanceRecordRepository;
 
-    public MaintenanceRecordSearchService(MaintenanceRecordRepository maintenanceRecordRepository) {
+    public MaintenanceRecordSearchService(MaintenanceRecordQueryRepository maintenanceRecordRepository) {
         this.maintenanceRecordRepository = maintenanceRecordRepository;
     }
 
-    public Page<MaintenanceRecord> findRecordsMatchingFilter(
+    public Page<MaintenanceRecordRedis> findRecordsMatchingFilter(
             String aircraftRegistration,
             String attribute,
             LocalDate initialDate,
             LocalDate finalDate,
             Pageable pageable) {
 
-        Specification<MaintenanceRecord> spec = Specification.allOf();
+        Specification<MaintenanceRecordRedis> spec = Specification.allOf();
 
         if (!aircraftRegistration.isEmpty()) {
             spec = spec.and((root, query, cb) ->

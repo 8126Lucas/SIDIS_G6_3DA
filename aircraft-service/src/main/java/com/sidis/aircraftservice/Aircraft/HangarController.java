@@ -3,14 +3,13 @@ package com.sidis.aircraftservice.Aircraft;
 import com.sidis.aircraftservice.Aircraft.application.*;
 import com.sidis.aircraftservice.Aircraft.application.FuelEfficiencyService;
 import com.sidis.aircraftservice.Aircraft.domain.*;
+import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModelRedis;
 import com.sidis.aircraftservice.infrastructure.client.FlightRestClientService;
 import com.sidis.aircraftservice.infrastructure.client.PeerForwarder;
 import com.sidis.aircraftservice.infrastructure.client.RouteClientDTO;
 import com.sidis.aircraftservice.infrastructure.client.RouteRestClientService;
 import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
-//import com.sidis.aircraftservice.Flight.application.FlightSearchService;
-//import com.sidis.aircraftservice.Route.RouteController;
 import com.sidis.aircraftservice.exceptions.DomainException;
 import com.sidis.aircraftservice.exceptions.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -40,7 +39,6 @@ public class HangarController {
     private final RouteRestClientService routeClient;
     private final RouteSearchService routeSearchService;
     private final FlightRestClientService flightClient;
-//    private final FlightSearchService flightSearchService;
     private final FuelEfficiencyService fuelEfficiencyService;
     private final PeerForwarder peerForwarder;
 
@@ -51,7 +49,6 @@ public class HangarController {
                             RouteRestClientService routeClient,
                             RouteSearchService routeSearchService,
                             FlightRestClientService flightClient,
-//                            FlightSearchService flightSearchService,
                             FuelEfficiencyService fuelEfficiencyService,
                             PeerForwarder peerForwarder) {
         this.addAircraftUseCase = addAircraftUseCase;
@@ -61,27 +58,24 @@ public class HangarController {
         this.routeClient = routeClient;
         this.routeSearchService = routeSearchService;
         this.flightClient = flightClient;
-//        this.flightSearchService = flightSearchService;
         this.fuelEfficiencyService = fuelEfficiencyService;
         this.peerForwarder = peerForwarder;
     }
     @PostMapping("/aircraft")
     @ResponseStatus(HttpStatus.CREATED)
     public void addAircraft(@Valid @RequestBody AddAircraftRequest request) {
-        AircraftModel model = aircraftModelSearchService
-                .spotAircraftInCatalog(request.modelName())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Model does not exist in catalog"));
-        Aircraft aircraft = new Aircraft(
+        aircraftLifeCycleUpdaterService.changeAvailability(
                 request.registrationNumber(),
-                model,
+                AircraftAvailability.valueOf(request.availability())
+        );
+
+        addAircraftUseCase.execute(
+                request.registrationNumber(),
+                request.modelName(),
                 request.manufacturingDate(),
                 request.totalOperationalHours(),
                 request.totalFlightHours()
         );
-        aircraftLifeCycleUpdaterService.changeAvailability(aircraft,
-                AircraftAvailability.valueOf(request.availability()));
-        addAircraftUseCase.execute(aircraft);
     }
 
     @GetMapping("/aircraft/{registrationNumber}")
@@ -98,7 +92,7 @@ public class HangarController {
 
     @GetMapping("/aircraft/{registrationNumber}/status")
     public AircraftStatusResponse getAircraftStatus(@PathVariable String registrationNumber) {
-        Aircraft aircraft = aircraftSearchService
+        AircraftRedis aircraft = aircraftSearchService
                 .spotAircraftInHangar(registrationNumber)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
@@ -114,14 +108,10 @@ public class HangarController {
             throw new DomainException("Non matching info");
         }
 
-        Aircraft aircraft = aircraftSearchService
-                .spotAircraftInHangar(request.registrationNumber())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "Aircraft does not exist in hangar"
-                        )
-                );
-        aircraftLifeCycleUpdaterService.changeAvailability(aircraft,AircraftAvailability.valueOf(request.availability()));
+        aircraftLifeCycleUpdaterService.changeAvailability(
+                registrationNumber,
+                AircraftAvailability.valueOf(request.availability())
+        );
     }
 
     @Transactional(readOnly = true)
@@ -138,7 +128,7 @@ public class HangarController {
 
     @GetMapping("/aircraft/{registrationNumber}/compatible-routes")
     public List<RouteClientDTO> getCompatibleRoutes(@PathVariable String registrationNumber) {
-        Aircraft aircraft = aircraftSearchService
+        AircraftRedis aircraft = aircraftSearchService
                 .spotAircraftInHangar(registrationNumber)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
@@ -155,10 +145,10 @@ public class HangarController {
     @GetMapping("/analytics/aircraft-availability")
     public Map<AircraftAvailability, List<String>> getAircraftsAvailability() {
         Map<AircraftAvailability, List<String>> result = new EnumMap<>(AircraftAvailability.class);
-        List<Aircraft> aircrafts = aircraftSearchService.findAll();
+        List<AircraftRedis> aircrafts = aircraftSearchService.findAll();
         for (AircraftAvailability availability : AircraftAvailability.values()) {
-            List<String> registrations =aircraftSearchService.findAircraftsByAvailability(aircrafts, availability)
-                            .stream().map(Aircraft::getRegistrationNumber)
+            List<String> registrations = aircraftSearchService.findAircraftsByAvailability(aircrafts, availability)
+                            .stream().map(AircraftRedis::getRegistrationNumber)
                             .toList();
             result.put(availability, registrations);
         }
@@ -185,18 +175,22 @@ public class HangarController {
     public Map<String,Double> getFuelEfficiency(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "5") int size) {
         Map<String, Double> fuelEfficiency = aircraftSearchService.findAll().stream()
                 .collect(Collectors.toMap(
-                        aircraft -> aircraft.getRegistrationNumber(),
-                        aircraft ->  Math.round(aircraft.getModel().getAircraftModelSpecs().getFuelCapacity()
-                                / aircraft.getModel().getAircraftModelSpecs().getMaximumRange()* 100.0) / 100.0
+                        AircraftRedis::getRegistrationNumber,
+                        aircraft -> {
+                            AircraftModelRedis model = aircraftModelSearchService.spotAircraftInCatalog(aircraft.getModelName()).orElse(null);
+                            if (model == null || model.getAircraftModelSpecs() == null) return 0.0;
+                            return Math.round(model.getAircraftModelSpecs().getFuelCapacity()
+                                    / model.getAircraftModelSpecs().getMaximumRange() * 100.0) / 100.0;
+                        }
                 ));
-
-
-
 
         flightClient.getAllFlights().forEach(flight -> {
             Double fuelCapacity = 0.0;
-            Optional<Aircraft> aircraft = aircraftSearchService.spotAircraftInHangar(flight.aircraftRegistration());
-            if(aircraft.isPresent()) {fuelCapacity = aircraft.get().getModel().getAircraftModelSpecs().getFuelCapacity();}
+            Optional<AircraftRedis> aircraftOpt = aircraftSearchService.spotAircraftInHangar(flight.aircraftRegistration());
+            if(aircraftOpt.isPresent()) {
+                AircraftModelRedis model = aircraftModelSearchService.spotAircraftInCatalog(aircraftOpt.get().getModelName()).orElse(null);
+                if (model != null && model.getAircraftModelSpecs() != null) fuelCapacity = model.getAircraftModelSpecs().getFuelCapacity();
+            }
 
             fuelEfficiency.put(
                     "Flight "+ flight.id().toString()+ ":",
@@ -213,11 +207,11 @@ public class HangarController {
     public Map<String, Double> getOperationalHours(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "5") int size) {
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Direction.DESC, "totalOperationalHours"));
-        Page<Aircraft> aircraftPage = aircraftSearchService.findPages(pageable);
+        Page<AircraftRedis> aircraftPage = aircraftSearchService.findPages(pageable);
         return aircraftPage.getContent().stream()
                 .collect(Collectors.toMap(
-                        Aircraft::getRegistrationNumber,
-                        Aircraft::getTotalOperationalHours,
+                        AircraftRedis::getRegistrationNumber,
+                        AircraftRedis::getTotalOperationalHours,
                         (a, b) -> a,
                         LinkedHashMap::new
                 ));
@@ -282,6 +276,13 @@ public class HangarController {
                     aircraft.getTotalFlightHours(), aircraft.getMeanRange(),
                     aircraft.getFeatures()
             );
+        }
+        public static AircraftResponse from(AircraftRedis aircraft) {
+            return new AircraftResponse(aircraft.getRegistrationNumber(),
+                    aircraft.getModelName(), aircraft.getStatus(),
+                    aircraft.getManufacturingDate(), aircraft.getTotalOperationalHours(),
+                    aircraft.getTotalFlightHours(), aircraft.getMeanRange(),
+                    aircraft.getFeatures());
         }
     }
 

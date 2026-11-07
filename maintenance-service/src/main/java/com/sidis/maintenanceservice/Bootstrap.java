@@ -1,11 +1,10 @@
 package com.sidis.maintenanceservice;
 
 import com.sidis.maintenanceservice.domain.*;
-import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordRepository;
-import com.sidis.maintenanceservice.infrastructure.MaintenanceTemplateRepository;
+import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordCommandRepository;
+import com.sidis.maintenanceservice.infrastructure.MaintenanceTemplateCommandRepository;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,11 +15,11 @@ import java.util.*;
 //@Profile("dev")
 public class Bootstrap implements ApplicationRunner {
     
-    private final MaintenanceRecordRepository maintenanceRecordRepository;
-    private final MaintenanceTemplateRepository maintenanceTemplateRepository;
+    private final MaintenanceRecordCommandRepository maintenanceRecordRepository;
+    private final MaintenanceTemplateCommandRepository maintenanceTemplateRepository;
 
-    public Bootstrap(MaintenanceRecordRepository maintenanceRecordRepository,
-                     MaintenanceTemplateRepository maintenanceTemplateRepository) {
+    public Bootstrap(MaintenanceRecordCommandRepository maintenanceRecordRepository,
+                     MaintenanceTemplateCommandRepository maintenanceTemplateRepository) {
         this.maintenanceRecordRepository = maintenanceRecordRepository;
         this.maintenanceTemplateRepository = maintenanceTemplateRepository;
     }

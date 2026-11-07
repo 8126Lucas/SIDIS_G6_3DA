@@ -1,16 +1,7 @@
 package com.sidis.maintenanceservice;
 
-//import com.sidis.maintenanceservice.Aircraft.HangarController;
-//import com.sidis.maintenanceservice.Aircraft.application.AircraftSearchService;
-//import com.sidis.maintenanceservice.Aircraft.domain.Aircraft;
-//import com.sidis.maintenanceservice.AircraftCatalog.ModelCatalogController;
-//import com.sidis.maintenanceservice.AircraftCatalog.domain.AircraftSpecs;
 import com.sidis.maintenanceservice.application.*;
-import com.sidis.maintenanceservice.domain.MaintenanceAttribute;
-import com.sidis.maintenanceservice.domain.MaintenanceRecord;
-import com.sidis.maintenanceservice.domain.MaintenanceStatus;
-import com.sidis.maintenanceservice.domain.MaintenanceTemplate;
-import com.sidis.maintenanceservice.domain.MaintenanceType;
+import com.sidis.maintenanceservice.domain.*;
 import com.sidis.maintenanceservice.exceptions.DomainException;
 import com.sidis.maintenanceservice.exceptions.ResourceNotFoundException;
 import com.sidis.maintenanceservice.infrastructure.client.AircraftClientDTO;
@@ -108,13 +99,9 @@ public class MaintenanceRecordController {
                 .findAircraftByRegistration(request.registrationNumber())
                 .orElseThrow(() -> new ResourceNotFoundException("Aircraft does not exist in hangar"));
 
-        MaintenanceTemplate maintenanceTemplate = maintenanceTemplateSearchService
-                .findByTemplateId(request.templateId())
-                .orElseThrow(() -> new ResourceNotFoundException("Maintenance Template does not exist"));
-
         addMaintenanceRecordUseCase.executeShort(
                 aircraftDto.aircraftRegistration(),
-                maintenanceTemplate,
+                request.templateId(),
                 request.durationHours(),
                 request.description(),
                 request.startDate()
@@ -155,7 +142,7 @@ public class MaintenanceRecordController {
     public List<MaintenanceRecordResponse> ongoingMaintenanceActivities() {
         return maintenanceReportService.ongoingMaintenanceActivities()
                 .stream()
-                .map(MaintenanceRecordResponse::from)
+                .map(r -> MaintenanceRecordResponse.from(r, maintenanceTemplateSearchService))
                 .toList();
     }
 
@@ -228,7 +215,7 @@ public class MaintenanceRecordController {
 
         return maintenanceRecordSearchService
                 .findRecordsMatchingFilter(aircraft, attribute, initialDate, finalDate, pageable)
-                .map(MaintenanceRecordResponse::from)
+                .map(r -> MaintenanceRecordResponse.from(r, maintenanceTemplateSearchService))
                 .toList();
     }
 
@@ -286,6 +273,27 @@ public class MaintenanceRecordController {
                     template.getAttribute()
             );
         }
+        static MaintenanceTemplateResponse from(MaintenanceTemplateRedis template) {
+            return new MaintenanceTemplateResponse(
+                    template.getTemplateId(),
+                    template.getName(),
+                    template.getExpectedDuration(),
+                    template.getTemplateChecklist(),
+                    template.getOperation(),
+                    template.getAttribute()
+            );
+        }
+        static MaintenanceTemplateResponse from(Long id, MaintenanceTemplateSearchService searchService) {
+            MaintenanceTemplateRedis template = searchService.findByTemplateId(id).orElseThrow(() -> new ResourceNotFoundException("Maintenance Template does not exist"));
+            return new MaintenanceTemplateResponse(
+                    template.getTemplateId(),
+                    template.getName(),
+                    template.getExpectedDuration(),
+                    template.getTemplateChecklist(),
+                    template.getOperation(),
+                    template.getAttribute()
+            );
+        }
     }
 
     record MaintenanceRecordResponse(Long id,
@@ -300,6 +308,18 @@ public class MaintenanceRecordController {
                     r.getRecordId(),
                     r.getAircraftRegistration(),
                     MaintenanceTemplateResponse.from(r.getMaintenanceTemplate()),
+                    r.getDurationHours(),
+                    r.getDescription(),
+                    r.getStartDate(),
+                    r.getStatus()
+            );
+        }
+        static MaintenanceRecordResponse from(MaintenanceRecordRedis r, MaintenanceTemplateSearchService searchService) {
+            MaintenanceTemplateResponse templateResponse = MaintenanceTemplateResponse.from(r.getMaintenanceTemplateId(), searchService);
+            return new MaintenanceRecordResponse(
+                    r.getRecordId(),
+                    r.getAircraftRegistration(),
+                    templateResponse,
                     r.getDurationHours(),
                     r.getDescription(),
                     r.getStartDate(),

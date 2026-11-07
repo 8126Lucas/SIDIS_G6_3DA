@@ -1,12 +1,16 @@
 package com.sidis.aircraftservice.Aircraft.application;
 
 import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
-import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftRepository;
+import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftCommandRepository;
+import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftQueryRepository;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
+import com.sidis.aircraftservice.AircraftCatalog.infrastructure.AircraftModelCommandRepository;
 import com.sidis.aircraftservice.UseCase;
+import com.sidis.aircraftservice.exceptions.DomainException;
 
 import java.time.LocalDate;
+import java.util.Optional;
 
 /**
  * Use case: a ATCC operator adds a new aircraft instance to the company aircraft.
@@ -20,24 +24,36 @@ import java.time.LocalDate;
 
 @UseCase
 public class AddAircraftUseCase {
-    private final AircraftRepository aircraftRepository;
+    private final AircraftCommandRepository aircraftCommandRepository;
+    private final AircraftModelCommandRepository aircraftModelCommandRepository;
+    private final AircraftQueryRepository aircraftQueryRepository;
 
-    public AddAircraftUseCase(AircraftRepository aircraftRepository) {
-        this.aircraftRepository = aircraftRepository;
+    public AddAircraftUseCase(AircraftCommandRepository aircraftCommandRepository,
+                              AircraftModelCommandRepository aircraftModelCommandRepository,
+                              AircraftQueryRepository aircraftQueryRepository) {
+        this.aircraftCommandRepository = aircraftCommandRepository;
+        this.aircraftModelCommandRepository = aircraftModelCommandRepository;
+        this.aircraftQueryRepository = aircraftQueryRepository;
     }
 
     /**
      * Looks up the model for the given modelName, creates a {@link AircraftModel}
      *with the given {@link AircraftSpecs},manufacturer,name and persists it.
      * @param registrationNumber the registration number of the aircraft;
-     * @param model the model of the aircraft;
+     * @param modelName the name of the model of the aircraft;
      * @param manufacturingDate the manufacturing date of the aircraft;
      * @param totalOperationalHours the number of hours that the aircraft has operated since getting out of factory;
      * @param totalFlightHours the number of hours that the aircraft has fled since getting out of factory;
      */
-    public void execute(String registrationNumber, AircraftModel model, LocalDate manufacturingDate,
+    public void execute(String registrationNumber, String modelName, LocalDate manufacturingDate,
                         Double totalOperationalHours, Double totalFlightHours) {
-        aircraftRepository.save(new Aircraft(registrationNumber, model,manufacturingDate, totalOperationalHours,totalFlightHours));
+        Optional<AircraftModel> model = aircraftModelCommandRepository.findByModelName(modelName);
+        if(model.isPresent()) {
+            aircraftCommandRepository.save(new Aircraft(registrationNumber, model.get(), manufacturingDate, totalOperationalHours,totalFlightHours));
+        }
+        else {
+            throw new DomainException("Aircraft Model does not exist!");
+        }
     }
 
     /**
@@ -45,6 +61,6 @@ public class AddAircraftUseCase {
      * @param aircraft the model object to be persisted
      */
     public void execute(Aircraft aircraft) {
-        aircraftRepository.save(aircraft);
+        aircraftCommandRepository.save(aircraft);
     }
 }

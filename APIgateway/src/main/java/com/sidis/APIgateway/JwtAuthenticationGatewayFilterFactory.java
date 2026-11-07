@@ -12,7 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 public class JwtAuthenticationGatewayFilterFactory extends AbstractGatewayFilterFactory<JwtAuthenticationGatewayFilterFactory.Config> {
 
     @Value("${security.jwt.secret}")
-    private String SECRET_KEY;;
+    private String SECRET_KEY;
 
     public JwtAuthenticationGatewayFilterFactory() {
         super(Config.class);
@@ -21,6 +21,12 @@ public class JwtAuthenticationGatewayFilterFactory extends AbstractGatewayFilter
     @Override
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
+
+            String path = exchange.getRequest().getPath().toString();
+            if (path.startsWith("/actuator")) {
+                return chain.filter(exchange);
+            }
+
             if (!exchange.getRequest().getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return exchange.getResponse().setComplete();

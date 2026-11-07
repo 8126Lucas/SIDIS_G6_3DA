@@ -2,7 +2,7 @@ package com.sidis.aircraftservice.AircraftCatalog.application;
 
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
-import com.sidis.aircraftservice.AircraftCatalog.infrastructure.AircraftModelRepository;
+import com.sidis.aircraftservice.AircraftCatalog.infrastructure.AircraftModelCommandRepository;
 import com.sidis.aircraftservice.UseCase;
 
 import java.util.List;
@@ -19,9 +19,9 @@ import java.util.List;
 
 @UseCase
 public class AddModelUseCase {
-    private final AircraftModelRepository aircraftModelRepository;
+    private final AircraftModelCommandRepository aircraftModelRepository;
 
-    public AddModelUseCase(AircraftModelRepository aircraftModelRepository) {
+    public AddModelUseCase(AircraftModelCommandRepository aircraftModelRepository) {
         this.aircraftModelRepository = aircraftModelRepository;
     }
 
