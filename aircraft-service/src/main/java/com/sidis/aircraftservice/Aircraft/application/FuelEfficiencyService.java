@@ -1,19 +1,17 @@
 package com.sidis.aircraftservice.Aircraft.application;
 
-import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
 import com.sidis.aircraftservice.Aircraft.domain.AircraftRedis;
 import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftCommandRepository;
 import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftQueryRepository;
 import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
+import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModelRedis;
+import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecsRedis;
 import com.sidis.aircraftservice.infrastructure.client.FlightClientDTO;
 import com.sidis.aircraftservice.infrastructure.client.FlightRestClientService;
 import com.sidis.aircraftservice.infrastructure.client.RouteClientDTO;
 import com.sidis.aircraftservice.infrastructure.client.RouteRestClientService;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
-//import com.sidis.aircraftservice.Flight.domain.Flight;
-//import com.sidis.aircraftservice.Flight.infrastructure.FlightRepository;
-//import com.sidis.aircraftservice.Route.domain.Route;
 import com.sidis.aircraftservice.UseCase;
 
 import java.util.ArrayList;
@@ -66,13 +64,13 @@ public class FuelEfficiencyService {
 
         return aircrafts.stream()
                 .map(a -> {
-                    AircraftModel model = aircraftModelSearchService.spotAircraftInCatalog(a.getModelName()).orElse(null);
+                    AircraftModelRedis model = aircraftModelSearchService.spotAircraftInCatalog(a.getModelName()).orElse(null);
                     double rate = 0.0;
                     Double capacity = 0.0;
                     Double maxRange = 0.0;
 
                     if (model != null && model.getAircraftModelSpecs() != null) {
-                        AircraftSpecs specs = model.getAircraftModelSpecs();
+                        AircraftSpecsRedis specs = model.getAircraftModelSpecs();
                         capacity = specs.getFuelCapacity();
                         maxRange = specs.getMaximumRange();
                         if (capacity != null && maxRange != null && maxRange > 0) {
@@ -114,8 +112,8 @@ public class FuelEfficiencyService {
                                     return 0.0;
                                 }
 
-                                AircraftModel model = aircraftModelSearchService.spotAircraftInCatalog(aircraft.getModelName()).orElse(null);
-                                AircraftSpecs specs = model.getAircraftModelSpecs();
+                                AircraftModelRedis model = aircraftModelSearchService.spotAircraftInCatalog(aircraft.getModelName()).orElse(null);
+                                AircraftSpecsRedis specs = model.getAircraftModelSpecs();
                                 if (specs.getFuelCapacity() == null || specs.getMaximumRange() == null
                                         || specs.getMaximumRange() == 0) {
                                     return 0.0;

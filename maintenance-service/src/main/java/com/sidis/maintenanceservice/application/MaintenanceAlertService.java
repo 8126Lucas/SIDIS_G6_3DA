@@ -1,9 +1,9 @@
 package com.sidis.maintenanceservice.application;
 
 import com.sidis.maintenanceservice.UseCase;
-import com.sidis.maintenanceservice.domain.MaintenanceRecord;
+import com.sidis.maintenanceservice.domain.MaintenanceRecordRedis;
 import com.sidis.maintenanceservice.domain.MaintenanceStatus;
-import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordRepository;
+import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordQueryRepository;
 import com.sidis.maintenanceservice.infrastructure.client.AircraftClientDTO;
 import com.sidis.maintenanceservice.infrastructure.client.AircraftRestClientService;
 
@@ -18,9 +18,9 @@ import java.util.Optional;
 public class MaintenanceAlertService {
 
     private final AircraftRestClientService aircraftClient;
-    private final MaintenanceRecordRepository maintenanceRecordRepository;
+    private final MaintenanceRecordQueryRepository maintenanceRecordRepository;
 
-    public MaintenanceAlertService(AircraftRestClientService aircraftClient, MaintenanceRecordRepository maintenanceRecordRepository) {
+    public MaintenanceAlertService(AircraftRestClientService aircraftClient, MaintenanceRecordQueryRepository maintenanceRecordRepository) {
         this.aircraftClient = aircraftClient;
         this.maintenanceRecordRepository = maintenanceRecordRepository;
     }
@@ -36,16 +36,16 @@ public class MaintenanceAlertService {
 
     public List<MaintenanceAlert> findAircraftDueForMaintenance(int calendarDaysThreshold,
                                                                 double flightHoursThreshold) {
-        List<MaintenanceRecord> completedRecords = maintenanceRecordRepository.findByStatus(MaintenanceStatus.COMPLETED);
+        List<MaintenanceRecordRedis> completedRecords = maintenanceRecordRepository.findByStatus(MaintenanceStatus.COMPLETED);
         List<AircraftClientDTO> allAircraft = aircraftClient.findAll();
         List<MaintenanceAlert> alerts = new ArrayList<>();
         LocalDate today = LocalDate.now();
 
         for (AircraftClientDTO aircraft : allAircraft) {
-            Optional<MaintenanceRecord> lastMaintenance = completedRecords.stream()
+            Optional<MaintenanceRecordRedis> lastMaintenance = completedRecords.stream()
                     .filter(r -> r.getAircraftRegistration()
                             .equals(aircraft.aircraftRegistration()))
-                    .max(Comparator.comparing(MaintenanceRecord::getEndDate));
+                    .max(Comparator.comparing(MaintenanceRecordRedis::getEndDate));
 
             List<String> reasons = new ArrayList<>();
 
@@ -63,7 +63,7 @@ public class MaintenanceAlertService {
             }
 
             if (!reasons.isEmpty()) {
-                LocalDate lastDate = lastMaintenance.map(MaintenanceRecord::getEndDate).orElse(null);
+                LocalDate lastDate = lastMaintenance.map(MaintenanceRecordRedis::getEndDate).orElse(null);
                 Long daysSince = lastDate != null ? ChronoUnit.DAYS.between(lastDate, today) : null;
 
                 alerts.add(new MaintenanceAlert(

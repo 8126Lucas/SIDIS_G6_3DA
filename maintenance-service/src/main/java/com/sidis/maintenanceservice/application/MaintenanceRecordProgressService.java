@@ -4,7 +4,7 @@ import com.sidis.maintenanceservice.domain.MaintenanceAttribute;
 import com.sidis.maintenanceservice.domain.MaintenanceRecord;
 import com.sidis.maintenanceservice.domain.MaintenanceStatus;
 import com.sidis.maintenanceservice.domain.UsedPart;
-import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordRepository;
+import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordCommandRepository;
 import com.sidis.maintenanceservice.UseCase;
 import com.sidis.maintenanceservice.exceptions.DomainException;
 import jakarta.transaction.Transactional;
@@ -18,9 +18,9 @@ import java.util.Optional;
 @Transactional
 public class MaintenanceRecordProgressService {
 
-    private final MaintenanceRecordRepository maintenanceRecordRepository;
+    private final MaintenanceRecordCommandRepository maintenanceRecordRepository;
 
-    public MaintenanceRecordProgressService(MaintenanceRecordRepository maintenanceRecordRepository) {
+    public MaintenanceRecordProgressService(MaintenanceRecordCommandRepository maintenanceRecordRepository) {
         this.maintenanceRecordRepository = maintenanceRecordRepository;
     }
 

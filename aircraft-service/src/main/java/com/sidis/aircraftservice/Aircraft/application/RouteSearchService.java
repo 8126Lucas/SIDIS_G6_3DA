@@ -4,6 +4,7 @@ import com.sidis.aircraftservice.Aircraft.domain.Aircraft;
 import com.sidis.aircraftservice.Aircraft.domain.AircraftRedis;
 import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
+import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModelRedis;
 import com.sidis.aircraftservice.infrastructure.client.RouteClientDTO;
 import org.springframework.stereotype.Service;
 
@@ -19,7 +20,7 @@ public class RouteSearchService {
     }
 
     public List<RouteClientDTO> findCompatibleRoutes(AircraftRedis aircraft, List<RouteClientDTO> routes) {
-        AircraftModel model = aircraftModelSearchService.spotAircraftInCatalog(aircraft.getModelName())
+        AircraftModelRedis model = aircraftModelSearchService.spotAircraftInCatalog(aircraft.getModelName())
                 .orElseThrow(() -> new IllegalStateException("Model not found in catalog"));
 
         int capacity;

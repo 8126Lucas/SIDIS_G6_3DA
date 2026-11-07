@@ -1,9 +1,9 @@
 package com.sidis.maintenanceservice.application;
 
-import com.sidis.maintenanceservice.domain.MaintenanceRecord;
+import com.sidis.maintenanceservice.domain.MaintenanceRecordRedis;
 import com.sidis.maintenanceservice.domain.MaintenanceStatus;
-import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordRepository;
 import com.sidis.maintenanceservice.UseCase;
+import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordQueryRepository;
 import com.sidis.maintenanceservice.infrastructure.client.AircraftRestClientService;
 
 import java.time.temporal.ChronoUnit;
@@ -16,10 +16,10 @@ import java.util.stream.Collectors;
 public class MaintenanceReportService {
 
     private final AircraftRestClientService aircraftClient;
-    private final MaintenanceRecordRepository maintenanceRecordRepository;
+    private final MaintenanceRecordQueryRepository maintenanceRecordRepository;
 
 
-    public MaintenanceReportService(AircraftRestClientService aircraftClient, MaintenanceRecordRepository maintenanceRecordRepository) {
+    public MaintenanceReportService(AircraftRestClientService aircraftClient, MaintenanceRecordQueryRepository maintenanceRecordRepository) {
         this.aircraftClient = aircraftClient;
         this.maintenanceRecordRepository = maintenanceRecordRepository;
     }
@@ -27,7 +27,7 @@ public class MaintenanceReportService {
     public record TurnaroundAverage(String aircraftType, Double averageDays) {}
     public record MaintenanceCostReport(String group, Double totalCost) {}
 
-    public List<MaintenanceRecord> ongoingMaintenanceActivities() {
+    public List<MaintenanceRecordRedis> ongoingMaintenanceActivities() {
         return maintenanceRecordRepository.findByStatus(MaintenanceStatus.ONGOING);
     }
 
@@ -47,7 +47,7 @@ public class MaintenanceReportService {
     }
 
     public List<TurnaroundAverage> averageTurnaroundTimePerAircraftType() {
-        List<MaintenanceRecord> completed = maintenanceRecordRepository.findByStatus(MaintenanceStatus.COMPLETED);
+        List<MaintenanceRecordRedis> completed = maintenanceRecordRepository.findByStatus(MaintenanceStatus.COMPLETED);
 
         Map<String, List<Long>> daysPerType = completed.stream()
                 .filter(r -> r.getEndDate() != null)
@@ -68,14 +68,16 @@ public class MaintenanceReportService {
                 .toList();
     }
 
-    private String reportGroup(MaintenanceRecord record, String groupBy) {
+    private String reportGroup(MaintenanceRecordRedis record, String groupBy) {
         if ("model".equalsIgnoreCase(groupBy)) {
             return aircraftClient.findAircraftModelNameByRegistrationNumber(record.getAircraftRegistration());
         }
         return record.getAircraftRegistration();
     }
 
-    private Double recordCost(MaintenanceRecord record) {
+    private Double recordCost(MaintenanceRecordRedis record) {
+        if (record.getUsedParts() == null) return 0.0;
+
         return record.getUsedParts()
                 .stream()
                 .mapToDouble(part -> part.getQuantity() * part.getPrice())

@@ -4,7 +4,7 @@ import com.sidis.aircraftservice.Aircraft.domain.*;
 import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftCommandRepository;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
-import com.sidis.aircraftservice.AircraftCatalog.infrastructure.AircraftModelRepository;
+import com.sidis.aircraftservice.AircraftCatalog.infrastructure.AircraftModelCommandRepository;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -17,10 +17,10 @@ import java.util.*;
 //@Profile("dev")
 public class Bootstrap implements ApplicationRunner {
 
-    private final AircraftModelRepository aircraftModelRepository;
+    private final AircraftModelCommandRepository aircraftModelRepository;
     private final AircraftCommandRepository aircraftRepository;
 
-    public Bootstrap(AircraftModelRepository aircraftModelRepository, AircraftCommandRepository aircraftRepository) {
+    public Bootstrap(AircraftModelCommandRepository aircraftModelRepository, AircraftCommandRepository aircraftRepository) {
         this.aircraftModelRepository = aircraftModelRepository;
         this.aircraftRepository = aircraftRepository;
     }
