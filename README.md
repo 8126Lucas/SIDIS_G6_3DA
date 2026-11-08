@@ -17,21 +17,21 @@ Microservices architecture monorepo for the _Sistemas Distribuídos_ (SIDIS) cou
 | **`prometheus`** | `9090` |
 
 ## Database Choices
-- `aircraft-service`: SQLite (Write) + Redis (Read)
-- `airport-service`: SQLite (Write) + Redis (Read)
+- `aircraft-service`: PostgreSQL (Write) + Redis (Read)
+- `airport-service`: PostgreSQL (Write) + Redis (Read)
 - `auth-service`: SQLite
-- `flight-service`: SQLite (Write) + Redis (Read)
-- `route-service`: SQLite (Write) + Redis (Read)
-- `maintenance-service`: SQLite (Write) + Redis (Read)
+- `flight-service`: PostgreSQL (Write) + Redis (Read)
+- `route-service`: PostgreSQL (Write) + Redis (Read)
+- `maintenance-service`: PostgreSQL (Write) + Redis (Read)
 
 ## PC Workload Distribution
-| **PC** | **Services** |
-|--------|--------------|
-| **PC1** | `discovery-service-1`, `api-gateway-1`, `prometheus` |
-| **PC2** | `aircraft-service-1`, `redis-aircraft-1`, `maintenance-service-1`, `redis-maintenance-1`, `auth-service-1` |
-| **PC3** | `discovery-service-2`, `airport-service-1`, `redis-airport-1`, `maintenance-service-2`, `redis-maintenance-2`, `auth-service-2` |
-| **PC4** | `api-gateway-2`, `route-service-1`, `redis-route-1`, `flight-service-1`, `redis-flight-1` |
-| **PC5** | `airport-service-2`, `redis-airport-2`, `route-service-2`, `redis-route-2`, `flight-service-2`, `redis-flight-2`, `aircraft-service-2`, `redis-aircraft-2` |
+| **PC**            | **Services**                                                                                                                                                                                                                             |
+|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **PC1 (Lucas)**   | `discovery-service-1`, `api-gateway-1`, `prometheus`, `redis-aircraft-1`, `redis-maintenance-1`                                                                                                                                          |
+| **PC2 (Lucas)**   | `aircraft-service-1`, `maintenance-service-1`, `auth-service-1`, `redis-aircraft-2`, `redis-maintenance-2`                                                                                                                               |
+| **PC3 (Gustavo)** | `api-gateway-2`, `route-service-1`, `flight-service-1`, `redis-aircraft-3`, `redis-maintenance-3`                                                                                                                                        |
+| **PC4 (Tiago)**   | `discovery-service-2`, `airport-service-1`, `maintenance-service-2`, `auth-service-2`, `rabbitmq-3`, `redis-airport-1`, `redis-flight-1`, `redis-route-1`                                                                                |
+| **PC5 (Martim)**  | `airport-service-2`, `route-service-2`, `flight-service-2`, `aircraft-service-2`, `rabbitmq-1`, `rabbitmq-2`, `redis-airport-2`, `redis-flight-2`, `redis-route-2`, `redis-airport-3`, `redis-flight-3`, `redis-route-3`, `postgresql-1` |
 
 ## Instructions
 - **Start the cluster:** `docker compose up -d --build`

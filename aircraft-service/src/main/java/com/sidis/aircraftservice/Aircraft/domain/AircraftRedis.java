@@ -25,7 +25,7 @@ public class AircraftRedis {
     private List<InstalledComponentRedis> components;
     private List<AircraftCertificationRedis> certifications;
 
-    protected AircraftRedis() {}
+    public AircraftRedis() {}
 
     public AircraftRedis(String registrationNumber, String modelName, AircraftAvailability status,
                          LocalDate manufacturingDate, Double totalOperationalHours,

@@ -17,7 +17,6 @@ services:
       resources:
         limits:
           memory: 300M
-
   discovery-node2:
     build: ./discovery-service
     image: ghcr.io/${REPO_OWNER}/discovery-service:latest
@@ -52,7 +51,6 @@ services:
       resources:
         limits:
           memory: 300M
-
   api-gateway-2:
     build: ./APIgateway
     image: ghcr.io/${REPO_OWNER}/api-gateway:latest
@@ -78,9 +76,29 @@ services:
   redis-aircraft-1:
     image: redis:7-alpine
     container_name: redis-aircraft-1
-    profiles: ["pc2"]
+    profiles: ["pc1"]
     ports:
       - "6379:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+  redis-aircraft-2:
+    image: redis:7-alpine
+    container_name: redis-aircraft-2
+    profiles: ["pc2"]
+    ports:
+      - "6380:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+  redis-aircraft-3:
+    image: redis:7-alpine
+    container_name: redis-aircraft-3
+    profiles: ["pc3"]
+    ports:
+      - "6381:6379"
     deploy:
       resources:
         limits:
@@ -89,35 +107,168 @@ services:
   redis-maintenance-1:
     image: redis:7-alpine
     container_name: redis-maintenance-1
-    profiles: ["pc2"]
+    profiles: ["pc1"]
     ports:
-      - "6380:6379"
+      - "6382:6379"
     deploy:
-      resources:
-        limits:
-          memory: 300M
-
-  redis-aircraft-2:
-    image: redis:7-alpine
-    container_name: redis-aircraft-2
-    profiles: ["pc5"]
-    ports:
-      - "6379:6379"
-    deploy:
-      resources:
-        limits:
-          memory: 300M
-
+      resources: { limits: { memory: 100M } }
   redis-maintenance-2:
     image: redis:7-alpine
     container_name: redis-maintenance-2
+    profiles: ["pc2"]
+    ports:
+      - "6383:6379"
+    deploy:
+      resources: { limits: { memory: 100M } }
+  redis-maintenance-3:
+    image: redis:7-alpine
+    container_name: redis-maintenance-3
+    profiles: ["pc3"]
+    ports:
+      - "6384:6379"
+    deploy:
+      resources: { limits: { memory: 100M } }
+
+  redis-airport-1:
+    image: redis:7-alpine
+    container_name: redis-airport-1
+    profiles: [ "pc4" ]
+    ports:
+      - "6385:6379"
+    deploy:
+      resources: { limits: { memory: 100M } }
+  redis-airport-2:
+    image: redis:7-alpine
+    container_name: redis-airport-2
+    profiles: [ "pc5" ]
+    ports:
+      - "6386:6379"
+    deploy:
+      resources: { limits: { memory: 100M } }
+  redis-airport-3:
+    image: redis:7-alpine
+    container_name: redis-airport-3
+    profiles: [ "pc5" ]
+    ports:
+      - "6387:6379"
+    deploy:
+      resources: { limits: { memory: 100M } }
+
+  redis-flight-1:
+    image: redis:7-alpine
+    container_name: redis-flight-1
+    profiles: [ "pc4" ]
+    ports:
+      - "6388:6379"
+    deploy:
+      resources: { limits: { memory: 100M } }
+  redis-flight-2:
+    image: redis:7-alpine
+    container_name: redis-flight-2
+    profiles: [ "pc5" ]
+    ports:
+      - "6389:6379"
+    deploy:
+      resources: { limits: { memory: 100M } }
+  redis-flight-3:
+    image: redis:7-alpine
+    container_name: redis-flight-3
+    profiles: [ "pc5" ]
+    ports:
+      - "6390:6379"
+    deploy:
+      resources: { limits: { memory: 100M } }
+
+  redis-route-1:
+    image: redis:7-alpine
+    container_name: redis-route-1
+    profiles: [ "pc4" ]
+    ports:
+      - "6391:6379"
+    deploy:
+      resources: { limits: { memory: 100M } }
+  redis-route-2:
+    image: redis:7-alpine
+    container_name: redis-route-2
+    profiles: [ "pc5" ]
+    ports:
+      - "6392:6379"
+    deploy:
+      resources: { limits: { memory: 100M } }
+  redis-route-3:
+    image: redis:7-alpine
+    container_name: redis-route-3
+    profiles: [ "pc5" ]
+    ports:
+      - "6393:6379"
+    deploy:
+      resources: { limits: { memory: 100M } }
+
+  # ------------------------------------------------------
+  # RABBITMQ CLUSTER
+  # ------------------------------------------------------
+  rabbitmq-1:
+    image: rabbitmq:3.12-management-alpine
+    container_name: rabbitmq-1
     profiles: ["pc5"]
     ports:
-      - "6380:6379"
+      - "5672:5672"   # AMQP Port
+      - "15672:15672" # Web Interface
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_ERLANG_COOKIE: sidis_cluster_secret
+      RABBITMQ_NODENAME: rabbit1@rabbitmq-1
+    deploy:
+      resources: { limits: { memory: 300M } }
+  rabbitmq-2:
+    image: rabbitmq:3.12-management-alpine
+    container_name: rabbitmq-2
+    profiles: ["pc5"]
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_ERLANG_COOKIE: sidis_cluster_secret
+      RABBITMQ_NODENAME: rabbit2@rabbitmq-2
+    deploy:
+      resources: { limits: { memory: 300M } }
+  rabbitmq-3:
+    image: rabbitmq:3.12-management-alpine
+    container_name: rabbitmq-3
+    profiles: ["pc3"]
+    ports:
+      - "5674:5672"
+      - "15674:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_ERLANG_COOKIE: sidis_cluster_secret
+      RABBITMQ_NODENAME: rabbit3@rabbitmq-3
+    deploy:
+      resources: { limits: { memory: 300M } }
+
+  # ------------------------------------------------------
+  # POSTGRESQL
+  # ------------------------------------------------------
+  postgresql-1:
+    image: postgres:15-alpine
+    container_name: postgresql-1
+    profiles: [ "pc5" ]
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: sidis
+      POSTGRES_PASSWORD: sidis
+    volumes:
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./data/postgres:/var/lib/postgresql/data
     deploy:
       resources:
         limits:
-          memory: 300M
+          memory: 500M
 
   # ------------------------------------------------------
   # PROMETHEUS
@@ -166,7 +317,6 @@ services:
       resources:
         limits:
           memory: 300M
-
   auth-service-2:
     build: ./auth-service
     image: ghcr.io/${REPO_OWNER}/auth-service:latest
@@ -202,12 +352,13 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC2}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC2}:aircraft-service:8081
-      - REDIS_HOST=redis-aircraft-1
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/aircraft_db
+      - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
+      - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6379,${IP_PC2}:6380,${IP_PC4}:6381
     deploy:
       resources:
         limits:
           memory: 300M
-
   aircraft-service-2:
     build: ./aircraft-service
     image: ghcr.io/${REPO_OWNER}/aircraft-service:latest
@@ -223,7 +374,9 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC5}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC5}:aircraft-service:8082
-      - REDIS_HOST=redis-aircraft-2
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/aircraft_db
+      - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
+      - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6379,${IP_PC2}:6380,${IP_PC4}:6381
     deploy:
       resources:
         limits:
@@ -244,11 +397,13 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC3}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC3}:airport-service:8091
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/airport_db
+      - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
+      - SPRING_REDIS_CLUSTER_NODES=${IP_PC4}:6385,${IP_PC5}:6386,${IP_PC5}:6387
     deploy:
       resources:
         limits:
           memory: 300M
-
   airport-service-2:
     build: ./airport-service
     image: ghcr.io/${REPO_OWNER}/airport-service:latest
@@ -264,6 +419,9 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC4}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC4}:airport-service:8092
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/airport_db
+      - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
+      - SPRING_REDIS_CLUSTER_NODES=${IP_PC4}:6385,${IP_PC5}:6386,${IP_PC5}:6387
     deploy:
       resources:
         limits:
@@ -284,11 +442,13 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC4}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC4}:flight-service:8111
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/flight_db
+      - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
+      - SPRING_REDIS_CLUSTER_NODES=${IP_PC4}:6388,${IP_PC5}:6389,${IP_PC5}:6390
     deploy:
       resources:
         limits:
           memory: 300M
-
   flight-service-2:
     build: ./flight-service
     image: ghcr.io/${REPO_OWNER}/flight-service:latest
@@ -304,6 +464,9 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC5}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC5}:flight-service:8112
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/flight_db
+      - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
+      - SPRING_REDIS_CLUSTER_NODES=${IP_PC4}:6388,${IP_PC5}:6389,${IP_PC5}:6390
     deploy:
       resources:
         limits:
@@ -324,12 +487,13 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC2}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC2}:maintenance-service:8121
-      - REDIS_HOST=redis-maintenance-1
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/maintenance_db
+      - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
+      - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6382,${IP_PC2}:6383,${IP_PC4}:6384
     deploy:
       resources:
         limits:
           memory: 300M
-
   maintenance-service-2:
     build: ./maintenance-service
     image: ghcr.io/${REPO_OWNER}/maintenance-service:latest
@@ -345,7 +509,9 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC3}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC3}:maintenance-service:8122
-      - REDIS_HOST=redis-maintenance-2
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/maintenance_db
+      - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
+      - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6382,${IP_PC2}:6383,${IP_PC4}:6384
     deploy:
       resources:
         limits:
@@ -366,11 +532,13 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC4}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC4}:route-service:8131
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/route_db
+      - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
+      - SPRING_REDIS_CLUSTER_NODES=${IP_PC4}:6391,${IP_PC5}:6392,${IP_PC5}:6393
     deploy:
       resources:
         limits:
           memory: 300M
-
   route-service-2:
     build: ./route-service
     image: ghcr.io/${REPO_OWNER}/route-service:latest
@@ -386,6 +554,9 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC5}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC5}:route-service:8132
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/route_db
+      - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
+      - SPRING_REDIS_CLUSTER_NODES=${IP_PC4}:6391,${IP_PC5}:6392,${IP_PC5}:6393
     deploy:
       resources:
         limits:
