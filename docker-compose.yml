@@ -32,6 +32,7 @@ services:
       - EUREKA_INSTANCE_HOSTNAME=discovery-node2
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC3}
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1}
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC3}:discovery-node2:8762
       - EUREKA_URL_1=${EUREKA_URL_1}
     deploy:
       resources:
@@ -271,9 +272,7 @@ services:
       - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./data/postgres:/var/lib/postgresql/data
     deploy:
-      resources:
-        limits:
-          memory: 500M
+      resources: { limits: { memory: 500M } }
 
   # ------------------------------------------------------
   # PROMETHEUS
@@ -296,9 +295,25 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     deploy:
-      resources:
-        limits:
-          memory: 300M
+      resources: { limits: { memory: 300M } }
+
+  # ------------------------------------------------------
+  # HAPROXY
+  # ------------------------------------------------------
+  haproxy:
+    image: haproxy:2.8-alpine
+    container_name: haproxy
+    profiles: ["pc1"]
+    ports:
+      - "443:443"
+      - "8404:8404"
+    environment:
+      - IP_PC1=${IP_PC1}
+      - IP_PC4=${IP_PC4}
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    deploy:
+      resources: { limits: { memory: 50M } }
 
   # ------------------------------------------------------
   # AUTH, AIRCRAFT, AIRPORT, FLIGHT, MAINTENANCE e ROUTE
