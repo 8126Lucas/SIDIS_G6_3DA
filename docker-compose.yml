@@ -12,7 +12,10 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=node1
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
-      - EUREKA_INSTANCE_HOSTNAME=discovery-node1
+      - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC1}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_2}
+      - EUREKA_URL_1=${EUREKA_URL_1}
+      - EUREKA_URL_2=${EUREKA_URL_2}
     deploy:
       resources:
         limits:
@@ -21,13 +24,15 @@ services:
     build: ./discovery-service
     image: ghcr.io/${REPO_OWNER}/discovery-service:latest
     container_name: discovery-node2
-    profiles: ["pc3"]
+    profiles: ["pc2"]
     ports:
       - "8762:8762"
     environment:
       - SPRING_PROFILES_ACTIVE=node2
       - EUREKA_INSTANCE_HOSTNAME=discovery-node2
-      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC3}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_1}
+      - EUREKA_URL_1=${EUREKA_URL_1}
     deploy:
       resources:
         limits:
