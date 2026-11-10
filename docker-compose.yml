@@ -14,6 +14,7 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC1}
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_2}
+      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC1}:discovery-node1:8761
       - EUREKA_URL_1=${EUREKA_URL_1}
       - EUREKA_URL_2=${EUREKA_URL_2}
     deploy:
@@ -24,7 +25,7 @@ services:
     build: ./discovery-service
     image: ghcr.io/${REPO_OWNER}/discovery-service:latest
     container_name: discovery-node2
-    profiles: ["pc2"]
+    profiles: ["pc3"]
     ports:
       - "8762:8762"
     environment:

@@ -17,7 +17,7 @@ public class AircraftRedisProjector {
         this.aircraftQueryRepository = aircraftQueryRepository;
     }
 
-    @RabbitListener(queues = RabbitMQConfig.SYNC_QUEUE)
+    @RabbitListener(queues = RabbitMQConfig.AIRCRAFT_SYNC_QUEUE)
     public void syncAircraftToRedis(AircraftSyncEvent event) {
         log.info("Sync event received for aircraft: {}", event.registrationNumber());
 

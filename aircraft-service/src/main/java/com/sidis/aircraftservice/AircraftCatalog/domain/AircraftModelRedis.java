@@ -14,7 +14,7 @@ public class AircraftModelRedis {
     private String manufacturer;
     private AircraftSpecsRedis aircraftModelSpecs;
 
-    protected AircraftModelRedis() {}
+    public AircraftModelRedis() {}
 
     public AircraftModelRedis(String modelName, String manufacturer,
                               AircraftSpecsRedis aircraftModelSpecs,

@@ -10,28 +10,43 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class RabbitMQConfig {
-    public static final String EXCHANGE_NAME = "aircraft.exchange";
-    public static final String SYNC_QUEUE = "aircraft.sync.queue";
-    public static final String ROUTING_KEY = "aircraft.event.#";
+    public static final String AIRCRAFT_EXCHANGE_NAME = "aircraft.exchange";
+    public static final String AIRCRAFT_SYNC_QUEUE = "aircraft.sync.queue";
+    public static final String AIRCRAFT_ROUTING_KEY = "aircraft.event.#";
+
+    public static final String MODEL_EXCHANGE_NAME = "aircraftmodel.exchange";
+    public static final String MODEL_SYNC_QUEUE = "aircraftmodel.sync.queue";
+    public static final String MODEL_ROUTING_KEY = "aircraftmodel.event.#";
 
     // Exchange
     @Bean
     public TopicExchange aircraftExchange() {
-        return new TopicExchange(EXCHANGE_NAME);
+        return new TopicExchange(AIRCRAFT_EXCHANGE_NAME);
     }
+    @Bean
+    public TopicExchange aircraftModelExchange() { return new TopicExchange(MODEL_EXCHANGE_NAME); }
 
     // Queue
     @Bean
     public Queue aircraftSyncQueue() {
-        return new Queue(SYNC_QUEUE, true);
+        return new Queue(AIRCRAFT_SYNC_QUEUE, true);
     }
+    @Bean
+    public Queue aircraftModelSyncQueue() { return new Queue(MODEL_SYNC_QUEUE, true); }
 
     @Bean
-    public Binding bindingSyncQueue(Queue aircraftSyncQueue, TopicExchange aircraftExchange) {
+    public Binding aircraftBindingSyncQueue(Queue aircraftSyncQueue, TopicExchange aircraftExchange) {
         return BindingBuilder
                 .bind(aircraftSyncQueue)
                 .to(aircraftExchange)
-                .with(ROUTING_KEY);
+                .with(AIRCRAFT_ROUTING_KEY);
+    }
+    @Bean
+    public Binding aircraftModelBindingSyncQueue(Queue aircraftModelSyncQueue, TopicExchange aircraftModelExchange) {
+        return BindingBuilder
+                .bind(aircraftModelSyncQueue)
+                .to(aircraftModelExchange)
+                .with(MODEL_ROUTING_KEY);
     }
 
     // JSON Converter

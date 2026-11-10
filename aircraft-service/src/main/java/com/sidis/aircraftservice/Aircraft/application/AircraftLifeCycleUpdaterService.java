@@ -49,7 +49,7 @@ public class AircraftLifeCycleUpdaterService {
                 aircraft.getFeatures()
         );
         rabbitTemplate.convertAndSend(
-                RabbitMQConfig.EXCHANGE_NAME,
+                RabbitMQConfig.AIRCRAFT_EXCHANGE_NAME,
                 "aircraft.event.updated",
                 event
         );
