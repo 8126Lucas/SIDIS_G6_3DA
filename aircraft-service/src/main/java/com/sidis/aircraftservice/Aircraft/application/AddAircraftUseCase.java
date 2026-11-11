@@ -8,6 +8,9 @@ import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
 import com.sidis.aircraftservice.AircraftCatalog.infrastructure.AircraftModelCommandRepository;
 import com.sidis.aircraftservice.UseCase;
 import com.sidis.aircraftservice.exceptions.DomainException;
+import com.sidis.aircraftservice.infrastructure.messaging.AircraftSyncEvent;
+import com.sidis.aircraftservice.infrastructure.messaging.RabbitMQConfig;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import java.time.LocalDate;
 import java.util.Optional;
@@ -27,13 +30,16 @@ public class AddAircraftUseCase {
     private final AircraftCommandRepository aircraftCommandRepository;
     private final AircraftModelCommandRepository aircraftModelCommandRepository;
     private final AircraftQueryRepository aircraftQueryRepository;
+    private final RabbitTemplate rabbitTemplate;
 
     public AddAircraftUseCase(AircraftCommandRepository aircraftCommandRepository,
                               AircraftModelCommandRepository aircraftModelCommandRepository,
-                              AircraftQueryRepository aircraftQueryRepository) {
+                              AircraftQueryRepository aircraftQueryRepository,
+                              RabbitTemplate rabbitTemplate) {
         this.aircraftCommandRepository = aircraftCommandRepository;
         this.aircraftModelCommandRepository = aircraftModelCommandRepository;
         this.aircraftQueryRepository = aircraftQueryRepository;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
     /**
@@ -49,7 +55,24 @@ public class AddAircraftUseCase {
                         Double totalOperationalHours, Double totalFlightHours) {
         Optional<AircraftModel> model = aircraftModelCommandRepository.findByModelName(modelName);
         if(model.isPresent()) {
-            aircraftCommandRepository.save(new Aircraft(registrationNumber, model.get(), manufacturingDate, totalOperationalHours,totalFlightHours));
+            Aircraft aircraft = new Aircraft(registrationNumber, model.get(), manufacturingDate, totalOperationalHours,totalFlightHours);
+            aircraftCommandRepository.save(aircraft);
+
+            AircraftSyncEvent event = new AircraftSyncEvent(
+                    aircraft.getRegistrationNumber(),
+                    aircraft.getModel().getModelName(),
+                    aircraft.getStatus().name(),
+                    aircraft.getManufacturingDate(),
+                    aircraft.getTotalOperationalHours(),
+                    aircraft.getTotalFlightHours(),
+                    aircraft.getMeanRange(),
+                    aircraft.getFeatures()
+            );
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.AIRCRAFT_EXCHANGE_NAME,
+                    "aircraft.event.created",
+                    event
+            );
         }
         else {
             throw new DomainException("Aircraft Model does not exist!");
@@ -62,5 +85,21 @@ public class AddAircraftUseCase {
      */
     public void execute(Aircraft aircraft) {
         aircraftCommandRepository.save(aircraft);
+
+        AircraftSyncEvent event = new AircraftSyncEvent(
+                aircraft.getRegistrationNumber(),
+                aircraft.getModel().getModelName(),
+                aircraft.getStatus().name(),
+                aircraft.getManufacturingDate(),
+                aircraft.getTotalOperationalHours(),
+                aircraft.getTotalFlightHours(),
+                aircraft.getMeanRange(),
+                aircraft.getFeatures()
+        );
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.AIRCRAFT_EXCHANGE_NAME,
+                "aircraft.event.created",
+                event
+        );
     }
 }

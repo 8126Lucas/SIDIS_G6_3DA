@@ -5,10 +5,15 @@ import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftQueryRepository
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModelRedis;
+import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecsRedis;
 import com.sidis.aircraftservice.AircraftCatalog.infrastructure.AircraftModelCommandRepository;
 import com.sidis.aircraftservice.AircraftCatalog.infrastructure.AircraftModelQueryRepository;
 import com.sidis.aircraftservice.exceptions.ResourceNotFoundException;
+import com.sidis.aircraftservice.infrastructure.messaging.AircraftModelSyncEvent;
+import com.sidis.aircraftservice.infrastructure.messaging.AircraftSyncEvent;
+import com.sidis.aircraftservice.infrastructure.messaging.RabbitMQConfig;
 import jakarta.transaction.Transactional;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,12 +21,12 @@ import java.util.List;
 @Service
 public class AircraftModelUpdater {
     private final AircraftModelCommandRepository aircraftModelCommandRepository;
-    private final AircraftModelQueryRepository aircraftModelQueryRepository;
+    private final RabbitTemplate rabbitTemplate;
 
     public AircraftModelUpdater(AircraftModelCommandRepository aircraftModelCommandRepository,
-                                AircraftModelQueryRepository aircraftModelQueryRepository) {
+                                RabbitTemplate rabbitTemplate) {
         this.aircraftModelCommandRepository = aircraftModelCommandRepository;
-        this.aircraftModelQueryRepository = aircraftModelQueryRepository;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
     @Transactional
@@ -61,5 +66,23 @@ public class AircraftModelUpdater {
         }
 
         aircraftModelCommandRepository.save(model);
+
+        AircraftSpecsRedis specs = new AircraftSpecsRedis(
+                model.getAircraftModelSpecs().getFuelCapacity(),
+                model.getAircraftModelSpecs().getMaximumRange(),
+                model.getAircraftModelSpecs().getCruisingSpeed(),
+                model.getAircraftModelSpecs().getStandardSeatingCapacity());
+
+        AircraftModelSyncEvent event = new AircraftModelSyncEvent(
+                model.getModelName(),
+                model.getModelImage(),
+                model.getManufacturer(),
+                specs
+        );
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.MODEL_EXCHANGE_NAME,
+                "aircraftmodel.event.updated",
+                event
+        );
     }
 }

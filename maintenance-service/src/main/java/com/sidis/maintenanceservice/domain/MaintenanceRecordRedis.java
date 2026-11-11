@@ -58,48 +58,57 @@ public class MaintenanceRecordRedis {
     public String getAircraftRegistration() {
         return aircraftRegistration;
     }
+    public void setAircraftRegistration(String aircraftRegistration) { this.aircraftRegistration = aircraftRegistration; }
 
     public Long getMaintenanceTemplateId() {
         return maintenanceTemplateId;
     }
+    public void setMaintenanceTemplateId(Long maintenanceTemplateId) { this.maintenanceTemplateId = maintenanceTemplateId; }
 
     public List<String> getTechniciansUsername() {
         return techniciansUsername;
     }
+    public void setTechniciansUsername(List<String> techniciansUsername) { this.techniciansUsername = techniciansUsername; }
 
     public String getSupervisorUsername() {
         return supervisorUsername;
     }
+    public void setSupervisorUsername(String supervisorUsername) { this.supervisorUsername = supervisorUsername; }
 
     public MaintenanceStatus getStatus() {
         return status;
     }
+    public void setStatus(MaintenanceStatus status) { this.status = status; }
 
     public String getDescription() {
         return description;
     }
+    public void setDescription(String description) { this.description = description; }
 
     public LocalDate getStartDate() {
         return startDate;
     }
+    public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
 
     public LocalDate getEndDate() {
         return endDate;
     }
+    public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
 
     public List<UsedPartRedis> getUsedParts() {
         return usedParts;
     }
+    public void setUsedParts(List<UsedPartRedis> usedParts) { this.usedParts = usedParts; }
 
     public Double getDurationHours() {
         return durationHours;
     }
+    public void setDurationHours(Double durationHours) { this.durationHours = durationHours; }
 
     public DoneListRedis getDoneList() {
         return doneList;
     }
-
-    public void updateDoneList(DoneListRedis list){
+    public void setDoneList(DoneListRedis list){
         this.doneList = list;
     }
 

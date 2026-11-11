@@ -2,8 +2,13 @@ package com.sidis.aircraftservice.AircraftCatalog.application;
 
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
+import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecsRedis;
 import com.sidis.aircraftservice.AircraftCatalog.infrastructure.AircraftModelCommandRepository;
 import com.sidis.aircraftservice.UseCase;
+import com.sidis.aircraftservice.infrastructure.messaging.AircraftModelSyncEvent;
+import com.sidis.aircraftservice.infrastructure.messaging.AircraftSyncEvent;
+import com.sidis.aircraftservice.infrastructure.messaging.RabbitMQConfig;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import java.util.List;
 
@@ -20,9 +25,12 @@ import java.util.List;
 @UseCase
 public class AddModelUseCase {
     private final AircraftModelCommandRepository aircraftModelRepository;
+    private final RabbitTemplate rabbitTemplate;
 
-    public AddModelUseCase(AircraftModelCommandRepository aircraftModelRepository) {
+    public AddModelUseCase(AircraftModelCommandRepository aircraftModelRepository,
+                           RabbitTemplate rabbitTemplate) {
         this.aircraftModelRepository = aircraftModelRepository;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
     /**
@@ -33,8 +41,27 @@ public class AddModelUseCase {
      * @param modelImage the list of images of the model; can be null;
      * @param aircraftModelSpecs the group of physical characteristics of the model
      */
-    public void execute(String modelName, String manufacturer,List <String> modelImage,AircraftSpecs aircraftModelSpecs) {
-        aircraftModelRepository.save(new AircraftModel(modelName, manufacturer,aircraftModelSpecs, modelImage));
+    public void execute(String modelName, String manufacturer, List <String> modelImage, AircraftSpecs aircraftModelSpecs) {
+        AircraftModel model = new AircraftModel(modelName, manufacturer,aircraftModelSpecs, modelImage);
+        aircraftModelRepository.save(model);
+
+        AircraftSpecsRedis specs = new AircraftSpecsRedis(
+                model.getAircraftModelSpecs().getFuelCapacity(),
+                model.getAircraftModelSpecs().getMaximumRange(),
+                model.getAircraftModelSpecs().getCruisingSpeed(),
+                model.getAircraftModelSpecs().getStandardSeatingCapacity());
+
+        AircraftModelSyncEvent event = new AircraftModelSyncEvent(
+                model.getModelName(),
+                model.getModelImage(),
+                model.getManufacturer(),
+                specs
+        );
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.MODEL_EXCHANGE_NAME,
+                "aircraftmodel.event.created",
+                event
+        );
     }
 
     /**
@@ -43,6 +70,24 @@ public class AddModelUseCase {
      */
     public void execute(AircraftModel aircraftModel) {
         aircraftModelRepository.save(aircraftModel);
+
+        AircraftSpecsRedis specs = new AircraftSpecsRedis(
+                aircraftModel.getAircraftModelSpecs().getFuelCapacity(),
+                aircraftModel.getAircraftModelSpecs().getMaximumRange(),
+                aircraftModel.getAircraftModelSpecs().getCruisingSpeed(),
+                aircraftModel.getAircraftModelSpecs().getStandardSeatingCapacity());
+
+        AircraftModelSyncEvent event = new AircraftModelSyncEvent(
+                aircraftModel.getModelName(),
+                aircraftModel.getModelImage(),
+                aircraftModel.getManufacturer(),
+                specs
+        );
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.MODEL_EXCHANGE_NAME,
+                "aircraftmodel.event.created",
+                event
+        );
     }
 
     public record modelSpecsInput(Double fuelCapacityLiters, Double maximumRangeKm,
