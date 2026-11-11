@@ -14,6 +14,7 @@ import jakarta.validation.constraints.NotNull;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -59,7 +60,8 @@ public class MaintenanceRecordController {
 
     // WP3 — criar template
     @PostMapping("/templates")
-    public MaintenanceTemplateResponse addTemplate(@Valid @RequestBody AddTemplateRequest request) {
+    @ResponseStatus(HttpStatus.CREATED)
+    public void addTemplate(@Valid @RequestBody AddTemplateRequest request) {
         MaintenanceTemplate template = addMaintenanceTemplateUseCase.execute(
                 request.name(),
                 request.expectedDuration(),
@@ -67,7 +69,6 @@ public class MaintenanceRecordController {
                 MaintenanceType.valueOf(request.operation()),
                 MaintenanceAttribute.valueOf(request.attribute())
         );
-        return MaintenanceTemplateResponse.from(template);
     }
 
     // US117 — obter template por id
@@ -94,6 +95,7 @@ public class MaintenanceRecordController {
 
     // WP3 — criar registo curto
     @PostMapping("/record")
+    @ResponseStatus(HttpStatus.CREATED)
     public void addRecord(@Valid @RequestBody AddRecordShortRequest request) {
         AircraftClientDTO aircraftDto = aircraftClient
                 .findAircraftByRegistration(request.registrationNumber())

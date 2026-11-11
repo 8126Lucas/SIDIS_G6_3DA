@@ -66,6 +66,12 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+        <!-- Spring Boot AMQP -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+            <scope>compile</scope>
+        </dependency>
 
         <!-- OPENAPI / SWAGGER -->
         <dependency>
