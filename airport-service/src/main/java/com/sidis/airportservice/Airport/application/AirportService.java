@@ -14,6 +14,7 @@ import com.sidis.airportservice.UseCase;
 import com.sidis.airportservice.exceptions.DomainException;
 import jakarta.transaction.Transactional;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -24,10 +25,12 @@ import java.util.stream.Collectors;
 public class AirportService {
     private final AirportRepository airportRepository;
     private final RouteRestClientService routeRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public AirportService(AirportRepository airportRepository, RouteRestClientService routeRepository) {
+    public AirportService(AirportRepository airportRepository, RouteRestClientService routeRepository, ApplicationEventPublisher eventPublisher) {
         this.airportRepository = airportRepository;
         this.routeRepository = routeRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     public record AirportRouteStatistic(Airport airport, long numberOfRoutes) {
@@ -38,7 +41,7 @@ public class AirportService {
         if (airportRepository.findByIataCode(airport.getIataCode()).isPresent()) {
             throw new DomainException("Airport already exists");
         }
-        airportRepository.save(airport);
+        saveAndPublish(airport);
     }
 
     public void execute(String iataCode, String airportType, String name,
@@ -83,9 +86,8 @@ public class AirportService {
 
         Certification certification =
                 new Certification(name, category, startsAt, expiresAt);
-        certification.setAirport(airport);
         airport.addCertification(certification);
-        airportRepository.save(airport);
+        saveAndPublish(airport);
         return certification;
     }
 
@@ -93,7 +95,7 @@ public class AirportService {
         Airport airport = airportRepository.findByIataCode(iataCode)
                 .orElseThrow(() -> new DomainException("Airport does not exist"));
         airport.changeStatus(status);
-        return airportRepository.save(airport);
+        return saveAndPublish(airport);
     }
 
     public Airport updateDetails(String iataCode, String name, String operationalHours,
@@ -101,7 +103,7 @@ public class AirportService {
         Airport airport = airportRepository.findByIataCode(iataCode)
                 .orElseThrow(() -> new DomainException("Airport does not exist"));
         airport.updateDetails(name, operationalHours, contacts);
-        return airportRepository.save(airport);
+        return saveAndPublish(airport);
     }
 
     public List<RouteResponse> findRoutesByAirport(String iataCode) {
@@ -140,5 +142,16 @@ public class AirportService {
         if (iataCode == null || !iataCode.matches("[A-Z]{3}")) {
             throw new DomainException("IATA code must have 3 uppercase letters");
         }
+    }
+    private Airport saveAndPublish(Airport airport) {
+        Airport saved = airportRepository.saveAndFlush(airport);
+
+        eventPublisher.publishEvent(
+                new AirportChangedEvent(
+                        AirportReadModelMapper.from(saved)
+                )
+        );
+
+        return saved;
     }
 }
