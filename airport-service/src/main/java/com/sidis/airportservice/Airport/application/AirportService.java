@@ -8,32 +8,23 @@ import com.sidis.airportservice.Airport.domain.Contact;
 import com.sidis.airportservice.Airport.domain.Facilities;
 import com.sidis.airportservice.Airport.domain.Runway;
 import com.sidis.airportservice.Airport.infrastructure.AirportRepository;
-import com.sidis.airportservice.Airport.infrastructure.client.route.RouteResponse;
-import com.sidis.airportservice.Airport.infrastructure.client.RouteRestClientService;
 import com.sidis.airportservice.UseCase;
 import com.sidis.airportservice.exceptions.DomainException;
 import jakarta.transaction.Transactional;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.List;
 
 @UseCase
 @Transactional
 public class AirportService {
     private final AirportRepository airportRepository;
-    private final RouteRestClientService routeRepository;
     private final ApplicationEventPublisher eventPublisher;
 
-    public AirportService(AirportRepository airportRepository, RouteRestClientService routeRepository, ApplicationEventPublisher eventPublisher) {
+    public AirportService(AirportRepository airportRepository, ApplicationEventPublisher eventPublisher) {
         this.airportRepository = airportRepository;
-        this.routeRepository = routeRepository;
         this.eventPublisher = eventPublisher;
-    }
-
-    public record AirportRouteStatistic(Airport airport, long numberOfRoutes) {
     }
 
     public void execute(Airport airport) {
@@ -52,31 +43,6 @@ public class AirportService {
         execute(new Airport(iataCode, airportType, name, status, airportLocation,
                 facilities, routeDistance, airportRunways, certifications,
                 contacts, airportPhotos));
-    }
-
-    public Optional<Airport> getAirportByIata(String iataCode) {
-        return airportRepository.findByIataCode(iataCode);
-    }
-
-    public List<Airport> searchAirports(String city, String country, String name) {
-        Specification<Airport> spec = (root, query, cb) -> cb.conjunction();
-
-        if (city != null) {
-            spec = spec.and((root, query, cb) ->
-                    cb.equal(root.get("airportLocation").get("city"), city));
-        }
-
-        if (country != null) {
-            spec = spec.and((root, query, cb) ->
-                    cb.equal(root.get("airportLocation").get("country"), country));
-        }
-
-        if (name != null) {
-            spec = spec.and((root, query, cb) ->
-                    cb.equal(root.get("name"), name));
-        }
-
-        return airportRepository.findAll(spec);
     }
 
     public Certification addCertification(String iataCode, String name,
@@ -104,38 +70,6 @@ public class AirportService {
                 .orElseThrow(() -> new DomainException("Airport does not exist"));
         airport.updateDetails(name, operationalHours, contacts);
         return saveAndPublish(airport);
-    }
-
-    public List<RouteResponse> findRoutesByAirport(String iataCode) {
-        airportRepository.findByIataCode(iataCode).orElseThrow(() -> new DomainException("Airport does not exist"));
-        return routeRepository.getRoutes().stream()
-                .filter(route -> iataCode.equals(route.originAirportIata()) || iataCode.equals(route.destinationAirportIata()))
-                .toList();
-    }
-
-    public List<AirportRouteStatistic> busiestAirports() {
-        List<RouteResponse> routes = routeRepository.getRoutes();
-        Map<Airport, Long> counts = new HashMap<>();
-        for (RouteResponse route : routes) {
-            airportRepository.findByIataCode(route.originAirportIata())
-                    .ifPresent(airport -> counts.merge(airport, 1L, Long::sum));
-            airportRepository.findByIataCode(route.destinationAirportIata())
-                    .ifPresent(airport -> counts.merge(airport, 1L, Long::sum));
-        }
-        return counts.entrySet().stream()
-                .map(e -> new AirportRouteStatistic(e.getKey(), e.getValue()))
-                .sorted(Comparator.comparingLong(AirportRouteStatistic::numberOfRoutes).reversed())
-                .collect(Collectors.toList());
-    }
-
-    public Map<String, List<Airport>> groupAirportsBy(String criteria) {
-        List<Airport> airports = airportRepository.findAll();
-        return airports.stream().collect(Collectors.groupingBy(airport -> switch (criteria) {
-            case "country" -> airport.getAirportLocation().getCountry();
-            case "city" -> airport.getAirportLocation().getCity();
-            case "region" -> airport.getAirportLocation().getRegion();
-            default -> throw new DomainException("Unknown grouping criteria: " + criteria);
-        }));
     }
 
     private void validateIataCode(String iataCode) {
