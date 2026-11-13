@@ -5,30 +5,27 @@ skinparam ranksep 70
 skinparam shadowing false
 skinparam componentStyle uml2
 
-title Registry Topology - Discovery Service (As Implemented)
+title Registry Topology - Discovery Service (As Implemented, 5 PCs)
 
-package "Discovery Service [Container x2]" {
+node "PC1" {
     component "discovery-node1\n<<Eureka Server>>\nprofile node1 :8761" as node1
+}
+node "PC3" {
     component "discovery-node2\n<<Eureka Server>>\nprofile node2 :8762" as node2
 }
 
-component "API Gateway\n<<Eureka Client>>" as gateway
-component "auth / aircraft / maintenance\n<<Eureka Clients>>\ndefaultZone: 8761, 8762" as clients_both
-component "airport / route / flight\n<<Eureka Clients>>\ndefaultZone: 8761 only (local)" as clients_one
+component "API Gateway x2\n<<Eureka Client>>" as gateway
+component "auth / aircraft / maintenance /\nairport / route / flight (x2 each)\n<<Eureka Clients>>\ndefaultZone: EUREKA_URL_1, EUREKA_URL_2" as clients
+component "Prometheus (PC1)" as prometheus
 
-node1 <--> node2 : "Peer replication\n(register + fetch)\n[HTTP]\nlocalhost only: not working in Docker"
+node1 <--> node2 : "Peer replication over the LAN\nnode1 -> EUREKA_URL_2\nnode2 -> EUREKA_URL_1"
 
 gateway --> node1 : "Register, heartbeat,\nfetch registry"
 gateway ..> node2 : "Failover"
 
-clients_both --> node1 : "Register, heartbeat,\nfetch registry"
-clients_both ..> node2 : "Failover"
+clients --> node1 : "Register by PC IP\n(EUREKA_INSTANCE_IP_ADDRESS)"
+clients ..> node2 : "Failover"
 
-clients_one --> node1 : "Register, heartbeat,\nfetch registry"
-
-note bottom of clients_one
-  In Docker Compose all clients receive both
-  nodes via EUREKA_CLIENT_SERVICEURL_DEFAULTZONE.
-end note
+prometheus ..> node1 : "Eureka service discovery\n(scrape targets)"
 
 @enduml

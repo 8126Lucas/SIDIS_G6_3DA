@@ -138,7 +138,7 @@ Current gaps:
 * CSRF, form login and HTTP Basic are disabled; sessions are `STATELESS`.
 * All requests are `permitAll()`; there is no authentication or role check inside the service.
 * `gatewaySecretFilter` (`OncePerRequestFilter`, registered before `UsernamePasswordAuthenticationFilter`) requires `X-Gateway-Secret: sidis-g6-secret`. Otherwise it writes `403` with the plain-text body `Unauthorized Access! Please use the API Gateway!`.
-* Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` skip the check. The OpenAPI document is served at `/api/docs`, which does not match, so Swagger UI cannot load the spec.
+* Paths containing `/actuator`, `/h2-console`, `/swagger-ui` or `/api-docs` skip the check. The OpenAPI document is served at `/api/docs`, which does not match, so Swagger UI cannot load the spec.
 
 Responsibilities split with the API Gateway:
 
@@ -153,7 +153,7 @@ Known weaknesses:
 
 ## 8. Bootstrap
 
-`Bootstrap` (`ApplicationRunner`) seeds data when tables are empty:
+`Bootstrap` (`ApplicationRunner`) seeds data in PostgreSQL when the tables are empty. It publishes no RabbitMQ events, so this data is not projected into Redis and the read endpoints do not see it:
 
 * 13 aircraft models (Boeing, Airbus, Embraer, Bombardier, ATR).
 * 9 aircraft: `CS-TUA` (`INACTIVE`), `D-ABXA` (`AVAILABLE`), `F-HXKA` (`MAINTENANCE`), `G-X321`, `N789DL` (`INACTIVE`), `PR-EMJ` (`IN_FLIGHT`), and `TEST-001`, `TEST-002`, `TEST-003` (`INACTIVE`), with seating packs, features, certifications, and installed components.

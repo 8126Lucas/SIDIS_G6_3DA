@@ -5,7 +5,7 @@ skinparam boxPadding 10
 skinparam participantPadding 10
 skinparam shadowing false
 
-title Sequence Diagram - Scenario 2: Register Template, Register Record, Advance Status and Complete Record (As Implemented)
+title Sequence Diagram - Scenario 2: Register Template, Register Record, Advance Status and Complete Record (As Implemented, CQRS)
 
 autonumber
 
@@ -13,24 +13,26 @@ actor "Client / Postman" as client
 participant "API Gateway\n<<Gateway>>" as gateway
 participant "MaintenanceRecordController\n<<REST Controller>>" as controller
 participant "AddMaintenanceTemplateUseCase\n<<UseCase>>" as add_template_uc
-participant "MaintenanceTemplateSearchService\n<<Application Service>>" as template_search
 participant "AddMaintenanceRecordUseCase\n<<UseCase>>" as add_record_uc
 participant "MaintenanceRecordProgressService\n<<UseCase>>" as progress_svc
 participant "AircraftRestClientService\n<<RestClient Adapter>>" as aircraft_client
-participant "MaintenanceTemplateRepository\n<<JPA Repository>>" as template_repo
-participant "MaintenanceRecordRepository\n<<JPA Repository>>" as record_repo
+participant "MaintenanceTemplateCommandRepository\n<<JPA, PostgreSQL>>" as template_repo
+participant "MaintenanceRecordCommandRepository\n<<JPA, PostgreSQL>>" as record_repo
+queue "RabbitMQ" as mq
+participant "Redis projectors\n<<@RabbitListener>>" as projector
+database "Redis cluster" as redis
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 participant "Aircraft Service\n<<External Microservice>>" as aircraft_api
 
 box "Maintenance Service [Container]" #LightBlue
     participant controller
     participant add_template_uc
-    participant template_search
     participant add_record_uc
     participant progress_svc
     participant aircraft_client
     participant template_repo
     participant record_repo
+    participant projector
     participant exception_handler
 end box
 
@@ -52,13 +54,17 @@ else Valid request
     activate add_template_uc
     add_template_uc -> template_repo : save(new MaintenanceTemplate)
     template_repo --> add_template_uc : MaintenanceTemplate (with templateId)
+    add_template_uc -> mq : MaintenanceTemplateSyncEvent\nkey maintenancetemplate.event.created
     add_template_uc --> controller : MaintenanceTemplate
     deactivate add_template_uc
-    controller --> gateway : 200 OK (MaintenanceTemplateResponse)
-    gateway --> client : 200 OK Response
+    controller --> gateway : 201 Created (empty body)
+    gateway --> client : 201 Created Response
 end
 deactivate controller
 deactivate gateway
+
+mq -> projector : maintenancetemplate.sync.queue
+projector -> redis : save MaintenanceTemplate:<templateId>
 
 == Register Record (US116) ==
 
@@ -83,27 +89,22 @@ alt Aircraft 404
     exception_handler --> client : 404 Not Found (ErrorDetails JSON)
     deactivate exception_handler
 else Aircraft found
-    controller -> template_search : findByTemplateId(templateId)
-    activate template_search
-    template_search --> controller : Optional<MaintenanceTemplate> (404 if empty)
-    deactivate template_search
-
-    controller -> add_record_uc : executeShort(aircraftDto.aircraftRegistration(), template, ...)
+    controller -> add_record_uc : executeShort(aircraftDto.aircraftRegistration(), templateId, ...)
     activate add_record_uc
-    add_record_uc -> aircraft_client : findAircraftByRegistration(registration)
-    activate aircraft_client
-    aircraft_client -> aircraft_api : GET /api/hangar/aircraft/{registrationNumber}
-    aircraft_api --> aircraft_client : AircraftResponse
-    aircraft_client --> add_record_uc : Optional<AircraftClientDTO> (404 if empty)
-    deactivate aircraft_client
+    add_record_uc -> template_repo : findById(templateId)
+    template_repo --> add_record_uc : Optional<MaintenanceTemplate>\n(DomainException -> 404 if empty)
     add_record_uc -> record_repo : save(new MaintenanceRecord(...)) [status INLINE]
     record_repo --> add_record_uc : MaintenanceRecord
+    add_record_uc -> mq : MaintenanceRecordSyncEvent\nkey maintenance.event.created
     deactivate add_record_uc
-    controller --> gateway : 200 OK (empty body)
-    gateway --> client : 200 OK Response
+    controller --> gateway : 201 Created (empty body)
+    gateway --> client : 201 Created Response
 end
 deactivate controller
 deactivate gateway
+
+mq -> projector : maintenance.sync.queue
+projector -> redis : save MaintenanceRecord:<recordId>
 
 note over aircraft_client, aircraft_api : Client calls: 2 s timeouts, @Retryable (3 attempts);\nnon-404 errors end in 500 after the last attempt.
 
@@ -129,6 +130,7 @@ else status == ONGOING
     progress_svc -> progress_svc : record.markAsOngoing()
     progress_svc -> record_repo : save(record) [version + 1]
     record_repo --> progress_svc : MaintenanceRecord
+    progress_svc -> mq : MaintenanceRecordSyncEvent\nkey maintenance.event.updated
     progress_svc --> controller : MaintenanceRecord
     controller --> gateway : 200 OK (MaintenanceRecordResponse)
     gateway --> client : 200 OK Response
@@ -175,6 +177,7 @@ else Record found
     else valid
         progress_svc -> record_repo : save(record) [status COMPLETED, version + 1]
         record_repo --> progress_svc : MaintenanceRecord
+        progress_svc -> mq : MaintenanceRecordSyncEvent\nkey maintenance.event.updated
         progress_svc --> controller : MaintenanceRecord
         controller --> gateway : 200 OK (MaintenanceRecordResponse)
         gateway --> client : 200 OK Response

@@ -6,7 +6,7 @@ This document reflects the current implementation in `RouteController`, `RouteSe
 
 ## 1. General Service Configuration
 
-* **Base URL (via API Gateway):** `https://localhost:7979`
+* **Base URL (via API Gateway):** `https://192.168.137.1`
 * **Base URL (service, local):** `http://localhost:8131`
 * **API Prefix:** `/api/routes`
 * **Content-Type:** `application/json` (exports use `application/geo+json` and `application/vnd.google-earth.kml+xml`)

@@ -8,7 +8,7 @@ skinparam componentStyle uml2
 title Component Diagram (C4 - Level 3) - Auth Service (As Implemented)
 
 component "API Gateway\n<<Spring Cloud Gateway>>" as api_gateway
-database "H2 Database\n<<In-Memory>>" as auth_db
+database "SQLite\n/data/auth.db\n<<one file per instance>>" as auth_db
 component "Other Microservices\n(aircraft, airport, maintenance,\nroute, flight)" as other_services
 
 package "Auth Service [Container]" {

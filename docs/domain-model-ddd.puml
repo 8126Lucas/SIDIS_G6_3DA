@@ -236,7 +236,8 @@ legend bottom right
   Blue = aggregate root | grey = entity | white = value object
   Solid diamond = composition inside the aggregate
   Dashed arrow = reference to another bounded context by id only
-  (each context lives in its own service and H2 database)
+  (each context lives in its own service and database: PostgreSQL + Redis for
+   Aircraft and Maintenance, SQLite for Identity, H2 for Airport, Flight and Route)
 endlegend
 
 @enduml

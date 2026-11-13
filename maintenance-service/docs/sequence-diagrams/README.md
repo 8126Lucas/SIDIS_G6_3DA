@@ -26,14 +26,14 @@ In every flow the API Gateway first validates the JWT and forwards the request w
 #### Flow A — Template by Id
 
 1. Client requests one template.
-2. Controller delegates to `MaintenanceTemplateSearchService.findByTemplateId(...)`.
+2. Controller delegates to `MaintenanceTemplateSearchService.findByTemplateId(...)`, a derived query on Redis. Without `@Indexed` it finds nothing, even for an existing template, so every lookup takes the next step.
 3. A missing template is passed to `PeerForwarder` (with service id `aircraft-service`); the forwarded call fails and the result is `404`.
 4. Otherwise the controller maps to `MaintenanceTemplateResponse` and returns `200 OK`.
 
 #### Flow B — Record by Id
 
 1. Client requests one record.
-2. Controller delegates to `MaintenanceRecordProgressService.findById(...)`, which calls `findByRecordId(...)`.
+2. Controller delegates to `MaintenanceRecordProgressService.findById(...)`, which calls `findByRecordId(...)` on the command repository (PostgreSQL), so this endpoint still sees seeded and newly created records.
 3. Missing record throws `DomainException` → `404`.
 4. Controller maps to `MaintenanceRecordResponse` and returns `200 OK`.
 
@@ -47,7 +47,7 @@ In every flow the API Gateway first validates the JWT and forwards the request w
 
 1. A request without a valid `Authorization: Bearer` header is stopped by the gateway with `401` (empty body).
 2. A direct call to the service port without `X-Gateway-Secret` is stopped by `gatewaySecretFilter` with `403` and the plain-text body `Unauthorized Access! Please use the API Gateway!`.
-3. Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` are not checked.
+3. Paths containing `/actuator`, `/h2-console`, `/swagger-ui` or `/api-docs` are not checked.
 
 ---
 
@@ -67,21 +67,21 @@ Scenario 2 describes the write flows in `POST /api/maintenance/templates` (US115
 
 1. Client sends name, expected duration, checklist, operation and attribute.
 2. Bean validation or an unknown enum value → `400`.
-3. `AddMaintenanceTemplateUseCase` saves the template; the controller returns `200 OK` with the template.
+3. `AddMaintenanceTemplateUseCase` saves the template in PostgreSQL and publishes `maintenancetemplate.event.created`; the controller returns `201 Created` with an empty body.
+4. `MaintenanceTemplateRedisProjector` writes `MaintenanceTemplate:<templateId>` to Redis.
 
 #### Register Record
 
 1. Controller calls `aircraft-service` `GET /api/hangar/aircraft/{registrationNumber}` (`404` if missing).
-2. Controller loads the template (`404` if missing).
-3. Controller calls `AddMaintenanceRecordUseCase.executeShort(...)` with the registration returned by `aircraft-service`.
-4. The use case looks up the aircraft again (`404` if missing) and saves the record as `INLINE`.
-5. Controller returns `200 OK` (empty body).
+2. Controller calls `AddMaintenanceRecordUseCase.executeShort(...)` with the registration returned by `aircraft-service` and the `templateId`.
+3. The use case loads the template from PostgreSQL (`404` if missing), saves the record as `INLINE` and publishes `maintenance.event.created`.
+4. Controller returns `201 Created` (empty body); `MaintenanceRecordRedisProjector` writes `MaintenanceRecord:<recordId>` to Redis.
 
 #### Advance Status
 
 1. Controller parses `status` (`400` if unknown) and calls `advanceStatus(...)`.
 2. Missing record → `404`.
-3. `ONGOING` → `markAsOngoing()`, saved, `200 OK` with the record.
+3. `ONGOING` → `markAsOngoing()`, saved in PostgreSQL, `maintenance.event.updated` published, `200 OK` with the record.
 4. `COMPLETED` or `INLINE` → `DomainException` → `404`.
 
 #### Complete Record
@@ -89,7 +89,7 @@ Scenario 2 describes the write flows in `POST /api/maintenance/templates` (US115
 1. Controller calls `completeRecord(id, notes, tasksDone, endDate)`.
 2. Missing record → `404`.
 3. `markAsCompleted(...)` rejects an already completed record (`409`) and a missing or earlier-than-start `endDate` (`400`).
-4. The record is saved as `COMPLETED` with the done list and end date; `200 OK` with the record.
+4. The record is saved as `COMPLETED` with the done list and end date, `maintenance.event.updated` is published, and `200 OK` returns the record.
 
 ---
 
