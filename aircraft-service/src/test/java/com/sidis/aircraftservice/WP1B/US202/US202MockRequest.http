@@ -1,4 +1,6 @@
-POST https://localhost:7979/auth/login
+@GATEWAY=localhost:7979
+
+POST https://GATEWAY/api/auth/login
 Content-Type: application/json
 
 {
@@ -8,10 +10,13 @@ Content-Type: application/json
 
 ### registers an aircraft model with an image - 1201107
 
-###
-@token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJmZWM5ZDU4ZC03YTEzLTRjYjktYTk0OC04NmY0MGEyMmVlMjkiLCJyb2xlcyI6WyJCQUNLT0ZGSUNFIl0sImlhdCI6MTc4MjA3MzEzOCwiZXhwIjoxNzgyMDc2NzM4fQ.IgBIbyKP8GscCBY1jNC7G8Xb8L8OlYM6wDWotbDJGTg
 
-POST https://localhost:7979/api/catalog/model
+> {%
+client.global.set("token", response.body.token);
+%}
+
+###
+POST https://GATEWAY/api/catalog/model
 Content-Type: application/json
 Authorization: Bearer {{token}}
 

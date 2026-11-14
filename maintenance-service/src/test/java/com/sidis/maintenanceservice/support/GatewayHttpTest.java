@@ -15,6 +15,8 @@ import java.net.http.HttpResponse;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -145,6 +147,10 @@ public abstract class GatewayHttpTest {
         assertEquals("2026-01-01", record.path("startDate").asText());
         assertEquals("INLINE", record.path("status").asText());
         return record;
+    }
+
+    protected Map<String, Object> completeRecordBody() {
+        return new HashMap<>(Map.of("notes", unique(), "tasksDone", Map.of("inspection", true, "maintenance", true, "cleaning", false), "endDate", LocalDate.now().toString()));
     }
 
     protected JsonNode findRow(JsonNode rows, String field, String value) {

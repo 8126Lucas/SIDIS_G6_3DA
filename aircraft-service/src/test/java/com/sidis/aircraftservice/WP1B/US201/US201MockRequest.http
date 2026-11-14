@@ -1,4 +1,6 @@
-POST https://localhost:7979/auth/login
+@GATEWAY=localhost:7979
+
+POST https://GATEWAY/api/auth/login
 Content-Type: application/json
 
 {
@@ -8,13 +10,14 @@ Content-Type: application/json
 
 ### updates an aircraft model's specifications - 1201107
 
+> {%
+client.global.set("token", response.body.token);
+%}
+
 ###
-@token = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJmZWM5ZDU4ZC03YTEzLTRjYjktYTk0OC04NmY0MGEyMmVlMjkiLCJyb2xlcyI6WyJCQUNLT0ZGSUNFIl0sImlhdCI6MTc4MjA3MzA3MiwiZXhwIjoxNzgyMDc2NjcyfQ.c7iO4GMLEZNOoN_M5Kn9C6UV5ncuf_wF5h6qrUf574o
-
-
 @model = 737-800
 
-PATCH https://localhost:7979/api/catalog/model/{{model}}
+PATCH https://GATEWAY/api/catalog/model/{{model}}
 Content-Type: application/json
 Authorization: Bearer {{token}}
 

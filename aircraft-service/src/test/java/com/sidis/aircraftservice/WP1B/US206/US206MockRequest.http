@@ -1,16 +1,15 @@
-POST https://localhost:7979/auth/login
+POST https://localhost:7979/api/auth/login
 Content-Type: application/json
 
 {
-  "username": "atcc",
-  "password": "atcc123"
+  "username": "backoffice",
+  "password": "backoffice123"
 }
 
 ### calculate the total operational hours for each aircraft - 1201107
 
 ###
-
-@token = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjZWY0NWNiMC03NWEyLTQ1MzgtOTExZi03M2JiNDcwMmM2MjQiLCJyb2xlcyI6WyJBVENDIl0sImlhdCI6MTc4MjA3MzY0NCwiZXhwIjoxNzgyMDc3MjQ0fQ.GI5Es2anJ_EdQ9tEnauMXc2HhnVmdapa8-2TOJL7q3c
+@token = eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiI4NjgzYTlkNi03OTk0LTQzNDItOGI0My0wY2Q1NWMwMjFhYjUiLCJyb2xlcyI6WyJCQUNLT0ZGSUNFIl0sImlhdCI6MTc5NDU5MjI3MSwiZXhwIjoxNzk0NTk1ODcxfQ.jRRjRCVGrX1he5HEXsSsEGevuXuZj1JVWE_f74_jzqnAaw2iSuGm-fIJY0KbZlBk
 
 GET https://localhost:7979/api/hangar/analytics/operational-hours
 Content-Type: application/json

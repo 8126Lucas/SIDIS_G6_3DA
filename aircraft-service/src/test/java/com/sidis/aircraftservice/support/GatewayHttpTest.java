@@ -62,12 +62,22 @@ public abstract class GatewayHttpTest {
     }
 
     protected HttpResponse<String> request(String method, String path, Object body) throws Exception {
+        return request(method, path, body, "application/json");
+    }
+
+    protected HttpResponse<String> request(String method, String path, Object body, String acceptContentType) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
-                .timeout(Duration.ofSeconds(30)).header("Accept", "application/json");
-        if (token != null) builder.header("Authorization", "Bearer " + token);
-        if (body != null) builder.header("Content-Type", "application/json");
-        builder.method(method, body == null ? HttpRequest.BodyPublishers.noBody()
-                : HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(body)));
+                .timeout(Duration.ofSeconds(30))
+                .header("Accept", acceptContentType);
+        if (token != null) {
+            builder.header("Authorization", "Bearer " + token);
+        }
+        if (body != null) {
+            builder.header("Content-Type", "application/json");
+        }
+        builder.method(method, body == null ?
+                HttpRequest.BodyPublishers.noBody() :
+                HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(body)));
         return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
     }
 
@@ -80,6 +90,16 @@ public abstract class GatewayHttpTest {
         return expect(200, request("GET", path, null));
     }
 
+    protected int post(String path, Object body) throws Exception {
+        var response = request("POST", path, body);
+        return response.statusCode();
+    }
+
+    protected int patch(String path, Object body) throws Exception {
+        var response = request("PATCH", path, body);
+        return response.statusCode();
+    }
+
     protected String unique() { return "HTTP-" + UUID.randomUUID(); }
 
     protected Map<String, Object> modelBody(String name) {
@@ -89,9 +109,22 @@ public abstract class GatewayHttpTest {
                         "cruisingSpeedKph", 828.0, "standardSeatingCapacity", 180));
     }
 
+    protected Map<String, Object> modelBodyWithoutImage(String name) {
+        return Map.of("modelName", name, "manufacturer", "Airbus",
+                "modelImage", List.of(),
+                "specs", Map.of("fuelCapacityLiters", 24210.0, "maximumRangeKm", 6150.0,
+                        "cruisingSpeedKph", 828.0, "standardSeatingCapacity", 180));
+    }
+
     protected String createModel() throws Exception {
         String name = unique();
         expect(201, request("POST", "/api/catalog/model", modelBody(name)));
+        return name;
+    }
+
+    protected String createModelWithoutImage() throws Exception {
+        String name = unique();
+        expect(201, request("POST", "/api/catalog/model", modelBodyWithoutImage(name)));
         return name;
     }
 
