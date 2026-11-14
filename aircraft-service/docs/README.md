@@ -22,12 +22,14 @@ Current implemented responsibilities:
 
 Important implementation notes:
 
+* **CQRS (iteration 2).** Commands write to PostgreSQL (`aircraft_db`) and publish an event to RabbitMQ; a listener in the service projects it into the Redis cluster, and every read and analytics endpoint reads from Redis. Details: [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md).
+* **Known gaps of the CQRS version:** `POST /api/hangar/aircraft` always answers `404` (the availability is changed before the aircraft is created); `GET /api/catalog/{modelName}` and the status summary find nothing in Redis (derived queries without `@Indexed`); seeded data is only in PostgreSQL, so it is not visible on read endpoints.
 * There is optimistic locking on `Aircraft` via `@Version` (not on `AircraftModel`); conflicts now map to `409`.
-* Every request (except H2 console and Swagger UI paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403`. JWT validation happens only in the API Gateway (see `domain-and-resilience.md`, section 7).
+* Every request (except Actuator and Swagger UI paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403`. JWT validation happens only in the API Gateway (see `domain-and-resilience.md`, section 7).
 * The utilization view (`/api/hangar/view/utilization`) now has a placeholder `utilization.html` template that does not render the computed data.
 * Some calls to other services target endpoints or fields that are not exposed by those services (see `domain-and-resilience.md`, section 4).
 * Outgoing calls have 2-second timeouts and up to 3 attempts (`@Retryable`, enabled with `@EnableRetry`).
-* `GET /api/hangar/aircraft/{registrationNumber}` asks other instances of the service (`PeerForwarder`) when the aircraft is not in the local database (see `domain-and-resilience.md`, section 6).
+* `GET /api/hangar/aircraft/{registrationNumber}` asks other instances of the service (`PeerForwarder`) when the aircraft is not in Redis (see `domain-and-resilience.md`, section 6). Since both instances share the same Redis cluster, a peer normally finds nothing more.
 
 ---
 
@@ -35,13 +37,15 @@ Important implementation notes:
 
 | Resource / Parameter | Current Value | Description |
 | :--- | :--- | :--- |
-| Service Port | `8081` | Configured in `application.properties` |
+| Service Port | `8081` (instance 1, PC2), `8082` (instance 2, PC5) | `server.port`, overridden by `SERVER_PORT` in `docker-compose.yml` |
 | API Prefixes | `/api/hangar`, `/api/catalog` | Base mappings in `HangarController` and `ModelCatalogController` |
-| Database | `H2 In-Memory` | `jdbc:h2:mem:aircrafttestdb` |
-| H2 Console Path | `/api/hangar/h2-console` | Spring H2 console path |
+| Write database | PostgreSQL `jdbc:postgresql://${IP_PC5}:5432/aircraft_db` | User `sidis`; tables created by Hibernate (`ddl-auto=update`) |
+| Read database | Redis cluster `${SPRING_REDIS_CLUSTER_NODES}` | Default `localhost:6379,6380,6381`; hashes `Aircraft` and `AircraftModel` |
+| Message broker | RabbitMQ `${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674` | Exchanges `aircraft.exchange`, `aircraftmodel.exchange` |
+| Metrics | `/actuator/prometheus`, `/actuator/health` | Scraped by Prometheus; exempt from the gateway secret filter |
 | OpenAPI Docs | `/api/docs` | springdoc API docs path |
 | Swagger UI | `/api/swagger-ui` | springdoc Swagger UI path |
-| Service Registry | `http://localhost:8761/eureka/,http://localhost:8762/eureka/` | Eureka client registration (both discovery nodes) |
+| Service Registry | `${EUREKA_URL_1},${EUREKA_URL_2}` | Both discovery nodes; registers with `${IP_PC<n>}` as its address |
 | Outgoing Call Timeouts | `2000` ms connect / `2000` ms read | `GlobalRestClientConfig` |
 | Gateway Secret | `sidis-g6-secret` | Hardcoded in `AircraftSecurityConfig` and `JwtTokenInterceptor` |
 
@@ -52,7 +56,7 @@ External client base URLs configured in code (resolved through Eureka via `@Load
 
 All outgoing calls go through `JwtTokenInterceptor`, which adds `X-Gateway-Secret` and forwards the caller's `Authorization: Bearer` header.
 
-API Gateway routing (`https://localhost:7979`):
+API Gateway routing (clients call HAProxy at `https://192.168.137.1`, which forwards to one of the two gateways):
 
 * `/api/hangar/**` and `/api/catalog/**` are routed to `aircraft-service` with the `JwtAuthentication` filter, which validates the JWT issued by `auth-service` and adds `X-User-Name` and `X-Gateway-Secret`.
 
@@ -70,31 +74,28 @@ This `docs/` directory is organized as follows:
 * `sequence-diagrams/scenario-1-query-aircraft.puml`: Sequence for read/analytics flows.
 * `sequence-diagrams/scenario-2-register-aircraft.puml`: Sequence for aircraft registration and availability change.
 * `sequence-diagrams/scenario-3-route-analytics.puml`: Sequence for flows that depend on `route-service` and `flight-service`.
+* [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md): global description of the CQRS split, the RabbitMQ events and the Redis cluster.
 
 ---
 
 ## 4. Quick Start
 
-Run locally:
+The service needs PostgreSQL, a Redis cluster and RabbitMQ (see section 2). In the lab they are started by the `pc1`, `pc2`, `pc3` and `pc5` profiles of `docker-compose.yml`; the instances run on PC2 and PC5:
 
 ```bash
-./mvnw spring-boot:run
+docker compose --profile pc2 up -d    # aircraft-service-1 (8081)
+docker compose --profile pc5 up -d    # aircraft-service-2 (8082)
 ```
 
-Call the API through the gateway (requires a token from `POST /api/auth/login` in `auth-service`):
+Call the API through HAProxy (requires a token from `POST /api/auth/login`):
 
 ```bash
-curl -k -H "Authorization: Bearer <token>" https://localhost:7979/api/hangar/aircraft/D-ABXA
+curl -k -H "Authorization: Bearer <token>" https://192.168.137.1/api/hangar/aircraft/D-ABXA
 ```
 
-Calling `http://localhost:8081/api/...` directly without `X-Gateway-Secret` returns `403` (`"Unauthorized Access! Please use the API Gateway!"`).
+Calling `http://<IP_PC2>:8081/api/...` directly without `X-Gateway-Secret` returns `403` (`"Unauthorized Access! Please use the API Gateway!"`).
 
-Open H2 console (exempt from the gateway secret filter):
-
-* URL: `http://localhost:8081/api/hangar/h2-console`
-* JDBC URL: `jdbc:h2:mem:aircrafttestdb`
-* User: `sa`
-* Password: empty
+Inspect the read model: `redis-cli -c -p 6379 HGETALL Aircraft:D-ABXA`. Inspect the queues: RabbitMQ management on `http://<IP_PC5>:15672` (`guest` / `guest`).
 
 Open Swagger UI:
 

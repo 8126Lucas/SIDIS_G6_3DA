@@ -16,8 +16,10 @@ participant "MaintenanceRecordController\n<<REST Controller>>" as controller
 participant "MaintenanceTemplateSearchService\n<<Application Service>>" as template_search
 participant "MaintenanceRecordProgressService\n<<UseCase>>" as progress_svc
 participant "MaintenanceRecordSearchService\n<<Application Service>>" as record_search
-participant "MaintenanceRecordRepository\n<<JPA Repository>>" as record_repo
-database "H2 Database\n<<In-Memory DB>>" as db
+participant "MaintenanceRecordCommandRepository\n<<JPA Repository>>" as record_repo
+participant "MaintenanceRecordQueryRepository\n<<Spring Data Redis>>" as record_query_repo
+database "PostgreSQL\nmaintenance_db" as db
+database "Redis cluster\n<<Read model>>" as redis
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 
 box "Maintenance Service [Container]" #LightBlue
@@ -27,6 +29,7 @@ box "Maintenance Service [Container]" #LightBlue
     participant progress_svc
     participant record_search
     participant record_repo
+    participant record_query_repo
     participant exception_handler
 end box
 
@@ -42,9 +45,9 @@ activate controller
 
 controller -> template_search : findByTemplateId(id)
 activate template_search
-template_search -> db : SELECT * FROM maintenance_template WHERE template_id = ?
-db --> template_search : row (or none)
-template_search --> controller : Optional<MaintenanceTemplate>
+template_search -> redis : findByTemplateId(id)\n(derived query, no @Indexed)
+redis --> template_search : nothing found\n(although MaintenanceTemplate:<id> exists)
+template_search --> controller : Optional<MaintenanceTemplateRedis>
 deactivate template_search
 
 alt Template found
@@ -73,7 +76,7 @@ controller -> progress_svc : findById(id)
 activate progress_svc
 progress_svc -> record_repo : findByRecordId(id)
 activate record_repo
-record_repo -> db : SELECT * FROM company_maintenance_records WHERE record_id = ?
+record_repo -> db : SELECT * FROM company_maintenance_records WHERE record_id = ?\n(write model: this endpoint does not use Redis)
 db --> record_repo : row (or none)
 record_repo --> progress_svc : Optional<MaintenanceRecord>
 deactivate record_repo
@@ -112,12 +115,15 @@ alt aircraft == null
     exception_handler --> client : 500 Internal Server Error (ErrorDetails JSON)
     deactivate exception_handler
 else aircraft present
-    record_search -> record_repo : findAll(spec on aircraftRegistration,\nattribute, startDate range, pageable)
-    activate record_repo
-    record_repo --> record_search : Page<MaintenanceRecord>
-    deactivate record_repo
-    record_search --> controller : Page<MaintenanceRecord>
-    controller --> gateway : 200 OK (MaintenanceRecordResponse[])
+    record_search -> record_query_repo : findAll(spec on aircraftRegistration,\nattribute, startDate range, pageable)
+    activate record_query_repo
+    record_query_repo -> redis : read MaintenanceRecord hashes
+    record_query_repo --> record_search : Page<MaintenanceRecordRedis>
+    deactivate record_query_repo
+    record_search --> controller : Page<MaintenanceRecordRedis>
+    controller -> template_search : findByTemplateId(templateId) per record
+    template_search --> controller : empty -> 404 when the page is not empty
+    controller --> gateway : 200 OK (MaintenanceRecordResponse[]) only for an empty page
     gateway --> client : 200 OK Response
 end
 deactivate record_search
@@ -134,7 +140,7 @@ deactivate gateway
 
 client -> secret_filter : GET http://localhost:8121/api/maintenance/templates\n(direct call, no X-Gateway-Secret)
 activate secret_filter
-secret_filter -> secret_filter : path is not /h2-console, /swagger-ui, /api-docs
+secret_filter -> secret_filter : path is not /actuator, /h2-console, /swagger-ui, /api-docs
 secret_filter --[#red]> client : 403 Forbidden\n"Unauthorized Access! Please use the API Gateway!"
 deactivate secret_filter
 

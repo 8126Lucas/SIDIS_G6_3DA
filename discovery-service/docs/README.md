@@ -19,7 +19,8 @@ Important implementation notes:
 
 * There is no security dependency: the dashboard and the `/eureka/**` API are open to anyone who can reach the port.
 * Eureka defaults are kept (30 s heartbeats, 90 s lease expiration, self-preservation enabled).
-* In Docker the two nodes cannot replicate to each other (see `registry-topology.md`, section 3).
+* In the 5-PC deployment `discovery-node1` runs on PC1 and `discovery-node2` on PC3; each one takes the other's URL from `EUREKA_URL_2` / `EUREKA_URL_1`, so they replicate across machines (see `registry-topology.md`, section 3).
+* Both nodes expose `/actuator/prometheus` for Prometheus, which also uses `discovery-node1` to find its scrape targets.
 
 ---
 
@@ -28,12 +29,12 @@ Important implementation notes:
 | Profile | Port | Registers with / Fetches from | Use |
 | :--- | :--- | :--- | :--- |
 | default | `8761` | Nothing (`register-with-eureka=false`, `fetch-registry=false`) | Standalone, used by the module test |
-| `node1` | `8761` | `http://localhost:8762/eureka/` | First peer (CI and Docker) |
-| `node2` | `8762` | `http://localhost:8761/eureka/` | Second peer (Docker) |
+| `node1` | `8761` | `${EUREKA_URL_2}` (node 2) | First peer, PC1 (CI uses it alone) |
+| `node2` | `8762` | `${EUREKA_URL_1}` (node 1) | Second peer, PC3 |
 
 * Application name: `discovery-service` (`application.properties`, shared by all profiles).
-* `eureka.instance.hostname`: `localhost` in both node profiles; overridden in Docker with `EUREKA_INSTANCE_HOSTNAME=discovery-node1` / `discovery-node2`.
-* Docker (`docker-compose.yml`): containers `discovery-node1` (`8761:8761`) and `discovery-node2` (`8762:8762`), same image, profile chosen with `SPRING_PROFILES_ACTIVE`.
+* `EUREKA_URL_1` / `EUREKA_URL_2` must be set on every PC (`http://<IP_PC1>:8761/eureka/`, `http://<IP_PC3>:8762/eureka/`); `docker-compose.yml` passes them to the containers.
+* Docker (`docker-compose.yml`): `discovery-node1` (profile `pc1`, `8761:8761`) registers with `EUREKA_INSTANCE_IP_ADDRESS=${IP_PC1}` and instance id `${IP_PC1}:discovery-node1:8761`; `discovery-node2` (profile `pc3`, `8762:8762`) with `${IP_PC3}`. Same image, profile chosen with `SPRING_PROFILES_ACTIVE`.
 
 Useful endpoints (HTTP):
 
@@ -64,12 +65,15 @@ Single node:
 ./mvnw spring-boot:run
 ```
 
-Two peer nodes (two terminals):
+Two peer nodes (two terminals, same machine):
 
 ```bash
+export EUREKA_URL_1=http://localhost:8761/eureka/ EUREKA_URL_2=http://localhost:8762/eureka/
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=node1
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=node2
 ```
+
+In the lab: `docker compose --profile pc1 up -d` on PC1 and `docker compose --profile pc3 up -d` on PC3.
 
 Then open `http://localhost:8761` (and `http://localhost:8762`) to see the dashboard.
 

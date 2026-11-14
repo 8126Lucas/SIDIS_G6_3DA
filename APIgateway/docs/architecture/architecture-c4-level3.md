@@ -38,7 +38,7 @@ PlantUML source file:
 
 ## 3. Data Flow and Dependencies
 
-1. The client sends an HTTPS request to port `7979`.
+1. The client sends an HTTPS request to HAProxy (`https://192.168.137.1`, port `443`), which passes the TLS connection to one of the two gateway instances (`7979` on PC1 or `7980` on PC4).
 2. The route predicates select a route by path prefix.
 3. On protected routes, `JwtAuthenticationGatewayFilterFactory` validates the token and adds the two headers; on failure it ends the exchange with `401`.
 4. The LoadBalancer picks an instance of the target service from the Eureka registry.

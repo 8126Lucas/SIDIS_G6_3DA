@@ -10,16 +10,21 @@ This `docs/` folder contains the high-level system architectural blueprints, C4 
 
 The **AISafe Flight Management System** is a distributed, microservice-based platform built on **Java 21** and **Spring Boot 3.x**. It provides full-lifecycle support for airline operations, including fleet management, airport infrastructure, maintenance records, route definitions, authentication, and flight scheduling.
 
+In iteration 2 the system runs on **five PCs**, with **two instances of every component** spread over them, a load balancer in front of the gateways, and a shared data layer for the services migrated to CQRS.
+
 ### Core Ecosystem Components
 
-* **API Gateway (`7979`, HTTPS):** Central entry point using Spring Cloud Gateway (WebFlux). Validates the JWT and routes requests to the services through Eureka.
-* **Discovery Service (`8761` / `8762`):** Two peer Spring Cloud Netflix Eureka Server nodes for the service registry and client-side load balancing.
-* **Auth Service (`8101 - 8110`):** Manages user accounts, credentials, and JWT token issuance.
-* **Aircraft Service (`8081 - 8090`):** Manages aircraft models, operational specifications, and fleet hangar instances.
+* **HAProxy (`443`, PC1):** Single entry point (`https://192.168.137.1`). Balances connections between the two gateways (round robin) and stops using a gateway that does not answer.
+* **API Gateway (`7979` PC1, `7980` PC4, HTTPS):** Spring Cloud Gateway (WebFlux). Validates the JWT and routes requests to the services through Eureka.
+* **Discovery Service (`8761` PC1, `8762` PC3):** Two peer Spring Cloud Netflix Eureka Server nodes for the service registry and client-side load balancing.
+* **Auth Service (`8101 - 8110`):** Manages user accounts, credentials, and JWT token issuance. SQLite file per instance.
+* **Aircraft Service (`8081 - 8090`):** Manages aircraft models, operational specifications, and fleet hangar instances. CQRS: PostgreSQL + Redis + RabbitMQ.
 * **Airport Service (`8091 - 8100`):** Manages airport infrastructure, runway specs, and OpenCSV data imports.
-* **Maintenance Service (`8121 - 8130`):** Manages checklists, maintenance logs, and scheduled aircraft overhauls.
+* **Maintenance Service (`8121 - 8130`):** Manages checklists, maintenance logs, and scheduled aircraft overhauls. CQRS: PostgreSQL + Redis + RabbitMQ.
 * **Route Service (`8131 - 8140`):** Manages flight routes, network distances, and waypoint histories.
 * **Flight Operations Service (`8111 - 8120`):** Handles flight schedules, route assignments, real-time status transitions, and utilization metrics.
+* **Data and messaging:** PostgreSQL 15 (PC5) as write store, one Redis cluster per CQRS service as read store, RabbitMQ 3.12 for the synchronisation events.
+* **Monitoring:** Prometheus (`9090`, PC1) scrapes the Spring Boot Actuator metrics of the instances registered in Eureka.
 
 ---
 
@@ -33,13 +38,17 @@ docs/
 ├── system-context-c4-level1.puml          # C4 Level 1: System Context Diagram (PlantUML)
 ├── container-diagram-c4-level2.puml       # C4 Level 2: Container Architecture Diagram (PlantUML)
 ├── global-logical-view-level1.puml        # UML Logical View Level 1 (Socket/Lollipop P2P Forwarding)
-├── physical-view-deployment.puml          # Physical View: Docker deployment, ports, instances per component
+├── physical-view-deployment.puml          # Physical View: containers per PC, ports, entry point, data stores
 ├── domain-model-ddd.puml                  # UML class diagram of the domain model per bounded context (DDD)
-├── global-network-and-ports.md            # Network topology, ports, routing, security, inter-service calls
+├── global-network-and-ports.md            # HAProxy, PC distribution, ports, routing, security, inter-service calls
+├── data-architecture-cqrs.md              # PostgreSQL, CQRS with Redis, RabbitMQ synchronisation, known gaps
+├── cqrs-data-flow.puml                    # Sequence: command -> PostgreSQL -> RabbitMQ -> Redis -> query
 ├── ci-cd-pipelines.md                     # GitHub Actions CI (tests on the running system) and CD (Docker images)
 └── postman/
+    ├── README.md                                     # How to run the collection and how it is organised
     ├── AISafe-Global-System.postman_collection.json  # Global Postman integration collection
-    └── SIDIS HTTP Tests.postman_collection.json      # HTTP test collection
+    ├── AISafe-Local.postman_environment.json         # Postman environment for the local system
+    └── SIDIS HTTP Tests.postman_collection.json      # Previous HTTP test collection
 ``
 
 ---
@@ -52,7 +61,7 @@ docs/
 
 ### 3.2. C4 Level 2 — Container Diagram
 * **File:** `container-diagram-c4-level2.puml`
-* **Scope:** Illustrates the internal container structure, showing how the **API Gateway** routes traffic to microservices, how services register with the two **Eureka Discovery Service** nodes, their dedicated **H2 In-Memory Databases**, and inter-service REST interactions (see `global-network-and-ports.md`, section 6).
+* **Scope:** Illustrates the internal container structure: **HAProxy** in front of the two **API Gateway** instances, the routing to the microservices, the two **Eureka** nodes, the write store (**PostgreSQL**), read store (**Redis cluster**) and message broker (**RabbitMQ**) of the CQRS services, the SQLite of `auth-service`, the H2 databases of the services not yet migrated, and **Prometheus**. Inter-service REST calls are listed in `global-network-and-ports.md`, section 8.
 
 ### 3.3. UML Logical View — Level 1
 * **File:** `global-logical-view-level1.puml`
@@ -60,32 +69,43 @@ docs/
 
 ### 3.4. Physical View — Deployment
 * **File:** `physical-view-deployment.puml`
-* **Scope:** The containers started by `docker-compose.yml` (one per component, two Eureka nodes), host port mappings, the in-memory H2 database inside each service container, and how an extra instance of a service is added (same image, `SERVER_PORT` in its reserved range, own H2).
+* **Scope:** The five PCs and the containers each one starts (`docker compose --profile pc<n>`): two instances of every component, HAProxy and Prometheus on PC1, PostgreSQL and two RabbitMQ nodes on PC5, and the Redis nodes spread over the PCs, with their host ports.
 
-### 3.5. Domain Model (DDD) — UML Class Diagram
+### 3.5. Data Architecture — CQRS and Synchronisation
+* **Files:** `data-architecture-cqrs.md`, `cqrs-data-flow.puml`
+* **Scope:** Why SQLite was replaced by a central PostgreSQL, how `aircraft-service` and `maintenance-service` split commands (PostgreSQL) from queries (Redis cluster), the RabbitMQ exchanges and queues that project each write into Redis, and the gaps found in the current implementation.
+
+### 3.6. Domain Model (DDD) — UML Class Diagram
 * **File:** `domain-model-ddd.puml`
 * **Scope:** One package per bounded context (Flight Operations, Maintenance, Route, Aircraft, Identity and Access, Airport) with its aggregate roots, entities and value objects as mapped in JPA. Contexts reference each other only by identifier (registration number, IATA code, route id, usernames), resolved over HTTP/REST.
 
-### 3.6. CI/CD
+### 3.7. CI/CD
 * **File:** `ci-cd-pipelines.md`
-* **Scope:** The CI workflow starts the whole system on the runner and runs the end-to-end tests; the CD workflow publishes Docker images to the GitHub Container Registry after a successful CI run.
+* **Scope:** The CI workflow compiles first (fail-fast), then starts the system on the runner for the Java end-to-end tests and the Postman tests; the CD workflow publishes Docker images to the GitHub Container Registry after a successful CI run.
 
 ---
 
 ## 4. Master Network Topology & Allocated Service Ports
 
-All microservices run within designated port ranges to facilitate cloning and scaling:
+All microservices run within designated port ranges to facilitate cloning and scaling. Clients only use HAProxy (`443`); the other ports are used between PCs.
 
-| Service / Infrastructure Component | Port Range / Base Port | Protocol / Technology |
+| Service / Infrastructure Component | Ports (instance 1 / instance 2) | Protocol / Technology |
 | :--- | :--- | :--- |
-| **Eureka Discovery Service** | `8761` / `8762` | HTTP / Eureka Server |
-| **API Gateway** | `7979` | HTTPS / WebFlux |
-| **Aircraft Service** | `8081 - 8090` | HTTP / Spring Web / JPA |
-| **Airport Service** | `8091 - 8100` | HTTP / Spring Web / OpenCSV |
-| **Authentication Service** | `8101 - 8110` | HTTP / Spring Security / JWT |
-| **Flight Operations Service** | `8111 - 8120` | HTTP / Spring Web / JPA |
-| **Maintenance Service** | `8121 - 8130` | HTTP / Spring Web / JPA |
-| **Route Service** | `8131 - 8140` | HTTP / Spring Web / JPA |
+| **HAProxy** | `443` (PC1), stats `8404` | TCP (TLS pass-through) / HTTP |
+| **API Gateway** | `7979` (PC1) / `7980` (PC4) | HTTPS / WebFlux |
+| **Eureka Discovery Service** | `8761` (PC1) / `8762` (PC3) | HTTP / Eureka Server |
+| **Aircraft Service** | `8081` / `8082` (range `8081 - 8090`) | HTTP / Spring Web / JPA / Redis / AMQP |
+| **Airport Service** | `8091` / `8092` (range `8091 - 8100`) | HTTP / Spring Web / OpenCSV |
+| **Authentication Service** | `8101` / `8102` (range `8101 - 8110`) | HTTP / Spring Security / JWT |
+| **Flight Operations Service** | `8111` / `8112` (range `8111 - 8120`) | HTTP / Spring Web / JPA |
+| **Maintenance Service** | `8121` / `8122` (range `8121 - 8130`) | HTTP / Spring Web / JPA / Redis / AMQP |
+| **Route Service** | `8131` / `8132` (range `8131 - 8140`) | HTTP / Spring Web / JPA |
+| **PostgreSQL** | `5432` (PC5) | JDBC |
+| **RabbitMQ** | `5672`, `5673` (PC5), `5674` (PC3) | AMQP |
+| **Redis** | `6379 - 6393` (3 nodes per service) | Redis cluster |
+| **Prometheus** | `9090` (PC1) | HTTP |
+
+Placement of every container per PC: `global-network-and-ports.md`, section 3.
 
 ---
 
@@ -111,7 +131,8 @@ To ensure a complete and successful project submission, the root `/docs/` folder
 - [x] **C4 Level 1 — System Context Diagram** (`.puml` + `.png`)
 - [x] **C4 Level 2 — Container Diagram** (`.puml` + `.png`)
 - [x] **UML Logical View — Level 1** (`.puml`) showing system component interfaces (*Lollipop / Socket*), `<<instance>>` clones and peer-to-peer forwarding.
-- [x] **Physical View — Deployment Diagram** (`.puml`) showing the containers, ports and multiple instances per component.
+- [x] **Physical View — Deployment Diagram** (`.puml`) showing the containers per PC, ports and multiple instances per component.
+- [x] **Data Architecture — CQRS** (`data-architecture-cqrs.md` + `cqrs-data-flow.puml`) with the PostgreSQL decision, the Redis read model and the RabbitMQ synchronisation.
 - [x] **Domain Model (DDD) — UML Class Diagram** (`.puml`) with aggregates, entities and value objects per bounded context.
-- [ ] **Master Network & Security Topology Document** (`04-global-network-and-ports.md`) detailing JWT authentication flow, Eureka load balancing, and port allocations.
-- [ ] **Global Postman Integration Test Collection** (`postman/AISafe-Global-System.postman_collection.json`) featuring end-to-end user journeys across all microservices.
+- [x] **Master Network & Security Topology Document** (`global-network-and-ports.md`) detailing the HAProxy entry point, PC distribution, JWT authentication flow, Eureka load balancing, and port allocations.
+- [x] **Global Postman Integration Test Collection** (`postman/AISafe-Global-System.postman_collection.json`) featuring end-to-end user journeys across all microservices.

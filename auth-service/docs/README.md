@@ -29,17 +29,16 @@ Important implementation notes:
 
 | Resource / Parameter | Current Value | Description |
 | :--- | :--- | :--- |
-| Service Port | `8101` | Configured in `application.properties` |
+| Service Port | `8101` (instance 1, PC2), `8102` (instance 2, PC3) | `server.port`, overridden by `SERVER_PORT` in `docker-compose.yml` |
 | API Prefix | `/api/auth` | Base mapping in `AuthController` |
-| Database | `H2 In-Memory` | `jdbc:h2:mem:testdb` |
+| Database | SQLite file | `jdbc:sqlite:/data/auth.db`; each instance mounts its own folder (`./data/auth-service-1`, `./data/auth-service-2`), so each has its own copy of the seeded users |
 | Schema Strategy | `update` | `spring.jpa.hibernate.ddl-auto` |
-| H2 Console Path | `/h2-console` | Enabled, but requires authentication (blocked) |
 | OpenAPI Docs / Swagger UI | `/api/docs`, `/api/swagger-ui` | Configured, but require authentication (blocked) |
 | JWT Secret | `security.jwt.secret` | 49-byte HMAC key (signs with `HS384`) |
 | JWT Expiration | `3600000` ms (1 hour) | `security.jwt.expiration-ms` |
-| Service Registry | `http://localhost:8761/eureka/,http://localhost:8762/eureka/` | Eureka client registration (both discovery nodes) |
+| Service Registry | `${EUREKA_URL_1},${EUREKA_URL_2}` | Both discovery nodes (`prefer-ip-address=true`); registers with `${IP_PC<n>}` as its address |
 
-API Gateway routing (`https://localhost:7979`):
+API Gateway routing (clients call HAProxy at `https://192.168.137.1`, which forwards to one of the two gateways):
 
 * `/api/auth/**` is routed to `lb://auth-service` without the `JwtAuthentication` filter, so login is public.
 * `/api/welcome` is not under `/api/auth` and is only reachable directly on the service port.
@@ -71,7 +70,7 @@ Run locally:
 Log in through the gateway:
 
 ```bash
-curl -k -X POST https://localhost:7979/api/auth/login \
+curl -k -X POST https://192.168.137.1/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username": "technician", "password": "technician123"}'
 ```
@@ -79,7 +78,7 @@ curl -k -X POST https://localhost:7979/api/auth/login \
 Use the returned token on any other route:
 
 ```bash
-curl -k -H "Authorization: Bearer <token>" https://localhost:7979/api/maintenance/templates
+curl -k -H "Authorization: Bearer <token>" https://192.168.137.1/api/maintenance/templates
 ```
 
 Seeded collaborators:

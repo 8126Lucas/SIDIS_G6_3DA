@@ -24,7 +24,7 @@ end box
 
 == Public route ==
 
-client -> routes : POST https://localhost:7979/api/auth/login
+client -> routes : POST https://192.168.137.1/api/auth/login\n(HAProxy :443 -> gateway :7979 or :7980)
 activate routes
 routes -> load_balancer : route auth-service (no filter)
 activate load_balancer

@@ -1,80 +1,77 @@
 @startuml
 !include <C4/C4_Container>
 
-' Aumento das margens e espaçamentos entre nós para evitar sobreposição
-skinparam nodesep 110
-skinparam ranksep 100
+skinparam nodesep 90
+skinparam ranksep 90
 skinparam linetype polyline
 
-title Container Diagram (C4 - Level 2) - AISafe Flight Management System
+title Container Diagram (C4 - Level 2) - AISafe Flight Management System (Iteration 2)
 
-' External Client / User
-System_Ext(postman, "API Client (Postman)", "Tool used to simulate HTTP/REST requests to system endpoints.")
+System_Ext(postman, "API Client (Postman)", "Simulates HTTP/REST requests to the system.")
 
-' System Boundary
 System_Boundary(aisafe_boundary, "AISafe Flight Management System") {
 
-    ' Entry Point & Infrastructure
-    Container(api_gateway, "API Gateway", "Spring Cloud Gateway (WebFlux)", "Single entry point on port 7979 (HTTPS).\nValidates the JWT and routes requests through Eureka.")
-    Container(discovery_service, "Discovery Service", "Spring Cloud Netflix Eureka", "Two peer nodes on ports 8761 and 8762\nfor service registry and load balancing.")
+    ' Entry point
+    Container(haproxy, "HAProxy", "HAProxy 2.8 (TCP mode)", "Single entry point on PC1, port 443.\nRound robin and failover between the two gateways.")
+    Container(api_gateway, "API Gateway (x2)", "Spring Cloud Gateway (WebFlux)", "Ports 7979 (PC1) and 7980 (PC4), HTTPS.\nValidates the JWT and routes through Eureka.")
+    Container(discovery_service, "Discovery Service (x2)", "Spring Cloud Netflix Eureka", "Peer nodes on 8761 (PC1) and 8762 (PC3).")
 
-    ' Security / Auth
-    Container(auth_service, "Auth Service", "Java 21, Spring Boot Security, JWT", "Authenticates collaborators and issues JWTs on port 8101.")
-    ContainerDb(auth_db, "Auth DB", "H2 In-Memory", "Stores collaborators and roles.")
+    ' Security
+    Container(auth_service, "Auth Service (x2)", "Spring Boot, Spring Security, JWT", "Authenticates collaborators and issues JWTs.")
+    ContainerDb(auth_db, "Auth DB", "SQLite (one file per instance)", "Seeded collaborators and roles.")
 
-    ' Core Business Services
-    Container(aircraft_service, "Aircraft Service", "Java 21, Spring Boot Web, JPA", "Manages aircraft models and fleet instances on port 8081.")
-    ContainerDb(aircraft_db, "Aircraft DB", "H2 In-Memory", "Stores aircraft models and fleet.")
+    ' Services already migrated to CQRS
+    Container(aircraft_service, "Aircraft Service (x2)", "Spring Boot, JPA, Spring Data Redis, AMQP", "Catalog of models and fleet (hangar).\nCQRS: writes to PostgreSQL, reads from Redis.")
+    Container(maintenance_service, "Maintenance Service (x2)", "Spring Boot, JPA, Spring Data Redis, AMQP", "Templates and maintenance records.\nCQRS: writes to PostgreSQL, reads from Redis.")
 
-    Container(airport_service, "Airport Service", "Spring Boot Web, JPA, OpenCSV", "Manages airport registrations, runways,\nand certifications on port 8091.")
-    ContainerDb(airport_db, "Airport DB", "H2 In-Memory", "Stores airport profiles and runway data.")
+    ' Services not migrated yet
+    Container(airport_service, "Airport Service (x2)", "Spring Boot, JPA, OpenCSV", "Airports, runways and certifications.")
+    Container(route_service, "Route Service (x2)", "Spring Boot, JPA", "Routes and their history.")
+    Container(flight_service, "Flight Operations Service (x2)", "Spring Boot, JPA", "Flight scheduling and utilization reports.")
+    ContainerDb(h2_dbs, "Airport / Route / Flight DBs", "H2 in memory (per instance)", "Not migrated to PostgreSQL yet.")
 
-    Container(maintenance_service, "Maintenance Service", "Java 21, Spring Boot Web, JPA", "Manages maintenance records, templates,\nand checklists on port 8121.")
-    ContainerDb(maintenance_db, "Maintenance DB", "H2 In-Memory", "Stores maintenance templates and records.")
+    ' Shared data infrastructure
+    ContainerDb(postgres, "PostgreSQL", "PostgreSQL 15 (PC5)", "Write model (source of truth):\naircraft_db, maintenance_db.")
+    ContainerDb(redis, "Redis Cluster", "Redis 7, 3 nodes per service", "Read model (Query side) of\naircraft and maintenance.")
+    ContainerQueue(rabbitmq, "RabbitMQ", "RabbitMQ 3.12", "Topic exchanges and sync queues\nthat project writes into Redis.")
 
-    Container(route_service, "Route Service", "Spring Boot Web, JPA", "Manages flight routes and their history on port 8131.")
-    ContainerDb(route_db, "Route DB", "H2 In-Memory", "Stores flight routes and network distances.")
-
-    Container(flight_service, "Flight Operations Service", "Spring Boot Web, JPA", "Schedules flights and reports route utilization on port 8111.")
-    ContainerDb(flight_db, "Flight DB", "H2 In-Memory", "Stores scheduled flights.")
+    Container(prometheus, "Prometheus", "Prometheus 2.53 (PC1)", "Scrapes /actuator/prometheus of the\ninstances found in Eureka.")
 }
 
-' External Client -> Gateway
-Rel_D(postman, api_gateway, "Sends REST requests\n(login on /api/auth/**, Bearer JWT elsewhere)\n[HTTPS/JSON]", "Port 7979")
+' Entry
+Rel_D(postman, haproxy, "REST requests, Bearer JWT", "HTTPS :443")
+Rel_D(haproxy, api_gateway, "Forwards the TLS connection", "TCP, round robin")
 
-' API Gateway Routing
-Rel_D(api_gateway, auth_service, "Routes /api/auth/**\n[HTTP]")
-Rel_D(api_gateway, aircraft_service, "Routes /api/hangar/**, /api/catalog/**\n[HTTP + X-Gateway-Secret]")
-Rel_D(api_gateway, airport_service, "Routes /api/airports/**\n[HTTP + X-Gateway-Secret]")
-Rel_D(api_gateway, flight_service, "Routes /api/flights/**\n[HTTP + X-Gateway-Secret]")
-Rel_D(api_gateway, maintenance_service, "Routes /api/maintenance/**\n[HTTP + X-Gateway-Secret]")
-Rel_D(api_gateway, route_service, "Routes /api/routes/**\n[HTTP + X-Gateway-Secret]")
-Rel_U(api_gateway, discovery_service, "Registers & Discovers", "Eureka")
+' Routing
+Rel_D(api_gateway, auth_service, "/api/auth/**", "HTTP")
+Rel_D(api_gateway, aircraft_service, "/api/hangar/~**, /api/catalog/~**", "HTTP + X-Gateway-Secret")
+Rel_D(api_gateway, maintenance_service, "/api/maintenance/**", "HTTP + X-Gateway-Secret")
+Rel_D(api_gateway, airport_service, "/api/airports/**", "HTTP + X-Gateway-Secret")
+Rel_D(api_gateway, route_service, "/api/routes/**", "HTTP + X-Gateway-Secret")
+Rel_D(api_gateway, flight_service, "/api/flights/**", "HTTP + X-Gateway-Secret")
+Rel_L(api_gateway, discovery_service, "Registers & discovers", "Eureka")
 
-' Service Discovery
-Rel_U(auth_service, discovery_service, "Registers & Discovers", "Eureka")
-Rel_U(aircraft_service, discovery_service, "Registers & Discovers", "Eureka")
-Rel_U(airport_service, discovery_service, "Registers & Discovers", "Eureka")
-Rel_U(maintenance_service, discovery_service, "Registers & Discovers", "Eureka")
-Rel_U(route_service, discovery_service, "Registers & Discovers", "Eureka")
-Rel_U(flight_service, discovery_service, "Registers & Discovers", "Eureka")
+' Data
+Rel_D(auth_service, auth_db, "Reads/writes", "JDBC")
+Rel_D(aircraft_service, postgres, "Commands", "JDBC")
+Rel_D(maintenance_service, postgres, "Commands", "JDBC")
+Rel_D(aircraft_service, rabbitmq, "Publishes / consumes sync events", "AMQP")
+Rel_D(maintenance_service, rabbitmq, "Publishes / consumes sync events", "AMQP")
+Rel_D(aircraft_service, redis, "Queries / projections", "Redis cluster")
+Rel_D(maintenance_service, redis, "Queries / projections", "Redis cluster")
+Rel_D(airport_service, h2_dbs, "Reads/writes", "JDBC")
+Rel_D(route_service, h2_dbs, "Reads/writes", "JDBC")
+Rel_D(flight_service, h2_dbs, "Reads/writes", "JDBC")
 
-' Database Connections
-Rel_D(auth_service, auth_db, "Reads/Writes", "JDBC / H2")
-Rel_D(aircraft_service, aircraft_db, "Reads/Writes", "JDBC / H2")
-Rel_D(airport_service, airport_db, "Reads/Writes", "JDBC / H2")
-Rel_D(maintenance_service, maintenance_db, "Reads/Writes", "JDBC / H2")
-Rel_D(route_service, route_db, "Reads/Writes", "JDBC / H2")
-Rel_D(flight_service, flight_db, "Reads/Writes", "JDBC / H2")
+' Monitoring
+Rel_U(prometheus, discovery_service, "Finds targets", "Eureka SD")
 
-' Inter-Service REST Calls (RestClient over Eureka, with X-Gateway-Secret)
-Rel_R(maintenance_service, aircraft_service, "Aircraft checks, model names, alerts\n[HTTP]")
-Rel(aircraft_service, flight_service, "Flights for rankings and fuel metrics\n[HTTP]")
-Rel(aircraft_service, route_service, "Routes for compatibility and fuel metrics\n[HTTP]")
-Rel(flight_service, aircraft_service, "Aircraft and model for scheduling\n[HTTP]")
-Rel(flight_service, route_service, "Route checks and usage update\n[HTTP]")
-Rel(flight_service, airport_service, "Airport status\n[HTTP]")
-Rel(route_service, airport_service, "Airport status and location\n[HTTP]")
-Rel(airport_service, route_service, "Routes per airport\n[HTTP]")
+SHOW_LEGEND()
+
+note as N1
+  Every service registers in Eureka, and the services call each other over
+  HTTP through Eureka (see global-network-and-ports.md, section 7).
+  Those arrows are left out to keep the diagram readable.
+end note
 
 @enduml
