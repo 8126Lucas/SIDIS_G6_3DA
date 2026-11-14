@@ -3,6 +3,7 @@ package com.sidis.maintenanceservice.domain;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.redis.core.RedisHash;
+import org.springframework.data.redis.core.index.Indexed;
 
 import java.util.Map;
 
@@ -10,10 +11,13 @@ import java.util.Map;
 public class MaintenanceTemplateRedis {
     @Id
     private Long templateId;
+    @Indexed
     private String name;
     private Double expectedDuration;
     private Map<String, Boolean> templateChecklist;
+    @Indexed
     private MaintenanceType operation;
+    @Indexed
     private MaintenanceAttribute attribute;
 
     public MaintenanceTemplateRedis(String name, Double expectedDuration,

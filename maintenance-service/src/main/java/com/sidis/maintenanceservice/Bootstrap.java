@@ -3,6 +3,10 @@ package com.sidis.maintenanceservice;
 import com.sidis.maintenanceservice.domain.*;
 import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordCommandRepository;
 import com.sidis.maintenanceservice.infrastructure.MaintenanceTemplateCommandRepository;
+import com.sidis.maintenanceservice.infrastructure.messaging.MaintenanceRecordSyncEvent;
+import com.sidis.maintenanceservice.infrastructure.messaging.MaintenanceTemplateSyncEvent;
+import com.sidis.maintenanceservice.infrastructure.messaging.RabbitMQConfig;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -14,45 +18,27 @@ import java.util.*;
 @Component
 //@Profile("dev")
 public class Bootstrap implements ApplicationRunner {
-    
     private final MaintenanceRecordCommandRepository maintenanceRecordRepository;
     private final MaintenanceTemplateCommandRepository maintenanceTemplateRepository;
+    private final RabbitTemplate rabbitTemplate;
 
     public Bootstrap(MaintenanceRecordCommandRepository maintenanceRecordRepository,
-                     MaintenanceTemplateCommandRepository maintenanceTemplateRepository) {
+                     MaintenanceTemplateCommandRepository maintenanceTemplateRepository,
+                     RabbitTemplate rabbitTemplate) {
         this.maintenanceRecordRepository = maintenanceRecordRepository;
         this.maintenanceTemplateRepository = maintenanceTemplateRepository;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (maintenanceRecordRepository.count() == 0) {
+        if (maintenanceRecordRepository.count() == 0 && maintenanceTemplateRepository.count() == 0) {
             seedMaintenance();
         }
     }
 
     private void seedMaintenance() {
-        /*Collaborator supervisor = collaboratorRepository
-                .findByUsername("supervisor")
-                .orElseThrow();
-
-        Collaborator tech = collaboratorRepository
-                .findByUsername("technician")
-                .orElseThrow();
-
-        Aircraft csTua = aircraftRepository
-                .findByRegistrationNumber("CS-TUA")
-                .orElseThrow();
-
-        Aircraft dAbxa = aircraftRepository
-                .findByRegistrationNumber("D-ABXA")
-                .orElseThrow();
-
-        Aircraft fHxka = aircraftRepository
-                .findByRegistrationNumber("F-HXKA")
-                .orElseThrow();*/
-
         // ================= ENGINE INSPECTION =================
 
         MaintenanceTemplate engineInspection = new MaintenanceTemplate(
@@ -194,8 +180,57 @@ public class Bootstrap implements ApplicationRunner {
                 "CS-TUA"
         );
 
-        maintenanceRecordRepository.saveAll(
-                List.of(r1, r2, r3, r4)
-        );
+        List<MaintenanceTemplate> maintenanceTemplates = List.of(engineInspection, landingGearInspection, avionicsCheck, engineRepair);
+        List<MaintenanceRecord> maintenanceRecords = List.of(r1, r2, r3, r4);
+
+        maintenanceRecordRepository.saveAll(maintenanceRecords);
+
+        for (MaintenanceTemplate template : maintenanceTemplates) {
+            MaintenanceTemplateSyncEvent event = new MaintenanceTemplateSyncEvent(
+                    template.getTemplateId(),
+                    template.getName(),
+                    template.getExpectedDuration(),
+                    template.getTemplateChecklist(),
+                    template.getOperation(),
+                    template.getAttribute()
+            );
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.TEMPLATE_EXCHANGE_NAME,
+                    "maintenancetemplate.event.created",
+                    event
+            );
+        }
+
+        for (MaintenanceRecord record : maintenanceRecords) {
+            List<UsedPartRedis> parts = new ArrayList<>();
+            for(UsedPart part : record.getUsedParts()) {
+                parts.add(new UsedPartRedis(part.getPartSerialNumber(),
+                        part.getQuantity(),
+                        part.getPrice()));
+            }
+
+            DoneListRedis doneListRedis = new DoneListRedis(record.getDoneList().getCompletionNotes(),
+                    record.getDoneList().getTasksDone());
+
+            MaintenanceRecordSyncEvent event = new MaintenanceRecordSyncEvent(
+                    record.getRecordId(),
+                    record.getAircraftRegistration(),
+                    record.getMaintenanceTemplate().getTemplateId(),
+                    record.getDescription(),
+                    record.getTechniciansUsername(),
+                    record.getSupervisorUsername(),
+                    record.getStartDate(),
+                    record.getEndDate(),
+                    parts,
+                    record.getDurationHours(),
+                    doneListRedis,
+                    record.getStatus()
+            );
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.MAINTENANCE_EXCHANGE_NAME,
+                    "maintenance.event.created",
+                    event
+            );
+        }
     }
 }

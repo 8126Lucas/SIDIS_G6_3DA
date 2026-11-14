@@ -14,7 +14,6 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC1}
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_URL_2}
-      - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC1}:discovery-node1:8761
       - EUREKA_URL_1=${EUREKA_URL_1}
       - EUREKA_URL_2=${EUREKA_URL_2}
     deploy:
@@ -375,7 +374,7 @@ services:
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC2}:aircraft-service:8081
       - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/aircraft_db
       - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
-      - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6379,${IP_PC2}:6380,${IP_PC4}:6381
+      - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6379,${IP_PC2}:6380,${IP_PC3}:6381
     deploy:
       resources:
         limits:
@@ -397,7 +396,7 @@ services:
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC5}:aircraft-service:8082
       - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/aircraft_db
       - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
-      - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6379,${IP_PC2}:6380,${IP_PC4}:6381
+      - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6379,${IP_PC2}:6380,${IP_PC3}:6381
     deploy:
       resources:
         limits:
@@ -510,7 +509,7 @@ services:
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC2}:maintenance-service:8121
       - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/maintenance_db
       - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
-      - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6382,${IP_PC2}:6383,${IP_PC4}:6384
+      - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6382,${IP_PC2}:6383,${IP_PC3}:6384
     deploy:
       resources:
         limits:
@@ -532,7 +531,7 @@ services:
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC3}:maintenance-service:8122
       - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/maintenance_db
       - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
-      - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6382,${IP_PC2}:6383,${IP_PC4}:6384
+      - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6382,${IP_PC2}:6383,${IP_PC3}:6384
     deploy:
       resources:
         limits:

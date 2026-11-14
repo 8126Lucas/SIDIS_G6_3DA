@@ -19,6 +19,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.data.domain.Pageable;
@@ -62,6 +63,7 @@ public class HangarController {
         this.peerForwarder = peerForwarder;
     }
     @PostMapping("/aircraft")
+    @PreAuthorize("hasRole('ATCC')")
     @ResponseStatus(HttpStatus.CREATED)
     public void addAircraft(@Valid @RequestBody AddAircraftRequest request) {
         aircraftLifeCycleUpdaterService.changeAvailability(
@@ -79,6 +81,7 @@ public class HangarController {
     }
 
     @GetMapping("/aircraft/{registrationNumber}")
+    @PreAuthorize("hasRole('ATCC'||'BACKOFFICE')")
     public AircraftResponse getAircraft(@PathVariable String registrationNumber, HttpServletRequest request) {
         return aircraftSearchService.spotAircraftInHangar(registrationNumber)
                 .map(AircraftResponse::from)
@@ -103,6 +106,7 @@ public class HangarController {
     }
 
     @PatchMapping("/aircraft/{registrationNumber}")
+    @PreAuthorize("hasRole('BACKOFFICE')")
     public void changeAircraft(@PathVariable String registrationNumber,@Valid @RequestBody PatchAircraftAvailabilityRequest request) {
         if (!registrationNumber.equals(request.registrationNumber())) {
             throw new DomainException("Non matching info");
@@ -116,6 +120,7 @@ public class HangarController {
 
     @Transactional(readOnly = true)
     @GetMapping("/aircraft")
+    @PreAuthorize("hasRole('ATCC')")
     public List<AircraftResponse> getAircraftsWithFiltering(@RequestParam(required = false) String model,
             @RequestParam(required = false) String status,@DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate manufacturingDate,@RequestParam(defaultValue = "0") int page,
@@ -127,6 +132,7 @@ public class HangarController {
     }
 
     @GetMapping("/aircraft/{registrationNumber}/compatible-routes")
+    @PreAuthorize("hasRole('ATCC')")
     public List<RouteClientDTO> getCompatibleRoutes(@PathVariable String registrationNumber) {
         AircraftRedis aircraft = aircraftSearchService
                 .spotAircraftInHangar(registrationNumber)
@@ -143,6 +149,7 @@ public class HangarController {
      * Gets all aircrafts grouped by their availability
      */
     @GetMapping("/analytics/aircraft-availability")
+    @PreAuthorize("hasRole('ATCC')")
     public Map<AircraftAvailability, List<String>> getAircraftsAvailability() {
         Map<AircraftAvailability, List<String>> result = new EnumMap<>(AircraftAvailability.class);
         List<AircraftRedis> aircrafts = aircraftSearchService.findAll();
@@ -159,6 +166,7 @@ public class HangarController {
      * Gets the real-time aircraft availability status
      */
     @GetMapping("/analytics/status-summary")
+    @PreAuthorize("hasRole('ATCC')")
     public Map<AircraftAvailability, Long> getAircraftAvailabilitySummary() {
         return Arrays.stream(AircraftAvailability.values())
                 .collect(Collectors.toMap(
@@ -172,6 +180,7 @@ public class HangarController {
      * Example Value for a real aircraft: 0.177 km/L <=> 5.65 L/km
      */
     @GetMapping("/analytics/fuel-efficiency")
+    @PreAuthorize("hasRole('BACKOFFICE')")
     public Map<String,Double> getFuelEfficiency(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "5") int size) {
         Map<String, Double> fuelEfficiency = aircraftSearchService.findAll().stream()
                 .collect(Collectors.toMap(
@@ -204,6 +213,7 @@ public class HangarController {
      * Gets all Aircrafts and returns them in descending order
      */
     @GetMapping("/analytics/operational-hours")
+    @PreAuthorize("hasRole('BACKOFFICE')")
     public Map<String, Double> getOperationalHours(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "5") int size) {
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Direction.DESC, "totalOperationalHours"));
@@ -221,6 +231,7 @@ public class HangarController {
      * US227 — Fuel efficiency per aircraft: L/km based on model specs.
      */
     @GetMapping("/analytics/fuel-efficiency/aircraft")
+    @PreAuthorize("hasRole('BACKOFFICE')")
     public List<FuelEfficiencyService.AircraftFuelEfficiency> getFuelEfficiencyPerAircraft() {
         return fuelEfficiencyService.getFuelEfficiencyPerAircraft();
     }
@@ -229,6 +240,7 @@ public class HangarController {
      * US227 — Estimated fuel consumption per route, averaged across aircraft that flew it.
      */
     @GetMapping("/analytics/fuel-efficiency/routes")
+    @PreAuthorize("hasRole('BACKOFFICE')")
     public List<FuelEfficiencyService.RouteFuelEfficiency> getFuelEfficiencyPerRoute() {
         return fuelEfficiencyService.getFuelEfficiencyPerRoute();
     }
@@ -237,6 +249,7 @@ public class HangarController {
      * Gets all the aircrafts with the specified features
      */
     @GetMapping("/aircraft-features")
+    @PreAuthorize("hasRole('BACKOFFICE')")
     public List<AircraftResponse> getAircraftsWithFeatures(@RequestBody GetFeaturesRequest request) {
         if (request.features() == null || request.features().isEmpty()) {
             throw new IllegalArgumentException("Feature list cannot be empty!");
