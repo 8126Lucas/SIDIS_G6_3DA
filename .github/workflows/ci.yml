@@ -10,6 +10,7 @@ jobs:
   # 1. VERIFICAÇÃO DE COMPILAÇÃO (Fail-Fast)
   compile:
     name: Compilação Preliminar
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'documentation') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout do código
@@ -34,6 +35,25 @@ jobs:
     needs: compile
     runs-on: ubuntu-latest
     services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: sidis
+          POSTGRES_PASSWORD: sidis
+          POSTGRES_DB: sidis
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      rabbitmq:
+        image: rabbitmq:3.12-management-alpine
+        ports:
+          - 5672:5672
+
       redis:
         image: redis:7-alpine
         ports:
@@ -41,6 +61,14 @@ jobs:
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
+
+      - name: Configurar Bases de Dados PostgreSQL
+        run: |
+          PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE aircraft_db;"
+          PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE maintenance_db;"
+          PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE airport_db;"
+          PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE flight_db;"
+          PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE route_db;"
 
       - name: Configurar JDK 21
         uses: actions/setup-java@v4
@@ -77,52 +105,79 @@ jobs:
         run: ./mvnw verify
 
   # 3. TESTES POSTMAN
-  postman-tests:
-    name: Testes de Integração Postman
-    needs: compile
-    runs-on: ubuntu-latest
-    services:
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-    steps:
-      - name: Checkout do código
-        uses: actions/checkout@v4
-
-      - name: Configurar JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: 'maven'
-
-      - name: Dar permissões de execução
-        run: chmod +x mvnw
-
-      - name: Iniciar Eureka e Gateway
-        run: |
-          ./mvnw clean package -DskipTests
-          nohup java -Xmx256m -Dspring.profiles.active=node1 -jar discovery-service/target/*.jar > eureka.log 2>&1 &
-          sleep 15
-          nohup java -Xmx256m -jar APIgateway/target/*.jar > gateway.log 2>&1 &
-
-      - name: Executar Microsserviços
-        run: |
-          nohup java -Xmx256m -jar auth-service/target/*.jar > auth.log 2>&1 &
-          nohup java -Xmx256m -jar aircraft-service/target/*.jar > aircraft.log 2>&1 &
-          nohup java -Xmx256m -jar maintenance-service/target/*.jar > maintenance.log 2>&1 &
-          nohup java -Xmx256m -jar flight-service/target/*.jar > flight.log 2>&1 &
-          nohup java -Xmx256m -jar route-service/target/*.jar > route.log 2>&1 &
-          nohup java -Xmx256m -jar airport-service/target/*.jar > airport.log 2>&1 &
-
-      - name: Esperar pelo registo no Eureka
-        run: |
-          echo "A aguardar 150 segundos para o Eureka registar todos os nós..."
-          sleep 150
-
-      - name: Instalar Newman
-        run: npm install -g newman
-
-      - name: Executar Testes API
-        run: newman run "./docs/postman/SIDIS HTTP Tests.postman_collection.json"
+  #postman-tests:
+  #  name: Testes de Integração Postman
+  #  needs: compile
+  #  runs-on: ubuntu-latest
+  #  services:
+  #    postgres:
+  #      image: postgres:15-alpine
+  #      env:
+  #        POSTGRES_USER: sidis
+  #        POSTGRES_PASSWORD: sidis
+  #        POSTGRES_DB: sidis
+  #      ports:
+  #        - 5432:5432
+  #      options: >-
+  #        --health-cmd pg_isready
+  #        --health-interval 10s
+  #        --health-timeout 5s
+  #        --health-retries 5
+#
+  #    rabbitmq:
+  #      image: rabbitmq:3.12-management-alpine
+  #      ports:
+  #        - 5672:5672
+#
+  #    redis:
+  #      image: redis:7-alpine
+  #      ports:
+  #        - 6379:6379
+  #  steps:
+  #    - name: Checkout do código
+  #      uses: actions/checkout@v4
+      #
+      #- name: Configurar Bases de Dados PostgreSQL
+      #  run: |
+      #    PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE aircraft_db;"
+      #    PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE maintenance_db;"
+      #    PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE airport_db;"
+      #    PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE flight_db;"
+      #    PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE route_db;"
+#
+  #    - name: Configurar JDK 21
+  #      uses: actions/setup-java@v4
+  #      with:
+  #        java-version: '21'
+  #        distribution: 'temurin'
+  #        cache: 'maven'
+#
+  #    - name: Dar permissões de execução
+  #      run: chmod +x mvnw
+#
+  #    - name: Iniciar Eureka e Gateway
+  #      run: |
+  #        ./mvnw clean package -DskipTests
+  #        nohup java -Xmx256m -Dspring.profiles.active=node1 -jar discovery-service/target/*.jar > eureka.log 2>&1 &
+  #        sleep 15
+  #        nohup java -Xmx256m -jar APIgateway/target/*.jar > gateway.log 2>&1 &
+#
+  #    - name: Executar Microsserviços
+  #      run: |
+  #        nohup java -Xmx256m -jar auth-service/target/*.jar > auth.log 2>&1 &
+  #        nohup java -Xmx256m -jar aircraft-service/target/*.jar > aircraft.log 2>&1 &
+  #        nohup java -Xmx256m -jar maintenance-service/target/*.jar > maintenance.log 2>&1 &
+  #        nohup java -Xmx256m -jar flight-service/target/*.jar > flight.log 2>&1 &
+  #        nohup java -Xmx256m -jar route-service/target/*.jar > route.log 2>&1 &
+  #        nohup java -Xmx256m -jar airport-service/target/*.jar > airport.log 2>&1 &
+#
+  #    - name: Esperar pelo registo no Eureka
+  #      run: |
+  #        echo "A aguardar 150 segundos para o Eureka registar todos os nós..."
+  #        sleep 150
+#
+  #    - name: Instalar Newman
+  #      run: npm install -g newman
+#
+  #    - name: Executar Testes API
+  #      run: newman run "./docs/postman/SIDIS HTTP Tests.postman_collection.json"

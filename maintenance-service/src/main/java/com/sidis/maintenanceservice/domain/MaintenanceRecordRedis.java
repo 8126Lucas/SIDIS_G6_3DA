@@ -2,6 +2,7 @@ package com.sidis.maintenanceservice.domain;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.redis.core.RedisHash;
+import org.springframework.data.redis.core.index.Indexed;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -11,16 +12,22 @@ import java.util.List;
 public class MaintenanceRecordRedis {
     @Id
     private Long recordId;
+    @Indexed
     private String aircraftRegistration;
+    @Indexed
     private Long maintenanceTemplateId;
     private String description;
     private List<String> techniciansUsername;
     private String supervisorUsername;
+    @Indexed
     private LocalDate startDate;
+    @Indexed
     private LocalDate endDate;
     private List<UsedPartRedis> usedParts;
+    @Indexed
     private Double durationHours;
     private DoneListRedis doneList;
+    @Indexed
     private MaintenanceStatus status;
 
     public MaintenanceRecordRedis() {

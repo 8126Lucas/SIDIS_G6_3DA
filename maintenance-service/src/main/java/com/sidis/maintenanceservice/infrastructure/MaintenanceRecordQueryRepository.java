@@ -1,5 +1,6 @@
 package com.sidis.maintenanceservice.infrastructure;
 
+import com.sidis.maintenanceservice.domain.MaintenanceHoursReport;
 import com.sidis.maintenanceservice.domain.MaintenanceRecord;
 import com.sidis.maintenanceservice.domain.MaintenanceRecordRedis;
 import com.sidis.maintenanceservice.domain.MaintenanceStatus;
@@ -7,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
@@ -20,4 +22,11 @@ public interface MaintenanceRecordQueryRepository extends CrudRepository<Mainten
     List<MaintenanceRecordRedis> findByStatus(MaintenanceStatus status);
     List<MaintenanceRecordRedis> findAll();
     Page<MaintenanceRecordRedis> findAll(Specification<MaintenanceRecordRedis> spec, Pageable pageable);
+
+    @Query("SELECT new com.sidis.maintenanceservice.domain.MaintenanceHoursReport(m.aircraftRegistration, SUM(m.durationHours)) " +
+            "FROM MaintenanceRecord m " +
+            "WHERE m.aircraftRegistration IS NOT NULL AND m.durationHours IS NOT NULL " +
+            "GROUP BY m.aircraftRegistration " +
+            "ORDER BY m.aircraftRegistration ASC")
+    List<MaintenanceHoursReport> findTotalMaintenanceHoursByAircraft();
 }

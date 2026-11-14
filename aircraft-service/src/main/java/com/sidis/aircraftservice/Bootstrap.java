@@ -4,7 +4,12 @@ import com.sidis.aircraftservice.Aircraft.domain.*;
 import com.sidis.aircraftservice.Aircraft.infrastructure.AircraftCommandRepository;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
+import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecsRedis;
 import com.sidis.aircraftservice.AircraftCatalog.infrastructure.AircraftModelCommandRepository;
+import com.sidis.aircraftservice.infrastructure.messaging.AircraftModelSyncEvent;
+import com.sidis.aircraftservice.infrastructure.messaging.AircraftSyncEvent;
+import com.sidis.aircraftservice.infrastructure.messaging.RabbitMQConfig;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -16,13 +21,16 @@ import java.util.*;
 @Component
 //@Profile("dev")
 public class Bootstrap implements ApplicationRunner {
-
     private final AircraftModelCommandRepository aircraftModelRepository;
     private final AircraftCommandRepository aircraftRepository;
+    private final RabbitTemplate rabbitTemplate;
 
-    public Bootstrap(AircraftModelCommandRepository aircraftModelRepository, AircraftCommandRepository aircraftRepository) {
+    public Bootstrap(AircraftModelCommandRepository aircraftModelRepository,
+                     AircraftCommandRepository aircraftRepository,
+                     RabbitTemplate rabbitTemplate) {
         this.aircraftModelRepository = aircraftModelRepository;
         this.aircraftRepository = aircraftRepository;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
     @Override
@@ -37,7 +45,7 @@ public class Bootstrap implements ApplicationRunner {
     }
 
     private void seedAircraftModels() {
-        aircraftModelRepository.saveAll(List.of(
+        List<AircraftModel> initialAircraftModels = List.of(
                 new AircraftModel(
                         "737-800",
                         "Boeing",
@@ -128,7 +136,29 @@ public class Bootstrap implements ApplicationRunner {
                         new AircraftSpecs(23000.0, 1528.0, 510.0, 78),
                         List.of("atr72-1.jpg", "atr72-cabin.jpg")
                 )
-        ));
+        );
+
+        aircraftModelRepository.saveAll(initialAircraftModels);
+
+        for (AircraftModel model : initialAircraftModels) {
+            AircraftSpecsRedis specs = new AircraftSpecsRedis(
+                    model.getAircraftModelSpecs().getFuelCapacity(),
+                    model.getAircraftModelSpecs().getMaximumRange(),
+                    model.getAircraftModelSpecs().getCruisingSpeed(),
+                    model.getAircraftModelSpecs().getStandardSeatingCapacity());
+
+            AircraftModelSyncEvent event = new AircraftModelSyncEvent(
+                    model.getModelName(),
+                    model.getModelImage(),
+                    model.getManufacturer(),
+                    specs
+            );
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.MODEL_EXCHANGE_NAME,
+                    "aircraftmodel.event.created",
+                    event
+            );
+        }
     }
 
     private void seedAircraft() {
@@ -296,6 +326,27 @@ public class Bootstrap implements ApplicationRunner {
                 a6
         ));
         a6.sendAircraftInFlight();
-        aircraftRepository.saveAll(List.of(a1, a2, a3, a4, a5, a6,small,medium,large));
+
+        List<Aircraft> initialAircrafts = List.of(a1, a2, a3, a4, a5, a6,small,medium,large);
+
+        aircraftRepository.saveAll(initialAircrafts);
+
+        for (Aircraft aircraft : initialAircrafts) {
+            AircraftSyncEvent event = new AircraftSyncEvent(
+                    aircraft.getRegistrationNumber(),
+                    aircraft.getModel().getModelName(),
+                    aircraft.getStatus().name(),
+                    aircraft.getManufacturingDate(),
+                    aircraft.getTotalOperationalHours(),
+                    aircraft.getTotalFlightHours(),
+                    aircraft.getMeanRange(),
+                    aircraft.getFeatures()
+            );
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.AIRCRAFT_EXCHANGE_NAME,
+                    "aircraft.event.created",
+                    event
+            );
+        }
     }
 }
