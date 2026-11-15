@@ -20,7 +20,8 @@ public record AirportReadModel(
         List<CertificationData> certifications,
         List<ContactData> contacts,
         List<String> photos,
-        String operationalHours
+        String operationalHours,
+        Long version
 ) {
     public record Location(
             @Indexed String city,

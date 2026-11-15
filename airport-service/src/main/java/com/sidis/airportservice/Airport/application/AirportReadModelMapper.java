@@ -57,7 +57,8 @@ public final class AirportReadModelMapper {
                         ))
                         .toList(),
                 List.copyOf(airport.getAirportPhotos()),
-                airport.getOperationalHours()
+                airport.getOperationalHours(),
+                airport.getVersion()
         );
     }
 }

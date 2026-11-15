@@ -9,6 +9,8 @@ import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.Map;
+
 @Configuration
 public class RabbitMQConfig {
 
@@ -23,7 +25,13 @@ public class RabbitMQConfig {
 
     @Bean
     public Queue airportSyncQueue() {
-        return new Queue(AIRPORT_SYNC_QUEUE, true);
+        return new Queue(
+                AIRPORT_SYNC_QUEUE,
+                true,
+                false,
+                false,
+                Map.of("x-single-active-consumer", true)
+        );
     }
 
     @Bean
