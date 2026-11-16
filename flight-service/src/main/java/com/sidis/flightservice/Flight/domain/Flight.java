@@ -122,6 +122,10 @@ public class Flight {
         return flightId;
     }
 
+    public Long getVersion() {
+        return version;
+    }
+
     public RouteReference getRoute() {
         return routeId;
     }
@@ -140,6 +144,14 @@ public class Flight {
 
     public LocalDateTime getScheduledArrival() {
         return scheduledArrival;
+    }
+
+    public LocalDateTime getTimeOfDeparture() {
+        return timeOfDeparture;
+    }
+
+    public LocalDateTime getTimeOfArrival() {
+        return timeOfArrival;
     }
 
     public Double getFlightHours() {
