@@ -11,8 +11,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class UpdateAircraftSpecificationHttpTest extends GatewayHttpTest {
     @Test
     void shouldReturn200WhenAircraftSpecsAreUpdated() throws Exception {
+        authenticate("backoffice", "backoffice123");
         String model = createModel();
-        var postedModel = get("/api/catalog/" + model);
         Map<String, Object> body = Map.of(
                 "modelName", model,
                 "specs", Map.of(

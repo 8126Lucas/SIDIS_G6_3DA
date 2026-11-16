@@ -9,7 +9,6 @@ import com.sidis.aircraftservice.infrastructure.client.PeerForwarder;
 import com.sidis.aircraftservice.infrastructure.client.RouteClientDTO;
 import com.sidis.aircraftservice.infrastructure.client.RouteRestClientService;
 import com.sidis.aircraftservice.AircraftCatalog.application.AircraftModelSearchService;
-import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 import com.sidis.aircraftservice.exceptions.DomainException;
 import com.sidis.aircraftservice.exceptions.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -81,7 +80,7 @@ public class HangarController {
     }
 
     @GetMapping("/aircraft/{registrationNumber}")
-    @PreAuthorize("hasRole('ATCC'||'BACKOFFICE')")
+    @PreAuthorize("hasAnyRole('ATCC', 'BACKOFFICE')")
     public AircraftResponse getAircraft(@PathVariable String registrationNumber, HttpServletRequest request) {
         return aircraftSearchService.spotAircraftInHangar(registrationNumber)
                 .map(AircraftResponse::from)

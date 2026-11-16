@@ -33,25 +33,46 @@ public abstract class GatewayHttpTest {
     private String token;
 
     @BeforeEach
-    protected void login() throws Exception {
+    protected void setupClient() throws Exception {
         HttpClient.Builder builder = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10));
-        // Trust the self-signed certificate only for the local development gateway.
         URI gateway = URI.create(baseUrl);
-        if ("localhost".equals(gateway.getHost()) || "127.0.0.1".equals(gateway.getHost())) {
+        if ("localhost".equals(gateway.getHost()) ||
+                "127.0.0.1".equals(gateway.getHost())) {
             System.setProperty("jdk.internal.httpclient.disableHostnameVerification", "true");
             SSLContext tls = SSLContext.getInstance("TLS");
             tls.init(null, new TrustManager[]{new X509TrustManager() {
-                public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+                public X509Certificate[] getAcceptedIssuers() {
+                    return new X509Certificate[0];
+                }
                 public void checkClientTrusted(X509Certificate[] chain, String authType) {}
                 public void checkServerTrusted(X509Certificate[] chain, String authType) {}
             }}, new SecureRandom());
             builder.sslContext(tls);
         }
         client = builder.build();
-        HttpResponse<String> response = request("POST", "/api/auth/login", Map.of(
-                "username", System.getenv().getOrDefault("SIDIS_BACKOFFICE_USERNAME", "backoffice"),
-                "password", System.getenv().getOrDefault("SIDIS_BACKOFFICE_PASSWORD", "backoffice123")));
-        assertEquals(200, response.statusCode(), "Gateway login failed (check test credentials).");
+        token = null;
+    }
+
+    protected HttpResponse<String> login(String username, String password) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(
+                        URI.create(baseUrl + "/api/auth/login"))
+                .timeout(Duration.ofSeconds(30))
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        JSON.writeValueAsString(Map.of(
+                                "username", username,
+                                "password", password
+                        ))
+                ))
+                .build();
+
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    protected void authenticate(String username, String password) throws Exception {
+        HttpResponse<String> response = login(username, password);
+        assertEquals(200, response.statusCode(), response.body());
         token = JSON.readTree(response.body()).path("token").asText();
         assertFalse(token.isBlank(), "Login must return a token");
     }
