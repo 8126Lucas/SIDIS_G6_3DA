@@ -11,17 +11,13 @@ import com.sidis.routeservice.exceptions.DomainException;
 
 import com.sidis.routeservice.Route.infrastructure.client.airport.AirportClientDTO;
 import com.sidis.routeservice.Route.infrastructure.client.AirportRestClientService;
-import com.sidis.routeservice.Route.infrastructure.client.FlightRestClientService;
 import com.sidis.routeservice.Route.infrastructure.client.airport.AirportStatus;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 import static com.sidis.routeservice.Route.infrastructure.client.airport.AirportClientDTO.fromDTOtoAirportReference;
 
@@ -29,26 +25,16 @@ import static com.sidis.routeservice.Route.infrastructure.client.airport.Airport
 @Transactional
 public class RouteService {
     private final RouteRepository routeRepository;
-    private final FlightRestClientService flightRepository;
     private final AirportRestClientService airportRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Autowired
-    public RouteService(RouteRepository routeRepository, FlightRestClientService flightRepository,AirportRestClientService airportRepository) {
+    public RouteService(RouteRepository routeRepository,
+                        AirportRestClientService airportRepository,
+                        ApplicationEventPublisher eventPublisher) {
         this.routeRepository = routeRepository;
-        this.flightRepository = flightRepository;
         this.airportRepository = airportRepository;
-    }
-
-    public RouteService(RouteRepository routeRepository, FlightRestClientService flightRepository) {
-        this(routeRepository, flightRepository, null);
-    }
-
-    public RouteService(RouteRepository routeRepository, AirportRestClientService airportRepository) {
-        this(routeRepository, null, airportRepository);
-    }
-
-    public Optional<Route> getRouteById(Long routeId) {
-        return routeRepository.findByRouteId(routeId);
+        this.eventPublisher = eventPublisher;
     }
 
     public Route createRoute(String routeName, String originIataCode, String destinationIataCode, Double estimatedFlightTimeHours, RouteType type, RouteRequirements routeRequirements) {
@@ -73,11 +59,7 @@ public class RouteService {
                 type == null ? RouteType.DIRECT : type,
                 new RouteHistory(LocalDate.now(), 0), estimatedFlightTimeHours,
                 fromDTOtoAirportReference(origin), fromDTOtoAirportReference(destination), routeName);
-        return routeRepository.save(route);
-    }
-
-    public RouteHistory getRouteHistory(Long routeId) {
-        return getRouteDetails(routeId).getRouteHistory();
+        return saveAndPublish(route);
     }
 
     public Route updateRoute(Long routeId, String destinationIataCode,Double estimatedFlightTimeHours, RouteStatus status, RouteHistory history) {
@@ -113,68 +95,19 @@ public class RouteService {
         if (history != null) {
             route.updateRouteHistory(history);
         }
-        return routeRepository.save(route);
+        return saveAndPublish(route);
     }
 
-    public List<Route> getRoutesFromAirport(String airportIataCode) {
-        validateIataCode(airportIataCode);
-        return routeRepository.findByOriginAirport_IataCode(airportIataCode);
-    }
+    private Route saveAndPublish(Route route) {
+        Route saved = routeRepository.saveAndFlush(route);
 
-    public Route getRouteDetails(Long routeId) {
-        return routeRepository.findByRouteId(routeId)
-                .orElseThrow(() -> new DomainException("Route does not exist"));
-    }
-
-    public List<Route> searchRoutes(String originIataCode, String destinationIataCode) {
-        if (originIataCode != null) {
-            validateIataCode(originIataCode);
-        }
-        if (destinationIataCode != null) {
-            validateIataCode(destinationIataCode);
-        }
-
-        Specification<Route> spec = (root, query, cb) -> cb.conjunction();
-        if (originIataCode != null) {
-            spec = spec.and((root, query, cb) ->
-                    cb.equal(root.get("originAirport").get("iataCode"), originIataCode));
-        }
-        if (destinationIataCode != null) {
-            spec = spec.and((root, query, cb) ->
-                    cb.equal(root.get("destinationAirport").get("iataCode"), destinationIataCode));
-        }
-        return routeRepository.findAll(spec);
-    }
-
-    public List<Route> listActiveRoutes(String sortBy) {
-        Sort sort = "distance".equalsIgnoreCase(sortBy)
-                ? Sort.by(Sort.Direction.ASC, "distanceKm")
-                : Sort.by(Sort.Direction.DESC, "routeHistory.routeUsage");
-        return routeRepository.findByStatus(RouteStatus.ACTIVE, sort);
-    }
-
-    public Double calculateTotalRouteDistance() {
-        return routeRepository.findAll()
-                .stream()
-                .mapToDouble(route -> route.getDistanceKm() == null ? 0.0 : route.getDistanceKm())
-                .sum();
-    }
-
-    public List<Route> searchAlternativeRoutes(String originIataCode, String destinationIataCode) {
-        Specification<Route> spec = (root, query, cb) -> cb.and(
-                cb.equal(root.get("status"), RouteStatus.ACTIVE),
-                cb.equal(root.get("originAirport").get("iataCode"), originIataCode),
-                cb.equal(root.get("destinationAirport").get("iataCode"), destinationIataCode)
+        eventPublisher.publishEvent(
+                new RouteChangedEvent(
+                        RouteReadModelMapper.from(saved)
+                )
         );
-        return routeRepository.findAll(spec);
-    }
 
-    private Double requiredRange(Route route) {
-        if (route.getRouteRequirements() != null
-                && route.getRouteRequirements().getRequiredRange() != null) {
-            return route.getRouteRequirements().getRequiredRange();
-        }
-        return route.getDistanceKm();
+        return saved;
     }
 
     private AirportClientDTO findAirport(String iataCode, String message) {

@@ -221,6 +221,10 @@ public class Route {
         return routeId;
     }
 
+    public Long getVersion() {
+        return version;
+    }
+
     public String getRouteName() {
         return routeName;
     }

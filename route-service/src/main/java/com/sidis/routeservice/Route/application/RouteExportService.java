@@ -1,23 +1,21 @@
 package com.sidis.routeservice.Route.application;
 
-import com.sidis.routeservice.Route.domain.AirportLocation;
-import com.sidis.routeservice.Route.domain.Route;
-import com.sidis.routeservice.Route.infrastructure.RouteRepository;
-import com.sidis.routeservice.UseCase;
+import com.sidis.routeservice.Route.domain.RouteReadModel;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
-@UseCase
+@Service
 public class RouteExportService {
-    private final RouteRepository routeRepository;
+    private final RouteQueryService routeQueryService;
 
-    public RouteExportService(RouteRepository routeRepository) {
-        this.routeRepository = routeRepository;
+    public RouteExportService(RouteQueryService routeQueryService) {
+        this.routeQueryService = routeQueryService;
     }
 
     public String exportAsGeoJson() {
-        List<Route> routes = routeRepository.findAll();
+        List<RouteReadModel> routes = routeQueryService.findAll();
         String features = routes.stream()
                 .map(this::routeToGeoJsonFeature)
                 .collect(Collectors.joining(",\n    "));
@@ -29,7 +27,7 @@ public class RouteExportService {
     }
 
     public String exportAsKml() {
-        List<Route> routes = routeRepository.findAll();
+        List<RouteReadModel> routes = routeQueryService.findAll();
         String placemarks = routes.stream()
                 .map(this::routeToKmlPlacemark)
                 .collect(Collectors.joining("\n    "));
@@ -43,9 +41,9 @@ public class RouteExportService {
                 "</kml>";
     }
 
-    private String routeToGeoJsonFeature(Route route) {
-        AirportLocation origin = route.getOriginAirport().getAirportLocation();
-        AirportLocation destination = route.getDestinationAirport().getAirportLocation();
+    private String routeToGeoJsonFeature(RouteReadModel route) {
+        RouteReadModel.Location origin = route.originAirport().location();
+        RouteReadModel.Location destination = route.destinationAirport().location();
 
         String originCoords = formatCoords(origin);
         String destCoords = formatCoords(destination);
@@ -57,44 +55,44 @@ public class RouteExportService {
                 "        \"coordinates\": [" + originCoords + ", " + destCoords + "]\n" +
                 "      },\n" +
                 "      \"properties\": {\n" +
-                "        \"routeId\": " + route.getRouteId() + ",\n" +
-                "        \"routeName\": \"" + route.getRouteName() + "\",\n" +
-                "        \"status\": \"" + route.getStatus() + "\",\n" +
-                "        \"type\": \"" + route.getType() + "\",\n" +
-                "        \"distanceKm\": " + route.getDistanceKm() + ",\n" +
-                "        \"origin\": \"" + route.getOriginAirport().getIataCode() + "\",\n" +
-                "        \"destination\": \"" + route.getDestinationAirport().getIataCode() + "\"\n" +
+                "        \"routeId\": " + route.routeId() + ",\n" +
+                "        \"routeName\": \"" + route.routeName() + "\",\n" +
+                "        \"status\": \"" + route.status() + "\",\n" +
+                "        \"type\": \"" + route.type() + "\",\n" +
+                "        \"distanceKm\": " + route.distanceKm() + ",\n" +
+                "        \"origin\": \"" + route.originAirport().iataCode() + "\",\n" +
+                "        \"destination\": \"" + route.destinationAirport().iataCode() + "\"\n" +
                 "      }\n" +
                 "    }";
     }
 
-    private String routeToKmlPlacemark(Route route) {
-        AirportLocation origin = route.getOriginAirport().getAirportLocation();
-        AirportLocation destination = route.getDestinationAirport().getAirportLocation();
+    private String routeToKmlPlacemark(RouteReadModel route) {
+        RouteReadModel.Location origin = route.originAirport().location();
+        RouteReadModel.Location destination = route.destinationAirport().location();
 
-        String coordLine = origin.getLongitude() + "," + origin.getLatitude() + "\n        " +
-                destination.getLongitude() + "," + destination.getLatitude();
+        String coordLine = origin.longitude() + "," + origin.latitude() + "\n        " +
+                destination.longitude() + "," + destination.latitude();
 
         return "<Placemark>\n" +
-                "      <name><![CDATA[" + route.getRouteName() + "]]></name>\n" +
-                "      <description><![CDATA[" + route.getStatus() + " | " + route.getDistanceKm() + " km]]></description>\n" +
+                "      <name><![CDATA[" + route.routeName() + "]]></name>\n" +
+                "      <description><![CDATA[" + route.status() + " | " + route.distanceKm() + " km]]></description>\n" +
                 "      <LineString>\n" +
                 "        <coordinates>" + coordLine + "</coordinates>\n" +
                 "      </LineString>\n" +
                 "    </Placemark>\n";
     }
 
-    private String formatCoords(AirportLocation location) {
+    private String formatCoords(RouteReadModel.Location location) {
         if (location == null) {
             throw new IllegalStateException(
                     "Cannot export route: airport location is missing"
             );
         }
-        if (location.getLongitude() == null || location.getLatitude() == null) {
+        if (location.longitude() == null || location.latitude() == null) {
             throw new IllegalStateException(
                     "Cannot export route: airport coordinates are missing"
             );
         }
-        return "[" + location.getLongitude() + ", "+ location.getLatitude() + "]";
+        return "[" + location.longitude() + ", "+ location.latitude() + "]";
     }
 }
