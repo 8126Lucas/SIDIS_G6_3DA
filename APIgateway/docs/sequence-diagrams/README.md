@@ -16,7 +16,7 @@ Scenario 1 shows how the gateway handles a public route (`POST /api/auth/login`)
 
 ### Key Steps
 
-1. The client calls the gateway over HTTPS on port `7979`.
+1. The client calls HAProxy over HTTPS (`https://192.168.137.1`); HAProxy passes the connection to one of the two gateways (`7979` or `7980`).
 2. The route is selected by path prefix; `/api/auth/**` skips the JWT filter.
 3. On protected routes, a missing header, a non-Bearer header, a bad signature or an expired token returns `401` with an empty body.
 4. A valid token gets `X-User-Name` (token subject) and `X-Gateway-Secret` added.

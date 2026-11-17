@@ -6,7 +6,9 @@ This document reflects the current implementation in `MaintenanceRecordControlle
 
 ## 1. General Service Configuration
 
-* **Base URL (via API Gateway):** `https://localhost:7979`
+* **Base URL (via HAProxy and the API Gateway):** `https://192.168.137.1`
+
+**Read side (iteration 2).** Templates, record searches, reports, alerts and parts summaries read from Redis (`MaintenanceRecordRedis`, `MaintenanceTemplateRedis`). `GET /records/{id}` and the `PATCH` endpoints work on the PostgreSQL entity. Template lookups by id use `findByTemplateId` on Redis, a derived query without an index (`@Indexed`), so they find nothing: `GET /templates/{id}` answers `404`, and so does any record listed by `GET /records`, because each listed record embeds its template. Reports that filter by status (`/ongoing`, `/turnaround-average`, `/alerts`) use `findByStatus` and return empty lists. See [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md), section 7.
 * **Base URL (service, local):** `http://localhost:8121`
 * **API Prefix:** `/api/maintenance`
 * **Content-Type:** `application/json`
@@ -20,7 +22,7 @@ This document reflects the current implementation in `MaintenanceRecordControlle
 
 * The gateway adds `X-Gateway-Secret` and `X-User-Name` after validating the JWT, so clients only send `Authorization`.
 * The service itself does not validate the JWT and does not read `X-User-Name`; all requests that pass the secret filter are `permitAll()`. There are no role checks (for example, technician vs. supervisor).
-* Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` skip the secret filter.
+* Paths containing `/actuator`, `/h2-console`, `/swagger-ui` or `/api-docs` skip the secret filter.
 
 ---
 
@@ -77,26 +79,17 @@ All endpoints additionally return `403` when `X-Gateway-Secret` is missing (and 
 }
 ```
 
-#### Successful Response (`200 OK`)
+#### Successful Response (`201 Created`)
 
-```json
-{
-  "templateId": 5,
-  "name": "A-Check Engine Inspection",
-  "expectedDuration": 6.5,
-  "templateChecklist": {
-    "Check oil levels": true,
-    "Inspect engine turbine blades": true,
-    "Run engine ground test": true
-  },
-  "operation": "INSPECTION",
-  "attribute": "ENGINE"
-}
-```
+Empty body. The new `templateId` is not returned, so a client has to find it with `GET /api/maintenance/templates`.
+
+Execution steps:
+
+1. `AddMaintenanceTemplateUseCase` saves the template in PostgreSQL (`maintenance_db`).
+2. It publishes `MaintenanceTemplateSyncEvent` to `maintenancetemplate.exchange` (`maintenancetemplate.event.created`).
+3. `MaintenanceTemplateRedisProjector` writes `MaintenanceTemplate:<templateId>` to Redis, where the read endpoints find it.
 
 Notes:
-
-* The endpoint has no `@ResponseStatus(CREATED)`, so it returns `200`, not `201`.
 * An unknown `operation` or `attribute` raises `IllegalArgumentException` → `400`.
 * Template names are not unique; posting the same `name` twice creates two templates.
 
@@ -137,22 +130,20 @@ Note:
 }
 ```
 
-#### Successful Response (`200 OK`)
+#### Successful Response (`201 Created`)
 
 Empty body.
 
 Execution steps:
 
 1. Controller calls `aircraft-service` `GET /api/hangar/aircraft/{registrationNumber}` → `404` (`"Aircraft does not exist in hangar"`) if it returns `404`.
-2. Controller loads the template → `404` (`"Maintenance Template does not exist"`) if missing.
-3. Controller calls `AddMaintenanceRecordUseCase.executeShort(aircraftDto.aircraftRegistration(), ...)` (the registration is mapped from `aircraft-service`'s `registrationNumber`).
-4. The use case looks up the aircraft again and saves a new `MaintenanceRecord` with status `INLINE`.
+2. Controller calls `AddMaintenanceRecordUseCase.executeShort(aircraftDto.aircraftRegistration(), templateId, ...)`.
+3. The use case loads the template from PostgreSQL → `404` (`DomainException`, `"Maintenance Template does not exist"`) if missing.
+4. It saves a new `MaintenanceRecord` with status `INLINE` and publishes `maintenance.event.created`; `MaintenanceRecordRedisProjector` writes `MaintenanceRecord:<id>` to Redis.
 
 Notes:
 
-* The aircraft is fetched twice from `aircraft-service` (controller and use case).
 * Only `HttpClientErrorException.NotFound` is caught in `AircraftRestClientService`; any other downstream error (`403`, `5xx`, timeout) is retried up to 3 times and then becomes `500`.
-* The endpoint returns `200`, not `201`.
 
 ---
 

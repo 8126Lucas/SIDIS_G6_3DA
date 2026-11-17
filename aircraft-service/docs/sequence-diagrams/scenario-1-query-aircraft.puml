@@ -14,8 +14,8 @@ participant "API Gateway\n<<Gateway>>" as gateway
 participant "gatewaySecretFilter\n<<OncePerRequestFilter>>" as secret_filter
 participant "HangarController\n<<REST Controller>>" as controller
 participant "AircraftSearchService\n<<Application Service>>" as search_svc
-participant "AircraftRepository\n<<JPA Repository>>" as repo
-database "H2 Database\n<<In-Memory DB>>" as db
+participant "AircraftQueryRepository\n<<Spring Data Redis>>" as repo
+database "Redis cluster\n<<Read model>>" as db
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 
 box "Aircraft Service [Container]" #LightBlue
@@ -38,13 +38,13 @@ controller -> search_svc : spotAircraftInHangar(registrationNumber)
 activate search_svc
 search_svc -> repo : findById(registrationNumber)
 activate repo
-repo -> db : SELECT * FROM company_aircrafts WHERE registration_number = ?
+repo -> db : HGETALL Aircraft:<registrationNumber>
 activate db
-db --> repo : Aircraft row
+db --> repo : hash fields
 deactivate db
-repo --> search_svc : Optional<Aircraft>
+repo --> search_svc : Optional<AircraftRedis>
 deactivate repo
-search_svc --> controller : Optional<Aircraft>
+search_svc --> controller : Optional<AircraftRedis>
 deactivate search_svc
 
 alt Aircraft found
@@ -69,16 +69,16 @@ activate controller
 
 controller -> search_svc : findAircraftsMatchingFilter(model, status, date, pageable)
 activate search_svc
-search_svc -> search_svc : Build JPA Specification
-search_svc -> repo : findAll(spec, pageable)
+search_svc -> repo : findAll()
 activate repo
-repo -> db : SELECT ... WHERE <filters> LIMIT/OFFSET
+repo -> db : SMEMBERS Aircraft + HGETALL per key
 activate db
-db --> repo : Aircraft rows
+db --> repo : all aircraft hashes
 deactivate db
-repo --> search_svc : Page<Aircraft>
+repo --> search_svc : List<AircraftRedis>
 deactivate repo
-search_svc --> controller : Page<Aircraft>
+search_svc -> search_svc : filter in memory (model, status, date)\nand cut the requested page
+search_svc --> controller : Page<AircraftRedis>
 deactivate search_svc
 
 controller --> gateway : 200 OK (List<AircraftResponse>)
@@ -99,9 +99,9 @@ loop for each AircraftAvailability
     activate search_svc
     search_svc -> repo : countByStatus(status)
     activate repo
-    repo -> db : SELECT COUNT(*) FROM company_aircrafts WHERE status = ?
-    db --> repo : count
-    repo --> search_svc : long
+    repo -> db : derived query on status\n(no @Indexed: no secondary index exists)
+    db --> repo : nothing found
+    repo --> search_svc : no value (request ends in 500)
     deactivate repo
     search_svc --> controller : long
     deactivate search_svc
@@ -122,7 +122,7 @@ deactivate gateway
 
 client -> secret_filter : GET http://localhost:8081/api/hangar/aircraft/{registrationNumber}\n(direct call, no X-Gateway-Secret)
 activate secret_filter
-secret_filter -> secret_filter : path is not /h2-console, /swagger-ui, /api-docs
+secret_filter -> secret_filter : path is not /actuator, /h2-console, /swagger-ui, /api-docs
 secret_filter --[#red]> client : 403 Forbidden\n"Unauthorized Access! Please use the API Gateway!"
 deactivate secret_filter
 

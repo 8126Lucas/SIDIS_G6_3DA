@@ -1,110 +1,83 @@
 @startuml
-title Physical View (Deployment) - AISafe Flight Management System
+title Physical View (Deployment) - AISafe Flight Management System (5 PCs)
 
-left to right direction
-skinparam nodesep 30
-skinparam ranksep 50
+skinparam nodesep 25
+skinparam ranksep 60
+skinparam defaultTextAlignment center
 
 node "Client workstation" as ClientHost {
-    artifact "Postman\n(AISafe-Global-System collection)" as Postman
+    artifact "Postman\nhttps://192.168.137.1" as Postman
 }
 
-node "Docker host (docker compose up -d --build)" as Host {
-
-    node "Compose network (default bridge)" as Net {
-
-        node "discovery-node1\n<<container>>\nhost 8761 -> 8761" as DN1 {
-            artifact "discovery-service.jar\nprofile node1" as DA1
-        }
-        node "discovery-node2\n<<container>>\nhost 8762 -> 8762" as DN2 {
-            artifact "discovery-service.jar\nprofile node2" as DA2
-        }
-
-        node "api-gateway\n<<container>>\nhost 7979 -> 7979 (HTTPS)" as GWN {
-            artifact "APIgateway.jar\nsidis-keystore.p12" as GWA
-        }
-
-        node "auth-service\n<<container>>\nhost 8101 -> 8101" as AUN {
-            artifact "auth-service.jar" as AUA
-            database "H2 (in-memory)" as AUDB
-        }
-
-        node "aircraft-service\n<<container>>\nhost 8081 -> 8081" as ACN {
-            artifact "aircraft-service.jar" as ACA
-            database "H2 aircrafttestdb" as ACDB
-        }
-
-        node "airport-service\n<<container>>\nhost 8091 -> 8091" as APN {
-            artifact "airport-service.jar" as APA
-            database "H2 airporttestdb" as APDB
-        }
-
-        node "flight-service\n<<container>>\nhost 8111 -> 8111" as FLN {
-            artifact "flight-service.jar" as FLA
-            database "H2 flighttestdb" as FLDB
-        }
-
-        node "maintenance-service\n<<container>>\nhost 8121 -> 8121" as MTN {
-            artifact "maintenance-service.jar" as MTA
-            database "H2 (in-memory)" as MTDB
-        }
-
-        node "route-service\n<<container>>\nhost 8131 -> 8131" as RTN {
-            artifact "route-service.jar" as RTA
-            database "H2 routetestdb" as RTDB
-        }
-
-        node "<<extra instance>>\naircraft-service #2\nSERVER_PORT=8082" as ACN2 {
-            artifact "aircraft-service.jar" as ACA2
-            database "H2 (own copy)" as ACDB2
-        }
-
-        node "<<extra instance>>\nmaintenance-service #2\nSERVER_PORT=8122" as MTN2 {
-            artifact "maintenance-service.jar" as MTA2
-            database "H2 (own copy)" as MTDB2
-        }
-    }
+node "PC1  (192.168.137.1)\ndocker compose --profile pc1 up -d" as PC1 {
+    node "haproxy\n:443 (TCP) / :8404 stats" as HAP
+    node "api-gateway-1\n:7979 HTTPS" as GW1
+    node "discovery-node1\n:8761" as DN1
+    node "prometheus\n:9090" as PROM
+    database "redis-aircraft-1 :6379\nredis-maintenance-1 :6382" as R1
 }
 
-' --- CLIENT ---
-Postman --> GWN : HTTPS :7979\nAuthorization: Bearer <JWT>
+node "PC2\n--profile pc2" as PC2 {
+    node "auth-service-1 :8101\n(SQLite file)" as AU1
+    node "aircraft-service-1 :8081" as AC1
+    node "maintenance-service-1 :8121" as MT1
+    database "redis-aircraft-2 :6380\nredis-maintenance-2 :6383" as R2
+}
 
-' --- EUREKA ---
-DN1 <--> DN2 : peer replication (HTTP)
-GWN ..> DN1 : register / fetch registry
-GWN ..> DN2 : register / fetch registry
+node "PC3\n--profile pc3" as PC3 {
+    node "discovery-node2\n:8762" as DN2
+    node "auth-service-2 :8102\n(SQLite file)" as AU2
+    node "airport-service-1 :8091" as AP1
+    node "maintenance-service-2 :8122" as MT2
+    queue "rabbitmq-3 :5674" as MQ3
+    database "redis-aircraft-3 :6381\nredis-maintenance-3 :6384" as R3
+}
 
-' --- GATEWAY ROUTING ---
-GWN --> AUN : HTTP lb://auth-service
-GWN --> ACN : HTTP lb://aircraft-service
-GWN --> APN : HTTP lb://airport-service
-GWN --> FLN : HTTP lb://flight-service
-GWN --> MTN : HTTP lb://maintenance-service
-GWN --> RTN : HTTP lb://route-service
-GWN --> ACN2 : HTTP lb:// (round robin)
-GWN --> MTN2 : HTTP lb:// (round robin)
+node "PC4\n--profile pc4" as PC4 {
+    node "api-gateway-2\n:7980 HTTPS" as GW2
+    node "airport-service-2 :8092" as AP2
+    node "flight-service-1 :8111" as FL1
+    node "route-service-1 :8131" as RT1
+    database "redis-airport-1 :6385\nredis-flight-1 :6388\nredis-route-1 :6391" as R4
+}
 
-' --- PEER FORWARDING ---
-ACN <..> ACN2 : peer forwarding GET
-MTN2 ..> ACN : peer forwarding GET\n(targets aircraft-service, bug)
+node "PC5\n--profile pc5" as PC5 {
+    node "aircraft-service-2 :8082" as AC2
+    node "flight-service-2 :8112" as FL2
+    node "route-service-2 :8132" as RT2
+    database "postgresql-1 :5432\naircraft_db, maintenance_db,\nairport_db, flight_db, route_db" as PG
+    queue "rabbitmq-1 :5672\nrabbitmq-2 :5673" as MQ12
+    database "redis-airport-2/3 :6386/:6387\nredis-flight-2/3 :6389/:6390\nredis-route-2/3 :6392/:6393" as R5
+}
 
-note right of Net
-  Each container: eclipse-temurin:21-jre-alpine,
-  memory limit 300M, EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-  = discovery-node1:8761 and discovery-node2:8762.
-  Instances register by IP (prefer-ip-address) and call
-  each other through Eureka, never by fixed host name.
-  Every business call must carry X-Gateway-Secret.
+' --- ENTRY ---
+Postman --> HAP : HTTPS :443
+HAP --> GW1 : round robin\n+ health check
+HAP --> GW2 : round robin\n+ health check
+
+' --- DISCOVERY ---
+DN1 <--> DN2 : peer replication
+
+' --- DATA (aircraft and maintenance, the services already migrated) ---
+AC1 --> PG : JDBC (write)
+MT2 --> PG : JDBC (write)
+AC1 --> MQ12 : AMQP events
+R1 .. R2 : Redis cluster
+R2 .. R3 : Redis cluster
+
+note bottom of PC1
+  Every container registers in Eureka by the PC's IP
+  (EUREKA_INSTANCE_IP_ADDRESS=${IP_PC<n>}), so the gateways
+  reach every instance across PCs with lb://<service>.
+  Each PC sets IP_PC1..IP_PC5, EUREKA_URL_1 and EUREKA_URL_2.
 end note
 
-note bottom of ACN2
-  Extra instances are not declared in docker-compose.yml.
-  Any business service can be cloned the same way:
-  same image, SERVER_PORT set to the next port of its
-  reserved range (aircraft 8081-8090, airport 8091-8100,
-  auth 8101-8110, flight 8111-8120, maintenance 8121-8130,
-  route 8131-8140). Each clone has its own in-memory H2,
-  so data is partitioned between clones.
+note bottom of PC5
+  All services: two instances, 300M memory limit.
+  aircraft and maintenance write to PostgreSQL, publish
+  events to RabbitMQ and read from their Redis cluster.
+  airport, flight and route still run on H2 in memory:
+  their PostgreSQL and Redis entries are not used yet.
 end note
 
 @enduml

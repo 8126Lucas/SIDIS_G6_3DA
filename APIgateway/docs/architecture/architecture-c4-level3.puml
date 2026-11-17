@@ -8,19 +8,21 @@ skinparam componentStyle uml2
 title Component Diagram (C4 - Level 3) - API Gateway (As Implemented)
 
 actor "Client / Postman" as client
+component "HAProxy\n<<Load Balancer, TCP mode>>\nPC1 :443" as haproxy
 component "Discovery Service\n<<Eureka Server>>\n8761 / 8762" as eureka
 component "auth-service" as auth_service
 component "Protected Services\n(aircraft, airport, maintenance,\nroute, flight)" as protected_services
 
-package "API Gateway [Container]" {
-    component "Netty HTTPS Server\n<<sidis-keystore.p12>>\n:7979" as https_server
+package "API Gateway [Container x2: :7979 PC1, :7980 PC4]" {
+    component "Netty HTTPS Server\n<<sidis-keystore.p12>>\n:7979 / :7980" as https_server
     component "Route Definitions\n<<application.properties>>" as routes
     component "JwtAuthenticationGatewayFilterFactory\n<<GatewayFilterFactory>>" as jwt_filter
     component "Spring Cloud LoadBalancer\n<<ReactorLoadBalancer>>" as load_balancer
     component "Eureka Client\n<<@EnableDiscoveryClient>>" as eureka_client
 }
 
-client --> https_server : "HTTPS request"
+client --> haproxy : "HTTPS :443"
+haproxy --> https_server : "TLS connection passed through\n(round robin between the 2 instances)"
 https_server --> routes : "Match path predicate"
 
 routes --> load_balancer : "/api/auth/**\n(no filter)"

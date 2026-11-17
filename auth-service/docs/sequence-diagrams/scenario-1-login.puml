@@ -15,7 +15,7 @@ participant "SecurityFilterChain\n<<Spring Security>>" as security
 participant "AuthController\n<<REST Controller>>" as controller
 participant "AuthenticateCollaboratorUseCase\n<<UseCase>>" as auth_uc
 participant "CollaboratorRepository\n<<JPA Repository>>" as repo
-database "H2 Database\n<<In-Memory DB>>" as db
+database "SQLite\n/data/auth.db" as db
 participant "PasswordEncoder\n<<BCrypt>>" as encoder
 participant "JwtService\n<<Spring Service>>" as jwt_service
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler

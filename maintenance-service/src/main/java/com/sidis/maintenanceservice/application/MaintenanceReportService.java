@@ -1,12 +1,15 @@
 package com.sidis.maintenanceservice.application;
 
+import com.sidis.maintenanceservice.domain.MaintenanceHoursReport;
 import com.sidis.maintenanceservice.domain.MaintenanceRecordRedis;
 import com.sidis.maintenanceservice.domain.MaintenanceStatus;
 import com.sidis.maintenanceservice.UseCase;
+import com.sidis.maintenanceservice.infrastructure.MaintenanceHoursRepository;
 import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordQueryRepository;
 import com.sidis.maintenanceservice.infrastructure.client.AircraftRestClientService;
 
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -17,11 +20,15 @@ public class MaintenanceReportService {
 
     private final AircraftRestClientService aircraftClient;
     private final MaintenanceRecordQueryRepository maintenanceRecordRepository;
+    private final MaintenanceHoursRepository reportRedisRepository;
 
 
-    public MaintenanceReportService(AircraftRestClientService aircraftClient, MaintenanceRecordQueryRepository maintenanceRecordRepository) {
+    public MaintenanceReportService(AircraftRestClientService aircraftClient,
+                                    MaintenanceRecordQueryRepository maintenanceRecordRepository,
+                                    MaintenanceHoursRepository reportRedisRepository) {
         this.aircraftClient = aircraftClient;
         this.maintenanceRecordRepository = maintenanceRecordRepository;
+        this.reportRedisRepository = reportRedisRepository;
     }
 
     public record TurnaroundAverage(String aircraftType, Double averageDays) {}
@@ -82,5 +89,20 @@ public class MaintenanceReportService {
                 .stream()
                 .mapToDouble(part -> part.getQuantity() * part.getPrice())
                 .sum();
+    }
+
+    public List<MaintenanceHoursReport> totalMaintenanceHoursByAircraft() {
+        List<MaintenanceHoursReport> result = new ArrayList<>();
+
+        reportRedisRepository.findAll().forEach(report -> {
+            result.add(new MaintenanceHoursReport(
+                    report.getAircraftRegistration(),
+                    report.getTotalMaintenanceHours()
+            ));
+        });
+
+        result.sort(Comparator.comparing(MaintenanceHoursReport::aircraftRegistration));
+
+        return result;
     }
 }

@@ -6,7 +6,7 @@ This document reflects the current implementation in `AirportController`, `Airpo
 
 ## 1. General Service Configuration
 
-* **Base URL (via API Gateway):** `https://localhost:7979`
+* **Base URL (via API Gateway):** `https://192.168.137.1`
 * **Base URL (service, local):** `http://localhost:8091`
 * **API Prefix:** `/api/airports`
 * **Content-Type:** `application/json` (except the CSV import, which is `multipart/form-data`)

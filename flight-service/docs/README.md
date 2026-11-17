@@ -32,12 +32,12 @@ Important implementation notes:
 
 | Resource / Parameter | Current Value | Description |
 | :--- | :--- | :--- |
-| Service Port | `8111` | Configured in `application.properties` |
+| Service Port | `8111` (instance 1, PC4), `8112` (instance 2, PC5) | `server.port`, overridden by `SERVER_PORT` in `docker-compose.yml` |
 | API Prefix | `/api/flights` | Base mapping in `FlightController` |
-| Database | `H2 In-Memory` | `jdbc:h2:mem:flighttestdb` |
+| Database | `H2 In-Memory` | `jdbc:h2:mem:flighttestdb`, one per instance. `docker-compose.yml` passes a PostgreSQL URL, but the module has no PostgreSQL driver yet (see `docs/data-architecture-cqrs.md`, section 7) |
 | Schema Strategy | `update` | `spring.jpa.hibernate.ddl-auto` |
 | H2 Console Path | `/api/flight/h2-console` | Spring H2 console path (singular `flight`) |
-| Service Registry | `http://localhost:8761/eureka/` | Eureka client registration (`prefer-ip-address=true`); only the first discovery node |
+| Service Registry | `${EUREKA_URL_1},${EUREKA_URL_2}` | Both discovery nodes (`prefer-ip-address=true`); registers with `${IP_PC<n>}` as its address |
 | Gateway Secret | `sidis-g6-secret` | Hardcoded in `FlightSecurityConfig` and `JwtTokenInterceptor` |
 | Outgoing Call Timeouts | `2000` ms connect / `2000` ms read | `GlobalRestClientConfig` |
 
@@ -49,7 +49,7 @@ External client base URLs configured in code (resolved through Eureka via the sh
 
 All outgoing calls go through `JwtTokenInterceptor`, which adds `X-Gateway-Secret` and forwards the caller's `Authorization: Bearer` header.
 
-API Gateway routing (`https://localhost:7979`):
+API Gateway routing (clients call HAProxy at `https://192.168.137.1`, which forwards to one of the two gateways):
 
 * `/api/flights/**` is routed to `lb://flight-service` with the `JwtAuthentication` filter, which validates the JWT issued by `auth-service` and adds `X-User-Name` and `X-Gateway-Secret`.
 
@@ -80,7 +80,7 @@ Run locally:
 Call the API through the gateway (requires a token from `POST /api/auth/login` in `auth-service`):
 
 ```bash
-curl -k -H "Authorization: Bearer <token>" https://localhost:7979/api/flights
+curl -k -H "Authorization: Bearer <token>" https://192.168.137.1/api/flights
 ```
 
 Calling `http://localhost:8111/api/...` directly without `X-Gateway-Secret` returns `403` (`"Unauthorized Access! Please use the API Gateway!"`).

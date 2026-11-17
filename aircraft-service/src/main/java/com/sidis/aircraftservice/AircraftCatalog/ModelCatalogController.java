@@ -21,6 +21,7 @@ import jakarta.validation.constraints.NotBlank;
 
 import org.springframework.http.HttpStatus;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -64,6 +65,7 @@ public class ModelCatalogController {
      * Adds a new aircraft model to the catalog.
      */
     @PostMapping("/model")
+    @PreAuthorize("hasRole('BACKOFFICE')")
     @ResponseStatus(HttpStatus.CREATED)
     public void addModel(@Valid @RequestBody AddModelRequest request) {
         if (request.specs() == null) {
@@ -81,6 +83,7 @@ public class ModelCatalogController {
      * Patches an existing model
      */
     @PatchMapping("/model/{modelName}")
+    @PreAuthorize("hasRole('BACKOFFICE')")
     public void changeModel(@PathVariable String modelName, @Valid @RequestBody PatchModelRequest request) {
         if (!modelName.equals(request.modelName())) {
             throw new DomainException("Non matching info");

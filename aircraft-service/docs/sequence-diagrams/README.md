@@ -27,7 +27,7 @@ In every flow the API Gateway first validates the JWT and forwards the request w
 
 1. Client requests one aircraft.
 2. Controller delegates to `AircraftSearchService.spotAircraftInHangar(...)`.
-3. Service calls `AircraftRepository.findById(...)`.
+3. Service calls `AircraftQueryRepository.findById(...)`, which reads the hash `Aircraft:<registration>` from Redis.
 4. Missing aircraft throws `ResourceNotFoundException` → `404`.
 5. Controller maps to `AircraftResponse` and returns `200 OK`.
 
@@ -35,20 +35,20 @@ In every flow the API Gateway first validates the JWT and forwards the request w
 
 1. Client sends optional filters and paging.
 2. Controller builds a `PageRequest` and delegates to `findAircraftsMatchingFilter(...)`.
-3. Service composes a JPA `Specification` (model name, status, manufacturing date).
-4. Repository executes the query; controller returns page content as `200 OK`.
+3. Service loads every `AircraftRedis` from Redis and filters them in memory (model name, status, manufacturing date).
+4. Service cuts the requested page; controller returns page content as `200 OK`.
 
 #### Flow C — Status Summary
 
 1. Client requests the summary.
 2. For each `AircraftAvailability`, the controller calls `countByAvailability(...)`.
-3. Repository executes `countByStatus(...)`; controller returns the map as `200 OK`.
+3. `AircraftQueryRepository.countByStatus(...)` is a derived query on a field without `@Indexed`, so Redis has no index to answer it; the request currently ends in `500` instead of returning the map.
 
 #### Flow D — Rejected Requests
 
 1. A request without a valid `Authorization: Bearer` header is stopped by the gateway with `401` (empty body).
 2. A direct call to the service port without `X-Gateway-Secret` is stopped by `gatewaySecretFilter` with `403` and the plain-text body `Unauthorized Access! Please use the API Gateway!`.
-3. Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` are not checked.
+3. Paths containing `/actuator`, `/h2-console`, `/swagger-ui` or `/api-docs` are not checked.
 
 ---
 
@@ -65,11 +65,10 @@ Scenario 2 describes the write flows in `POST /api/hangar/aircraft` (US102) and 
 ### Key Steps
 
 1. Client sends `POST /api/hangar/aircraft` with model name, registration, dates, hours, and availability.
-2. Controller resolves the model through `AircraftModelSearchService` (`404` if missing).
-3. Controller creates the `Aircraft` (initially `INACTIVE`).
-4. `AircraftLifeCycleUpdaterService` applies the requested availability (`IN_FLIGHT` → `400`).
-5. `AddAircraftUseCase` persists the aircraft; `201 Created` is returned.
-6. Later, `PATCH` validates path/body match (`409`), loads the aircraft (`404`), and applies the new availability; `200 OK` is returned.
+2. The controller first calls `AircraftLifeCycleUpdaterService.changeAvailability(...)`, which looks the aircraft up in PostgreSQL. The aircraft does not exist yet, so the request ends with `404 Aircraft not found in database` (current behaviour).
+3. The creation it would run next is `AddAircraftUseCase`: load the model from PostgreSQL (`409` if missing), save the aircraft, publish `aircraft.event.created`, answer `201 Created`.
+4. `AircraftRedisProjector` (on whichever instance takes the message from `aircraft.sync.queue`) writes `Aircraft:<registration>` to Redis.
+5. `PATCH` validates path/body match (`409`), loads the aircraft from PostgreSQL (`404`), applies the new availability, saves, publishes `aircraft.event.updated`, and returns `200 OK`; the projector then replaces the Redis hash.
 
 ---
 

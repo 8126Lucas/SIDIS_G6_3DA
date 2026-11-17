@@ -134,7 +134,7 @@ Current gaps:
 * CSRF, form login and HTTP Basic are disabled; sessions are `STATELESS`.
 * All requests are `permitAll()`; there is no authentication or role check inside the service.
 * `gatewaySecretFilter` (`OncePerRequestFilter`, registered before `UsernamePasswordAuthenticationFilter`) requires `X-Gateway-Secret: sidis-g6-secret`. Otherwise it writes `403` with the plain-text body `Unauthorized Access! Please use the API Gateway!`.
-* Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` skip the check. The OpenAPI document is served at `/api/docs`, which does not match, so Swagger UI cannot load the spec.
+* Paths containing `/actuator`, `/h2-console`, `/swagger-ui` or `/api-docs` skip the check. The OpenAPI document is served at `/api/docs`, which does not match, so Swagger UI cannot load the spec.
 
 Responsibilities split with the API Gateway:
 
@@ -148,7 +148,7 @@ Known weaknesses:
 
 ## 8. Bootstrap
 
-`Bootstrap` (`ApplicationRunner`) seeds data when there are no records:
+`Bootstrap` (`ApplicationRunner`) seeds data in PostgreSQL when there are no records. It publishes no RabbitMQ events, so the seeded templates and records are not in Redis and only `GET /records/{id}` (which reads PostgreSQL) sees them:
 
 | Template (id) | Operation / Attribute | Record | Aircraft | Status | Used Parts |
 | :--- | :--- | :--- | :--- | :--- | :--- |

@@ -15,6 +15,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -60,6 +61,7 @@ public class MaintenanceRecordController {
 
     // WP3 — criar template
     @PostMapping("/templates")
+    @PreAuthorize("hasRole('MAINTENANCE_TECHNICIAN')")
     @ResponseStatus(HttpStatus.CREATED)
     public void addTemplate(@Valid @RequestBody AddTemplateRequest request) {
         MaintenanceTemplate template = addMaintenanceTemplateUseCase.execute(
@@ -73,6 +75,7 @@ public class MaintenanceRecordController {
 
     // US117 — obter template por id
     @GetMapping("/templates/{id}")
+    @PreAuthorize("hasRole('MAINTENANCE_TECHNICIAN')")
     public MaintenanceTemplateResponse getTemplate(@PathVariable Long id, HttpServletRequest request) {
         return maintenanceTemplateSearchService.findByTemplateId(id)
                 .map(MaintenanceTemplateResponse::from)
@@ -95,6 +98,7 @@ public class MaintenanceRecordController {
 
     // WP3 — criar registo curto
     @PostMapping("/record")
+    @PreAuthorize("hasRole('MAINTENANCE_TECHNICIAN')")
     @ResponseStatus(HttpStatus.CREATED)
     public void addRecord(@Valid @RequestBody AddRecordShortRequest request) {
         AircraftClientDTO aircraftDto = aircraftClient
@@ -112,6 +116,7 @@ public class MaintenanceRecordController {
 
     // US119 — obter registo por id
     @GetMapping("/records/{id}")
+    @PreAuthorize("hasRole('MAINTENANCE_TECHNICIAN')")
     public MaintenanceRecordResponse getRecord(@PathVariable Long id) {
         MaintenanceRecord record = maintenanceRecordProgressService
                 .findById(id)
@@ -121,6 +126,7 @@ public class MaintenanceRecordController {
 
     // US119 — avançar estado do registo
     @PatchMapping("/records/{id}/status")
+    @PreAuthorize("hasRole('MAINTENANCE_TECHNICIAN')")
     public MaintenanceRecordResponse advanceStatus(@PathVariable Long id,
                                                    @Valid @RequestBody UpdateRecordStatusRequest request) {
         MaintenanceRecord record = maintenanceRecordProgressService.advanceStatus(
@@ -132,6 +138,7 @@ public class MaintenanceRecordController {
 
     // US221 — tempo médio de manutenção por tipo de aeronave
     @GetMapping("/turnaround-average")
+    @PreAuthorize("hasRole('MAINTENANCE_SUPERVISOR')")
     public List<TurnaroundAverageResponse> turnaroundAverage() {
         return maintenanceReportService.averageTurnaroundTimePerAircraftType()
                 .stream()
@@ -141,6 +148,7 @@ public class MaintenanceRecordController {
 
     // US219 - atividades de manutencao em curso na frota
     @GetMapping("/ongoing")
+    @PreAuthorize("hasRole('MAINTENANCE_SUPERVISOR')")
     public List<MaintenanceRecordResponse> ongoingMaintenanceActivities() {
         return maintenanceReportService.ongoingMaintenanceActivities()
                 .stream()
@@ -150,6 +158,7 @@ public class MaintenanceRecordController {
 
     // US220 - custos de manutencao por aeronave ou modelo
     @GetMapping("/reports/costs")
+    @PreAuthorize("hasRole('ATCC')")
     public List<MaintenanceCostReportResponse> maintenanceCosts(
             @RequestParam(defaultValue = "aircraft") String groupBy) {
         return maintenanceReportService.maintenanceCosts(groupBy)
@@ -160,6 +169,7 @@ public class MaintenanceRecordController {
 
     // US222 — alertas de manutenção por horas de voo ou dias de calendário
     @GetMapping("/alerts")
+    @PreAuthorize("hasRole('ATCC')")
     public List<MaintenanceAlertResponse> maintenanceAlerts(
             @RequestParam(defaultValue = "180") int calendarDaysThreshold,
             @RequestParam(defaultValue = "500") double flightHoursThreshold) {
@@ -177,6 +187,7 @@ public class MaintenanceRecordController {
     }
 
     @PatchMapping("/records/{id}")
+    @PreAuthorize("hasRole('MAINTENANCE_TECHNICIAN')")
     public void updateRecord(@PathVariable Long id,@RequestBody ChangeAttributeRequest request) {
         MaintenanceRecord record = maintenanceRecordProgressService
                 .findById(id)
@@ -187,11 +198,19 @@ public class MaintenanceRecordController {
     }
 
     @PatchMapping("/records/{id}/complete")
+    @PreAuthorize("hasRole('MAINTENANCE_TECHNICIAN')")
     public MaintenanceRecordResponse completeMaintenance(@PathVariable Long id, @RequestBody CompleteRecordRequest request) {
         MaintenanceRecord record = maintenanceRecordProgressService.completeRecord(
                 id, request.notes(), request.tasksDone(), request.endDate()
         );
         return MaintenanceRecordResponse.from(record);
+    }
+
+    //US117
+    @GetMapping("/reports/hours")
+    @PreAuthorize("hasRole('ATCC')")
+    public List<MaintenanceHoursReport> maintenanceHours() {
+        return maintenanceReportService.totalMaintenanceHoursByAircraft();
     }
 
     @GetMapping("/records")
@@ -223,6 +242,7 @@ public class MaintenanceRecordController {
 
     // US226 — inventário de peças usadas em manutenção
     @GetMapping("/parts/inventory")
+    @PreAuthorize("hasRole('MAINTENANCE_SUPERVISOR')")
     public List<PartUsageSummaryResponse> partsInventory() {
         return partsInventoryService.getPartsUsageSummary()
                 .stream()
@@ -233,6 +253,7 @@ public class MaintenanceRecordController {
 
     // US226 — alertas de stock baixo de peças
     @GetMapping("/parts/low-stock")
+    @PreAuthorize("hasRole('MAINTENANCE_SUPERVISOR')")
     public List<LowStockAlertResponse> lowStockAlerts(
             @RequestParam(defaultValue = "10") int threshold) {
         return partsInventoryService.getLowStockAlerts(threshold)

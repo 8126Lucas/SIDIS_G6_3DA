@@ -16,7 +16,7 @@ participant "MaintenanceReportService\n<<UseCase>>" as report_svc
 participant "MaintenanceAlertService\n<<UseCase>>" as alert_svc
 participant "AircraftRestClientService\n<<RestClient Adapter>>" as aircraft_client
 participant "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>" as interceptor
-participant "MaintenanceRecordRepository\n<<JPA Repository>>" as record_repo
+participant "MaintenanceRecordQueryRepository\n<<Spring Data Redis>>" as record_repo
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 participant "Aircraft Service\n<<External Microservice>>" as aircraft_api
 
@@ -41,7 +41,7 @@ activate controller
 controller -> report_svc : maintenanceCosts("model")
 activate report_svc
 report_svc -> record_repo : findAll()
-record_repo --> report_svc : List<MaintenanceRecord>
+record_repo --> report_svc : List<MaintenanceRecordRedis>\n(only records projected through RabbitMQ)
 
 loop for each record
     report_svc -> aircraft_client : findAircraftModelNameByRegistrationNumber(registration)
@@ -78,7 +78,7 @@ activate controller
 controller -> alert_svc : findAircraftDueForMaintenance(180, 500)
 activate alert_svc
 alert_svc -> record_repo : findByStatus(COMPLETED)
-record_repo --> alert_svc : List<MaintenanceRecord>
+record_repo --> alert_svc : empty list\n(derived query on status, no @Indexed)
 
 alert_svc -> aircraft_client : findAll()
 activate aircraft_client

@@ -15,6 +15,7 @@ Routes are defined in `application.properties` (`spring.cloud.gateway.server.web
 | `route-service` | `/api/routes/**` | `lb://route-service` | `JwtAuthentication` |
 | `flight-service` | `/api/flights/**` | `lb://flight-service` | `JwtAuthentication` |
 
+* **Startup failure (commit `230065c`).** The `route-service` entry sets its id with the old key `spring.cloud.gateway.routes[4].id`, while its `uri`, predicate and filter use `spring.cloud.gateway.server.webflux.routes[4].*`. The binding of the route list then fails (`The elements [...routes[4].id] were left unbound`) and the gateway does not start. With that key renamed to `spring.cloud.gateway.server.webflux.routes[4].id`, it starts and routes as in the table.
 * Paths are forwarded unchanged (no `StripPrefix` / `RewritePath`).
 * A path that matches no route returns `404 Not Found` from the gateway.
 * `lb://` names are resolved through the Eureka registry; if no instance is registered, the gateway returns `503 Service Unavailable`.

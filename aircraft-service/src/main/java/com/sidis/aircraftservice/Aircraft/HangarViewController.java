@@ -1,6 +1,7 @@
 package com.sidis.aircraftservice.Aircraft;
 
 import com.sidis.aircraftservice.Aircraft.application.CalculationsService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +22,7 @@ public class HangarViewController {
      * Gets a graph with utilization per Aircraft
      */
     @GetMapping("/utilization")
+    @PreAuthorize("hasRole('BACKOFFICE')")
     public String utilizationPage(Model model) {
         List<HangarController.UtilizationInfo> data =
                 calculationsService.getUtilizationInfo();

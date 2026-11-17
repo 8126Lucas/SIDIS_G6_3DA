@@ -6,7 +6,7 @@ This document reflects the current implementation in `AuthController`, `LandingC
 
 ## 1. General Service Configuration
 
-* **Base URL (via API Gateway):** `https://localhost:7979`
+* **Base URL (via API Gateway):** `https://192.168.137.1`
 * **Base URL (service, local):** `http://localhost:8101`
 * **API Prefix:** `/api/auth`
 * **Content-Type:** `application/json`

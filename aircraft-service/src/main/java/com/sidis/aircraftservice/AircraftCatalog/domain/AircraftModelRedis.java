@@ -2,6 +2,7 @@ package com.sidis.aircraftservice.AircraftCatalog.domain;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.redis.core.RedisHash;
+import org.springframework.data.redis.core.index.Indexed;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,6 +12,7 @@ public class AircraftModelRedis {
     @Id
     private String modelName;
     private List<String> modelImage;
+    @Indexed
     private String manufacturer;
     private AircraftSpecsRedis aircraftModelSpecs;
 

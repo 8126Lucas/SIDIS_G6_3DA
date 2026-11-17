@@ -4,6 +4,7 @@ import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftModel;
 import com.sidis.aircraftservice.exceptions.DomainException;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.redis.core.RedisHash;
+import org.springframework.data.redis.core.index.Indexed;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -14,15 +15,20 @@ import java.util.List;
 public class AircraftRedis {
     @Id
     private String registrationNumber;
+    @Indexed
     private String modelName;
+    @Indexed
     private AircraftAvailability status;
+    @Indexed
     private LocalDate manufacturingDate;
     private Double totalOperationalHours;
     private Double totalFlightHours;
     private Double meanRange;
     private List<String> features;
+    @Indexed
     private SeatingPackRedis seatingPack;
     private List<InstalledComponentRedis> components;
+    @Indexed
     private List<AircraftCertificationRedis> certifications;
 
     public AircraftRedis() {}

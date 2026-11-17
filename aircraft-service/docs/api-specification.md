@@ -6,7 +6,9 @@ This document reflects the current implementation in `HangarController`, `ModelC
 
 ## 1. General Service Configuration
 
-* **Base URL (via API Gateway):** `https://localhost:7979`
+* **Base URL (via HAProxy and the API Gateway):** `https://192.168.137.1`
+
+**Read side (iteration 2).** Every `GET` endpoint reads from Redis (`AircraftRedis`, `AircraftModelRedis`); `POST` and `PATCH` write to PostgreSQL and the change reaches Redis through RabbitMQ a moment later. See [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md).
 * **Base URL (service, local):** `http://localhost:8081`
 * **API Prefixes:** `/api/hangar`, `/api/catalog`
 * **Content-Type:** `application/json`
@@ -20,7 +22,7 @@ This document reflects the current implementation in `HangarController`, `ModelC
 
 * The gateway adds `X-Gateway-Secret` and `X-User-Name` after validating the JWT, so clients only send `Authorization`.
 * The service itself does not validate the JWT and does not read `X-User-Name`; all requests that pass the secret filter are `permitAll()`.
-* Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` skip the secret filter.
+* Paths containing `/actuator`, `/h2-console`, `/swagger-ui` or `/api-docs` skip the secret filter.
 
 ---
 

@@ -87,7 +87,9 @@ MT1 <.right.> MT2 : forward GET*
 legend bottom left
   Lollipop = REST interface provided | socket = interface required by the gateway
   Dashed arrow = HTTP/REST call between components (resolved through Eureka)
-  forward GET = instance asks its clone when the resource is not in its own H2
+  forward GET = instance asks its clone when the resource is not in its own store
+  (Aircraft and Maintenance clones share PostgreSQL and Redis, so the clone rarely has more;
+   Airport, Flight and Route clones each keep their own H2)
   * maintenance forwards with service id "aircraft-service" (bug): the lookup reaches Aircraft, not the clone
   Airport, Flight, Route and Auth have no forwarding wired: data held only by the other clone returns 404
 endlegend
