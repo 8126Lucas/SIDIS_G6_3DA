@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.sidis.airportservice.Airport.application.AirportQueryService;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -19,10 +20,12 @@ import java.util.Map;
 public class AirportController {
     private final AirportService airportService;
     private final AirportCsvService airportCsvService;
+    private final AirportQueryService airportQueryService;
 
-    public AirportController(AirportService airportService, AirportCsvService airportCsvService) {
+    public AirportController(AirportService airportService, AirportCsvService airportCsvService, AirportQueryService airportQueryService) {
         this.airportService = airportService;
         this.airportCsvService = airportCsvService;
+        this.airportQueryService = airportQueryService;
     }
 
     @PostMapping
@@ -104,7 +107,7 @@ public class AirportController {
 
     @GetMapping("/{iataCode}")
     public AirportResponse getAirport(@PathVariable String iataCode) {
-        Airport airport = airportService.getAirportByIata(iataCode)
+        AirportReadModel airport = airportQueryService.getAirportByIata(iataCode)
                 .orElseThrow(() -> new DomainException("Airport does not exist"));
         return AirportResponse.from(airport);
     }
@@ -114,7 +117,7 @@ public class AirportController {
             @RequestParam(required = false) String city,
             @RequestParam(required = false) String country,
             @RequestParam(required = false) String name) {
-        return airportService.searchAirports(city, country, name)
+        return airportQueryService.searchAirports(city, country, name)
                 .stream()
                 .map(AirportResponse::from)
                 .toList();
@@ -152,13 +155,13 @@ public class AirportController {
 
     @GetMapping("/{iataCode}/routes")
     public List<RouteResponse> getAirportRoutes(@PathVariable String iataCode) {
-        return airportService.findRoutesByAirport(iataCode);
+        return airportQueryService.findRoutesByAirport(iataCode);
     }
 
 
     @GetMapping("/busiest")
     public List<AirportRouteStatisticResponse> getBusiestAirports() {
-        return airportService.busiestAirports()
+        return airportQueryService.busiestAirports()
                 .stream()
                 .map(AirportRouteStatisticResponse::from)
                 .toList();
@@ -167,7 +170,7 @@ public class AirportController {
     @GetMapping("/grouped")
     public Map<String, List<AirportResponse>> getGroupedAirports(
             @RequestParam(required = false, defaultValue = "country") String by) {
-        return airportService.groupAirportsBy(by)
+        return airportQueryService.groupAirportsBy(by)
                 .entrySet().stream()
                 .collect(java.util.stream.Collectors.toMap(
                         Map.Entry::getKey,
@@ -248,6 +251,55 @@ public class AirportController {
                     airport.getOperationalHours()
             );
         }
+        static AirportResponse from(AirportReadModel airport) {
+            var location = airport.location();
+            var facilities = airport.facilities();
+
+            return new AirportResponse(
+                    airport.iataCode(),
+                    airport.airportType(),
+                    airport.name(),
+                    airport.status(),
+                    location == null ? null : new AirportLocationResponse(
+                            location.city(),
+                            location.longitude(),
+                            location.latitude(),
+                            location.region(),
+                            location.timezone(),
+                            location.country()
+                    ),
+                    facilities == null ? null : new FacilitiesResponse(
+                            facilities.terminalCount(),
+                            facilities.services(),
+                            facilities.gateCount()
+                    ),
+                    airport.routeDistance(),
+                    airport.runways().stream()
+                            .map(runway -> new RunwayResponse(
+                                    runway.runwayName(),
+                                    runway.length(),
+                                    runway.orientation(),
+                                    runway.status()
+                            ))
+                            .toList(),
+                    airport.certifications().stream()
+                            .map(certification -> new CertificationResponse(
+                                    certification.name(),
+                                    certification.category(),
+                                    certification.startsAt(),
+                                    certification.expiresAt()
+                            ))
+                            .toList(),
+                    airport.contacts().stream()
+                            .map(contact -> new ContactResponse(
+                                    contact.type(),
+                                    contact.value()
+                            ))
+                            .toList(),
+                    airport.photos(),
+                    airport.operationalHours()
+            );
+        }
     }
 
     record AirportLocationResponse(String city, Double longitude,
@@ -294,10 +346,10 @@ public class AirportController {
 
 
     record AirportRouteStatisticResponse(String iataCode, String name, Long numberOfRoutes) {
-        static AirportRouteStatisticResponse from(AirportService.AirportRouteStatistic stat) {
+        static AirportRouteStatisticResponse from(AirportQueryService.AirportRouteStatistic stat) {
             return new AirportRouteStatisticResponse(
-                    stat.airport().getIataCode(),
-                    stat.airport().getName(),
+                    stat.airport().iataCode(),
+                    stat.airport().name(),
                     stat.numberOfRoutes()
             );
         }
