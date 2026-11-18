@@ -1,9 +1,11 @@
 package com.sidis.routeservice;
 
 import com.sidis.routeservice.Route.application.RouteExportService;
+import com.sidis.routeservice.Route.application.RouteQueryService;
 import com.sidis.routeservice.Route.application.RouteService;
 import com.sidis.routeservice.Route.domain.Route;
 import com.sidis.routeservice.Route.domain.RouteHistory;
+import com.sidis.routeservice.Route.domain.RouteReadModel;
 import com.sidis.routeservice.Route.domain.RouteRequirements;
 import com.sidis.routeservice.Route.domain.RouteStatus;
 import com.sidis.routeservice.Route.domain.RouteType;
@@ -20,10 +22,14 @@ import java.util.List;
 @RequestMapping("/api/routes")
 public class RouteController {
     private final RouteService routeService;
+    private final RouteQueryService routeQueryService;
     private final RouteExportService routeExportService;
 
-    public RouteController(RouteService routeService, RouteExportService routeExportService) {
+    public RouteController(RouteService routeService,
+                           RouteQueryService routeQueryService,
+                           RouteExportService routeExportService) {
         this.routeService = routeService;
+        this.routeQueryService = routeQueryService;
         this.routeExportService = routeExportService;
     }
 
@@ -54,13 +60,13 @@ public class RouteController {
 
     @GetMapping("/{routeId}/history")
     public RouteHistoryResponse getRouteHistory(@PathVariable Long routeId) {
-        return RouteHistoryResponse.from(routeService.getRouteHistory(routeId));
+        return RouteHistoryResponse.from(routeQueryService.getRouteHistory(routeId));
     }
 
 
     @GetMapping("/from/{airportIataCode}")
     public List<RouteResponse> getRoutesFromAirport(@PathVariable String airportIataCode) {
-        return routeService.getRoutesFromAirport(airportIataCode)
+        return routeQueryService.getRoutesFromAirport(airportIataCode)
                 .stream()
                 .map(RouteResponse::from)
                 .toList();
@@ -68,12 +74,12 @@ public class RouteController {
 
     @GetMapping("/{routeId:\\d+}")
     public RouteResponse getRouteDetails(@PathVariable Long routeId) {
-        return RouteResponse.from(routeService.getRouteDetails(routeId));
+        return RouteResponse.from(routeQueryService.getRouteDetails(routeId));
     }
 
     @GetMapping
     public List<RouteResponse> searchRoutes(@RequestParam(required = false) String origin,@RequestParam(required = false) String destination) {
-        return routeService.searchRoutes(origin, destination)
+        return routeQueryService.searchRoutes(origin, destination)
                 .stream()
                 .map(RouteResponse::from)
                 .toList();
@@ -81,7 +87,7 @@ public class RouteController {
 
     @GetMapping("/active")
     public List<RouteResponse> listActiveRoutes(@RequestParam(defaultValue = "popularity") String sortBy) {
-        return routeService.listActiveRoutes(sortBy)
+        return routeQueryService.listActiveRoutes(sortBy)
                 .stream()
                 .map(RouteResponse::from)
                 .toList();
@@ -89,7 +95,7 @@ public class RouteController {
 
     @GetMapping("/total-distance")
     public TotalDistanceResponse calculateTotalDistance() {
-        return new TotalDistanceResponse(routeService.calculateTotalRouteDistance());
+        return new TotalDistanceResponse(routeQueryService.calculateTotalRouteDistance());
     }
 
 
@@ -111,7 +117,7 @@ public class RouteController {
 
     @GetMapping("/alternatives")
     public List<RouteResponse> searchAlternativeRoutes(@RequestParam String origin,@RequestParam String destination) {
-        return routeService.searchAlternativeRoutes(origin, destination)
+        return routeQueryService.searchAlternativeRoutes(origin, destination)
                 .stream()
                 .map(RouteResponse::from)
                 .toList();
@@ -144,6 +150,17 @@ public class RouteController {
                     RouteRequirementsResponse.from(route.getRouteRequirements()),
                     RouteHistoryResponse.from(route.getRouteHistory()));
         }
+
+        public static RouteResponse from(RouteReadModel route) {
+            return new RouteResponse(
+                    route.routeId(), route.routeName(), route.status(), route.type(),
+                    route.originAirport() == null ? null : route.originAirport().iataCode(),
+                    route.destinationAirport() == null ? null : route.destinationAirport().iataCode(),
+                    route.estimatedFlightTimeHours(), route.distanceKm(),
+                    RouteRequirementsResponse.from(route.routeRequirements()),
+                    RouteHistoryResponse.from(route.routeHistory())
+            );
+        }
     }
 
     public record RouteRequirementsResponse(Double requiredRange,
@@ -152,6 +169,11 @@ public class RouteController {
             return new RouteRequirementsResponse(requirements.getRequiredRange(),
                     requirements.getRequiredCapacity());
         }
+
+        public static RouteRequirementsResponse from(RouteReadModel.RequirementsData requirements) {
+            return requirements == null ? null : new RouteRequirementsResponse(
+                    requirements.requiredRange(), requirements.requiredCapacity());
+        }
     }
 
     public record RouteHistoryResponse(LocalDate routeBegin,
@@ -159,6 +181,11 @@ public class RouteController {
         public static RouteHistoryResponse from(RouteHistory history) {
             return new RouteHistoryResponse(history.getRouteBegin(),
                     history.getRouteFinish(), history.getRouteUsage());
+        }
+
+        public static RouteHistoryResponse from(RouteReadModel.HistoryData history) {
+            return history == null ? null : new RouteHistoryResponse(
+                    history.routeBegin(), history.routeFinish(), history.routeUsage());
         }
     }
 }

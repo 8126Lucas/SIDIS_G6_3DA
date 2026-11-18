@@ -17,23 +17,28 @@ import com.sidis.flightservice.Flight.infrastructure.client.*;
 
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Objects;
 
 @UseCase
 @Transactional
-public class RouteService {
+public class FlightService {
     private final FlightRepository flightRepository;
     private final RouteRestClientService routeClientRepository;
     private final AirportRestClientService airportRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Autowired
-    public RouteService(RouteRestClientService routeRepository, FlightRepository flightRepository, RouteRestClientService routeRepository1, AirportRestClientService airportRepository) {
+    public FlightService(RouteRestClientService routeRepository,
+                        FlightRepository flightRepository,
+                        AirportRestClientService airportRepository,
+                        ApplicationEventPublisher eventPublisher) {
         this.routeClientRepository = routeRepository;
         this.flightRepository = flightRepository;
         this.airportRepository = airportRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     public Flight scheduleFlight(Long routeId, AircraftModelDTO modelDTO, AircraftClientDTO aircraft, LocalDateTime scheduledDeparture, LocalDateTime scheduledArrival) {
@@ -54,11 +59,19 @@ public class RouteService {
                 route.estimatedFlightTimeHours(),RouteStatus.valueOf(route.routeStatus()),newHistory);
 
         routeClientRepository.update(route.routeId(),updatedRoute);
-        return flightRepository.save(flight);
+        return saveAndPublish(flight);
     }
 
-    public List<Flight> getScheduledFlightsForAircraft(String registrationNumber) {
-        return flightRepository.findByAircraftRegistrationNumber_RegistrationNumber(registrationNumber);
+    private Flight saveAndPublish(Flight flight) {
+        Flight saved = flightRepository.saveAndFlush(flight);
+
+        eventPublisher.publishEvent(
+                new FlightChangedEvent(
+                        FlightReadModelMapper.from(saved)
+                )
+        );
+
+        return saved;
     }
 
     public void validateFlightSchedule(AircraftModelDTO modelDTO,RouteResponse route, AircraftClientDTO aircraft, LocalDateTime scheduledDeparture, LocalDateTime scheduledArrival,AirportClientDTO airportOrigin, AirportClientDTO airportDestination) {
