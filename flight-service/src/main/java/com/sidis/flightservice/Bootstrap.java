@@ -4,8 +4,12 @@ import com.sidis.flightservice.Flight.domain.AircraftReference;
 import com.sidis.flightservice.Flight.domain.Flight;
 import com.sidis.flightservice.Flight.domain.RouteReference;
 import com.sidis.flightservice.Flight.infrastructure.FlightRepository;
+import com.sidis.flightservice.Flight.application.FlightChangedEvent;
+import com.sidis.flightservice.Flight.application.FlightReadModelMapper;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,9 +20,14 @@ import java.util.List;
 public class Bootstrap implements ApplicationRunner {
 
     private final FlightRepository flightRepository;
+    private final JdbcTemplate jdbcTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public Bootstrap(FlightRepository flightRepository) {
+    public Bootstrap(FlightRepository flightRepository, JdbcTemplate jdbcTemplate,
+                     ApplicationEventPublisher eventPublisher) {
         this.flightRepository = flightRepository;
+        this.jdbcTemplate = jdbcTemplate;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -26,6 +35,7 @@ public class Bootstrap implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         System.out.println("========== BOOTSTRAP RUNNING ==========");
 
+        jdbcTemplate.execute("SELECT pg_advisory_xact_lock(8111001)");
         long count = flightRepository.count();
         System.out.println("Existing flights: " + count);
 
@@ -33,6 +43,13 @@ public class Bootstrap implements ApplicationRunner {
             seedFlights();
             System.out.println("========== FLIGHTS SEEDED ==========");
         }
+
+        flightRepository.flush();
+        flightRepository.findAll().forEach(flight ->
+                eventPublisher.publishEvent(
+                        new FlightChangedEvent(FlightReadModelMapper.from(flight))
+                )
+        );
     }
 
     private void seedFlights() {

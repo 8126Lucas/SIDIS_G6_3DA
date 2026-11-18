@@ -1,33 +1,54 @@
 package com.sidis.routeservice;
 
+import com.sidis.routeservice.Route.application.RouteChangedEvent;
+import com.sidis.routeservice.Route.application.RouteReadModelMapper;
 import com.sidis.routeservice.Route.domain.*;
 import com.sidis.routeservice.Route.infrastructure.RouteRepository;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Component
 public class Bootstrap implements ApplicationRunner {
     private final RouteRepository routeRepository;
+    private final JdbcTemplate jdbcTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public Bootstrap(RouteRepository routeRepository) {
+    public Bootstrap(RouteRepository routeRepository, JdbcTemplate jdbcTemplate,
+                     ApplicationEventPublisher eventPublisher) {
         this.routeRepository = routeRepository;
+        this.jdbcTemplate = jdbcTemplate;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
         System.out.println("========== BOOTSTRAP RUNNING ==========");
+
+        jdbcTemplate.execute("SELECT pg_advisory_xact_lock(8131001)");
         long count = routeRepository.count();
         System.out.println("Existing routes: " + count);
 
-        if (routeRepository.count() == 0) {
+        if (count == 0) {
             seedRoutes();
             System.out.println("========== ROUTES SEEDED ==========");
         }
+
+        routeRepository.flush();
+        List<Route> routes = routeRepository.findAll();
+        for (Route route : routes) {
+            eventPublisher.publishEvent(
+                    new RouteChangedEvent(RouteReadModelMapper.from(route))
+            );
+        }
+        System.out.println("Route synchronization events prepared: " + routes.size());
     }
 
     private void seedRoutes() {

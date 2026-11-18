@@ -2,6 +2,11 @@ package com.sidis.airportservice;
 
 import com.sidis.airportservice.Airport.domain.*;
 import com.sidis.airportservice.Airport.infrastructure.AirportRepository;
+import com.sidis.airportservice.Airport.application.AirportChangedEvent;
+import com.sidis.airportservice.Airport.application.AirportReadModelMapper;
+
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -13,21 +18,42 @@ import java.util.*;
 @Component
 public class Bootstrap implements ApplicationRunner {
     private final AirportRepository airportRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final JdbcTemplate jdbcTemplate;
 
-    public Bootstrap(AirportRepository airportRepository) {
+    public Bootstrap(AirportRepository airportRepository,
+                     ApplicationEventPublisher eventPublisher,
+                     JdbcTemplate jdbcTemplate) {
         this.airportRepository = airportRepository;
+        this.eventPublisher = eventPublisher;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
         System.out.println("========== BOOTSTRAP RUNNING ==========");
+        jdbcTemplate.execute(
+                "SELECT pg_advisory_xact_lock(8091001)"
+        );
         long count = airportRepository.count();
         System.out.println("Existing airports: " + count);
         if (count == 0) {
             seedAirports();
             System.out.println("========== AIRPORTS SEEDED ==========");
         }
+        airportRepository.flush();
+        List<Airport> airports = airportRepository.findAll();
+        for (Airport airport : airports) {
+            eventPublisher.publishEvent(
+                    new AirportChangedEvent(
+                            AirportReadModelMapper.from(airport)
+                    )
+            );
+        }
+        System.out.println(
+                "Airport synchronization events prepared: " + airports.size()
+        );
     }
 
     private void seedAirports() {

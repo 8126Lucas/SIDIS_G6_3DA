@@ -122,6 +122,10 @@ public class Airport {
         return airportPhotos;
     }
 
+    public Long getVersion() {
+        return version;
+    }
+
     public void addCertification(Certification certification) {
         certifications.add(certification);
         certification.setAirport(this);
