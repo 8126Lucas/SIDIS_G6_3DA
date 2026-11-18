@@ -209,8 +209,9 @@ public class Bootstrap implements ApplicationRunner {
                         part.getPrice()));
             }
 
-            DoneListRedis doneListRedis = new DoneListRedis(record.getDoneList().getCompletionNotes(),
-                    record.getDoneList().getTasksDone());
+            DoneListRedis doneListRedis = record.getDoneList() != null ?
+                    new DoneListRedis(record.getDoneList().getCompletionNotes(), record.getDoneList().getTasksDone())
+                    : null;
 
             MaintenanceRecordSyncEvent event = new MaintenanceRecordSyncEvent(
                     record.getRecordId(),
