@@ -9,13 +9,14 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class GetTopFiveModelsHttpTest extends OperationalHttpTest {
-    @Test
+    @Test //wait
     void shouldRankModelsByNumberOfAssignments() throws Exception {
         List<String> aircrafts=seedAircrafts();
         assertNotNull(aircrafts);
         assertTrue(aircrafts.size() >= 2);
         assertEquals(8, aircrafts.size());
 
+        authenticate("backoffice", "backoffice123");
         var firstAircraft=get("/api/hangar/aircraft/"+aircrafts.getFirst());
         var lastAircraft=get("/api/hangar/aircraft/"+aircrafts.getLast());
 

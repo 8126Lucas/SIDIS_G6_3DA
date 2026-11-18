@@ -12,6 +12,8 @@ class GetAircraftFromRepoTest extends GatewayHttpTest {
     @Test void shouldReturnAircraftWhenAircraftExists() throws Exception {
         String model = createModel();
         String registration = createAircraft(model);
+
+        authenticate("atcc","atcc123");
         assertCreatedAircraft(get("/api/hangar/aircraft/" + registration), registration, model);
     }
 }

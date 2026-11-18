@@ -15,6 +15,7 @@ class AddModelHttpTest extends GatewayHttpTest {
 
     @Test
     void shouldReturn400WhenModelNameIsBlank() throws Exception {
+        authenticate("backoffice", "backoffice123");
         var response = expect(400, request("POST", "/api/catalog/model", modelBody("")));
         assertTrue(response.path("validationErrors").toString().contains("modelName"));
     }

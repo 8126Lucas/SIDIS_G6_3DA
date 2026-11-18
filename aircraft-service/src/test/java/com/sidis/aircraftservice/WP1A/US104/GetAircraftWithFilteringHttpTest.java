@@ -13,7 +13,10 @@ class GetAircraftWithFilteringHttpTest extends GatewayHttpTest {
                 + "&manufacturingDate=" + date + "&size=100";
     }
     @Test void shouldReturnAircraftWhenAllFiltersMatch() throws Exception {
+        authenticate("backoffice","backoffice123");
         String model = createModel();
+
+        authenticate("atcc","atcc123");
         String registration = createAircraft(model);
         var aircraft = get(filter(model, "AVAILABLE", "2020-01-01"));
         assertTrue(aircraft.isArray());
@@ -21,16 +24,23 @@ class GetAircraftWithFilteringHttpTest extends GatewayHttpTest {
         assertCreatedAircraft(aircraft.get(0), registration, model);
     }
     @Test void shouldReturnEmptyWhenModelDoesNotMatch() throws Exception {
+        authenticate("atcc","atcc123");
         createAircraft();
         assertEquals(0, get(filter(unique(), "AVAILABLE", "2020-01-01")).size());
     }
     @Test void shouldReturnEmptyWhenStatusDoesNotMatch() throws Exception {
+        authenticate("backoffice","backoffice123");
         String model = createModel();
+
+        authenticate("atcc","atcc123");
         createAircraft(model);
         assertEquals(0, get(filter(model, "MAINTENANCE", "2020-01-01")).size());
     }
     @Test void shouldReturnEmptyWhenDateDoesNotMatch() throws Exception {
+        authenticate("backoffice","backoffice123");
         String model = createModel();
+
+        authenticate("atcc","atcc123");
         createAircraft(model);
         assertEquals(0, get(filter(model, "AVAILABLE", "2000-01-01")).size());
     }

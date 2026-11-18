@@ -11,6 +11,8 @@ class AddModelWithImageHttpTest extends GatewayHttpTest {
     @Test
     void shouldReturn201WhenModelIsCreatedWithImage() throws Exception {
         String model = createModel();
+        authenticate("backoffice", "backoffice123");
+
         var response = get("/api/catalog/" + model);
         assertEquals(model, response.path("modelName").asText());
     }
@@ -24,6 +26,7 @@ class AddModelWithImageHttpTest extends GatewayHttpTest {
 
     @Test
     void shouldReturn400WhenModelNameIsBlank() throws Exception {
+        authenticate("backoffice", "backoffice123");
         var response = expect(400, request("POST", "/api/catalog/model", modelBody("")));
         assertTrue(response.path("validationErrors").toString().contains("modelName"));
     }
