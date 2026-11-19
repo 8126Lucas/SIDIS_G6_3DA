@@ -15,6 +15,8 @@ class MaintenanceRecordHttpTest extends GatewayHttpTest {
     @Test void shouldAdvanceStatusSuccessfully() throws Exception {
         var created = createRecord();
         String path = "/api/maintenance/records/" + created.path("id").asLong();
+
+        authenticate("technician","technician123");
         var updated = expect(200, request("PATCH", path + "/status", Map.of("status", "ONGOING")));
         assertEquals("ONGOING", updated.path("status").asText());
         var expected = created.deepCopy();
@@ -23,6 +25,7 @@ class MaintenanceRecordHttpTest extends GatewayHttpTest {
         assertEquals(expected, get(path), "The complete updated record must persist");
     }
     @Test void shouldReturn404WhenRecordNotFound() throws Exception {
+        authenticate("technician","technician123");
         expect(404, request("GET", "/api/maintenance/records/9223372036854775807", null));
     }
 }

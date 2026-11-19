@@ -51,6 +51,16 @@ public class RouteController {
 
     @PatchMapping("/{routeId}")
     public RouteResponse updateRoute(@PathVariable Long routeId,@RequestBody UpdateRouteRequest request) {
+        if (request == null
+                || (request.destinationIataCode() == null
+                && request.estimatedFlightTimeHours() == null
+                && request.status() == null
+                && request.history() == null)) {
+
+            throw new IllegalArgumentException(
+                    "At least one field must be provided for update"
+            );
+        }
         return RouteResponse.from(routeService.updateRoute(routeId,
                 request.destinationIataCode(),
                 request.estimatedFlightTimeHours(),
