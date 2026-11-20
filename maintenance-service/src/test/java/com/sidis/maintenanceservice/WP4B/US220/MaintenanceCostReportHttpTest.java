@@ -11,6 +11,7 @@ class MaintenanceCostReportHttpTest extends GatewayHttpTest {
     @Test void shouldReturnMaintenanceCostReport() throws Exception {
         assertBootstrapCostsByAircraft();
         assertBootstrapCostsByModel();
+        authenticate("atcc","atcc123");
         for (String grouping : java.util.List.of("aircraft", "model")) {
             var rows = get("/api/maintenance/reports/costs?groupBy=" + grouping);
             assertTrue(rows.isArray());

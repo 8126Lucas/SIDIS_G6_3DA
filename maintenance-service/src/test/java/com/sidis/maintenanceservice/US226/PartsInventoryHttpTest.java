@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PartsInventoryHttpTest extends GatewayHttpTest {
 
     @Test void shouldReturnPartsInventorySummary() throws Exception {
+        authenticate("technician","technician123");
         var rows = get("/api/maintenance/parts/inventory");
         assertBootstrapInventory(rows);
         assertTrue(rows.isArray());
@@ -20,9 +21,11 @@ class PartsInventoryHttpTest extends GatewayHttpTest {
         });
     }
     @Test void shouldReturnLowStockAlertsWithDefaultThreshold() throws Exception {
+        authenticate("technician","technician123");
         assertTrue(get("/api/maintenance/parts/low-stock").isArray());
     }
     @Test void shouldAcceptCustomThreshold() throws Exception {
+        authenticate("technician","technician123");
         var rows = get("/api/maintenance/parts/low-stock?threshold=5");
         assertTrue(rows.isArray());
         rows.forEach(r -> assertTrue(r.path("totalQuantityUsed").asInt() >= 5));

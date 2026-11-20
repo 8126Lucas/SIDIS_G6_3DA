@@ -13,6 +13,7 @@ import com.sidis.routeservice.exceptions.DomainException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -35,6 +36,7 @@ public class RouteController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('ATCC')")//US110
     public RouteResponse createRoute(@RequestBody CreateRouteRequest request) {
         if (request.requirements() == null) {
             throw new DomainException("Route requirements are required");
@@ -50,7 +52,18 @@ public class RouteController {
     }
 
     @PatchMapping("/{routeId}")
+    @PreAuthorize("hasAnyRole('ATCC', 'BACKOFFICE')")//US112
     public RouteResponse updateRoute(@PathVariable Long routeId,@RequestBody UpdateRouteRequest request) {
+        if (request == null
+                || (request.destinationIataCode() == null
+                && request.estimatedFlightTimeHours() == null
+                && request.status() == null
+                && request.history() == null)) {
+
+            throw new IllegalArgumentException(
+                    "At least one field must be provided for update"
+            );
+        }
         return RouteResponse.from(routeService.updateRoute(routeId,
                 request.destinationIataCode(),
                 request.estimatedFlightTimeHours(),
@@ -59,12 +72,14 @@ public class RouteController {
     }
 
     @GetMapping("/{routeId}/history")
+    @PreAuthorize("hasRole('ATCC')")//US111
     public RouteHistoryResponse getRouteHistory(@PathVariable Long routeId) {
         return RouteHistoryResponse.from(routeQueryService.getRouteHistory(routeId));
     }
 
 
     @GetMapping("/from/{airportIataCode}")
+    @PreAuthorize("hasRole('ATCC')")//US113
     public List<RouteResponse> getRoutesFromAirport(@PathVariable String airportIataCode) {
         return routeQueryService.getRoutesFromAirport(airportIataCode)
                 .stream()
@@ -73,11 +88,13 @@ public class RouteController {
     }
 
     @GetMapping("/{routeId:\\d+}")
+    @PreAuthorize("hasRole('ATCC')")//US113
     public RouteResponse getRouteDetails(@PathVariable Long routeId) {
         return RouteResponse.from(routeQueryService.getRouteDetails(routeId));
     }
 
     @GetMapping
+    @PreAuthorize("hasRole('ATCC')")//US114
     public List<RouteResponse> searchRoutes(@RequestParam(required = false) String origin,@RequestParam(required = false) String destination) {
         return routeQueryService.searchRoutes(origin, destination)
                 .stream()
@@ -86,6 +103,7 @@ public class RouteController {
     }
 
     @GetMapping("/active")
+    @PreAuthorize("hasRole('ATCC')")//US214
     public List<RouteResponse> listActiveRoutes(@RequestParam(defaultValue = "popularity") String sortBy) {
         return routeQueryService.listActiveRoutes(sortBy)
                 .stream()
@@ -94,6 +112,7 @@ public class RouteController {
     }
 
     @GetMapping("/total-distance")
+    @PreAuthorize("hasRole('ATCC')")//US215
     public TotalDistanceResponse calculateTotalDistance() {
         return new TotalDistanceResponse(routeQueryService.calculateTotalRouteDistance());
     }
@@ -101,6 +120,7 @@ public class RouteController {
 
     // US228 — exportar rede de rotas em GeoJSON
     @GetMapping("/export/geojson")
+    @PreAuthorize("hasRole('BACKOFFICE')")
     public ResponseEntity<String> exportGeoJson() {
         return ResponseEntity.ok()
                 .contentType(MediaType.valueOf("application/geo+json"))
@@ -109,6 +129,7 @@ public class RouteController {
 
     // US228 — exportar rede de rotas em KML
     @GetMapping("/export/kml")
+    @PreAuthorize("hasRole('BACKOFFICE')")
     public ResponseEntity<String> exportKml() {
         return ResponseEntity.ok()
                 .contentType(MediaType.valueOf("application/vnd.google-earth.kml+xml"))
@@ -116,6 +137,7 @@ public class RouteController {
     }
 
     @GetMapping("/alternatives")
+    @PreAuthorize("hasRole('ATCC')")//US216
     public List<RouteResponse> searchAlternativeRoutes(@RequestParam String origin,@RequestParam String destination) {
         return routeQueryService.searchAlternativeRoutes(origin, destination)
                 .stream()

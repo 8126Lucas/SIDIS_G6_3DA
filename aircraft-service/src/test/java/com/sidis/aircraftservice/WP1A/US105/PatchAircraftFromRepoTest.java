@@ -11,8 +11,13 @@ class PatchAircraftFromRepoTest extends GatewayHttpTest {
 
     @Test void shouldChangeAircraftAvailability() throws Exception {
         String registration = createAircraft();
+
+        authenticate("atcc","atcc123");
         var expected = get("/api/hangar/aircraft/" + registration).deepCopy();
+
         ((com.fasterxml.jackson.databind.node.ObjectNode) expected).put("status", "MAINTENANCE");
+
+        authenticate("backoffice","backoffice123");
         expect(200, request("PATCH", "/api/hangar/aircraft/" + registration,
                 Map.of("registrationNumber", registration, "availability", "MAINTENANCE")));
         assertEquals(expected, get("/api/hangar/aircraft/" + registration),

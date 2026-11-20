@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class GetTotalOperationalHoursHttpTest extends OperationalHttpTest {
     @Test
     void shouldReturnTotalOperationalHoursBySpecifiedAircraft() throws Exception {
+        authenticate("backoffice", "backoffice123");
         var response=get("/api/hangar/analytics/operational-hours");
         assertNotNull(response);
         assertFalse(response.isEmpty());

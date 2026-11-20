@@ -12,7 +12,11 @@ class OngoingMaintenanceUseCaseTest extends GatewayHttpTest {
     @Test void shouldReturnOngoingMaintenanceActivities() throws Exception {
         var record = createRecord();
         long id = record.path("id").asLong();
+
+        authenticate("technician","technician123");
         expect(200, request("PATCH", "/api/maintenance/records/" + id + "/status", Map.of("status", "ONGOING")));
+
+        authenticate("technician","technician123");
         var rows = get("/api/maintenance/ongoing");
         assertTrue(java.util.stream.StreamSupport.stream(rows.spliterator(), false)
                 .anyMatch(r -> id == r.path("id").asLong()));

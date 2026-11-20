@@ -10,8 +10,12 @@ import static org.junit.jupiter.api.Assertions.*;
 class AddAircraftUseCaseToRepoTest extends GatewayHttpTest {
 
     @Test void shouldPersistAircraftThroughHttp() throws Exception {
+        authenticate("backoffice", "backoffice123");
         String model = createModel();
+
+        authenticate("backoffice", "backoffice123");
         String registration = createAircraft(model);
+
         var saved = get("/api/hangar/aircraft/" + registration);
         assertCreatedAircraft(saved, registration, model);
         assertEquals(registration, saved.path("registrationNumber").asText());

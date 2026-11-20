@@ -10,6 +10,8 @@ class FuelEfficiencyHttpTest extends GatewayHttpTest {
 
     @Test void shouldReturnFuelEfficiencyPerAircraft() throws Exception {
         String registration = createAircraft();
+        authenticate("backoffice", "backoffice123");
+
         var rows = get("/api/hangar/analytics/fuel-efficiency/aircraft");
         assertTrue(rows.isArray());
         var row = java.util.stream.StreamSupport.stream(rows.spliterator(), false)

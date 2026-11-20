@@ -8,10 +8,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 // Persistence is verified through the public API; Java overloads share the same HTTP operation.
 class AddModelToRepoTest extends GatewayHttpTest {
-
     @Test void shouldPersistModelThroughHttp() throws Exception {
         String model = createModel();
         String registration = createAircraft(model);
+        login("atcc", "atcc123");
         assertEquals(model, get("/api/hangar/aircraft/" + registration).path("modelName").asText());
     }
 }

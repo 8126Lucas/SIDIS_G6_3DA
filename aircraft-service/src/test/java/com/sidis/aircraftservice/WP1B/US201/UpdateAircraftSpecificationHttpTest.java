@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class UpdateAircraftSpecificationHttpTest extends GatewayHttpTest {
     @Test
     void shouldReturn200WhenAircraftSpecsAreUpdated() throws Exception {
-        authenticate("backoffice", "backoffice123");
         String model = createModel();
         Map<String, Object> body = Map.of(
                 "modelName", model,
@@ -22,6 +21,7 @@ public class UpdateAircraftSpecificationHttpTest extends GatewayHttpTest {
                         "standardSeatingCapacity", 60
                 )
         );
+        authenticate("backoffice", "backoffice123");
         assertEquals(200, patch("/api/catalog/model/" + model, body));
     }
 

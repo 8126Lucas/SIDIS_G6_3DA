@@ -13,6 +13,7 @@ class GetAircraftFeaturesHttpTest extends OperationalHttpTest {
     @Test
     void shouldReturnAircraftsWithSpecifiedFeatures() throws Exception {
         var body = featuresBody(List.of("Wi-Fi", "USB Charging"));
+        authenticate("backoffice", "backoffice123");
         var response = request("GET","/api/hangar/aircraft-features",body);
         assertEquals(200, response.statusCode());
 
@@ -31,6 +32,7 @@ class GetAircraftFeaturesHttpTest extends OperationalHttpTest {
     @Test
     void shouldReturnEmptyListWhenNoAircraftHasSpecifiedFeatures() throws Exception {
         var body = featuresBody(List.of("Non"));
+        authenticate("backoffice", "backoffice123");
         var response = request("GET", "/api/hangar/aircraft-features", body);
         assertEquals(200, response.statusCode());
 
