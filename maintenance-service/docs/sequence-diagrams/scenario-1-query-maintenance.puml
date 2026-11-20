@@ -45,8 +45,8 @@ activate controller
 
 controller -> template_search : findByTemplateId(id)
 activate template_search
-template_search -> redis : findByTemplateId(id)\n(derived query, no @Indexed)
-redis --> template_search : nothing found\n(although MaintenanceTemplate:<id> exists)
+template_search -> redis : findByTemplateId(id)
+redis --> template_search : MaintenanceTemplate:<id> (or none)
 template_search --> controller : Optional<MaintenanceTemplateRedis>
 deactivate template_search
 
@@ -104,7 +104,7 @@ gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
 opt aircraft parameter present
-    controller -> controller : aircraftClient.findAircraftByRegistration(aircraft)\n(404 if not found)
+    controller -> controller : aircraftClient.findAircraftByRegistration(aircraft)\n(404 if not found; 403 -> 500 when the caller's role\nis not ATCC/BACKOFFICE)
 end
 
 controller -> record_search : findRecordsMatchingFilter(aircraft, attribute, dates, pageable)
@@ -117,14 +117,11 @@ alt aircraft == null
 else aircraft present
     record_search -> record_query_repo : findAll(spec on aircraftRegistration,\nattribute, startDate range, pageable)
     activate record_query_repo
-    record_query_repo -> redis : read MaintenanceRecord hashes
-    record_query_repo --> record_search : Page<MaintenanceRecordRedis>
+    record_query_repo -[#red]> exception_handler : JPA Specification not supported\non a Redis repository\n("No property 'findAll' found")
     deactivate record_query_repo
-    record_search --> controller : Page<MaintenanceRecordRedis>
-    controller -> template_search : findByTemplateId(templateId) per record
-    template_search --> controller : empty -> 404 when the page is not empty
-    controller --> gateway : 200 OK (MaintenanceRecordResponse[]) only for an empty page
-    gateway --> client : 200 OK Response
+    activate exception_handler
+    exception_handler --> client : 500 Internal Server Error
+    deactivate exception_handler
 end
 deactivate record_search
 deactivate controller

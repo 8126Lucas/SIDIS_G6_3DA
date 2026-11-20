@@ -23,7 +23,7 @@ Scenario 1 contains local read operations exposed by `RouteController`:
 #### Flow A — Route by Id
 
 1. Client requests one route.
-2. Controller delegates to `RouteService.getRouteDetails(...)`.
+2. Controller delegates to `RouteQueryService.getRouteDetails(...)`, which reads Redis.
 3. Service calls `RouteRepository.findByRouteId(...)`.
 4. Missing route throws `DomainException` → `409`.
 5. Controller maps to `RouteResponse` and returns `200 OK`.

@@ -59,14 +59,14 @@ Consequences of the current rules:
 | :--- | :--- | :--- |
 | `RouteService.createRoute(...)` | Validate and create a route using `airport-service` data | — |
 | `RouteService.updateRoute(...)` | Change destination, flight time, status, history | — |
-| `RouteService.getRouteDetails(...)` / `getRouteHistory(...)` | Lookup by id | — |
-| `RouteService.searchRoutes(...)` | `Specification`-based search by origin/destination | — |
-| `RouteService.getRoutesFromAirport(...)` | Routes by origin airport | — |
-| `RouteService.listActiveRoutes(...)` | Active routes sorted by usage or distance | — |
-| `RouteService.searchAlternativeRoutes(...)` | Active routes for the same origin/destination pair | — |
-| `RouteService.calculateTotalRouteDistance()` | Sum of `distanceKm` | — |
+| `RouteQueryService.getRouteDetails(...)` / `getRouteHistory(...)` | Lookup by id (Redis) | — |
+| `RouteQueryService.searchRoutes(...)` | Search by origin/destination (Redis) | — |
+| `RouteQueryService.getRoutesFromAirport(...)` | Routes by origin airport | — |
+| `RouteQueryService.listActiveRoutes(...)` | Active routes sorted by usage or distance | — |
+| `RouteQueryService.searchAlternativeRoutes(...)` | Active routes for the same origin/destination pair | — |
+| `RouteQueryService.calculateTotalRouteDistance()` | Sum of `distanceKm` | — |
 | `RouteExportService` (`@UseCase`) | GeoJSON and KML export | US228 |
-| `RouteSearchService` | Routes compatible with an aircraft (capacity and range) — not used | — |
+| `RouteQueryService` | Lookups, history, search, active routes, total distance, alternatives and compatible routes, read from Redis (replaces `RouteSearchService`) | — |
 
 
 
@@ -79,7 +79,7 @@ Synchronous `RestClient` integrations (all built from the shared `@LoadBalanced`
 * `aircraft-service` (`AircraftRestClientService`, base URL `http://aircraft-service`)
   * `GET /api/hangar/aircraft`, `GET /api/hangar/aircraft/{registrationNumber}` — declared, but the client is not injected anywhere.
 * `flight-service` (`FlightRestClientService`, base URL `http://flight-service`)
-  * Injected into `RouteService`, but the class has no methods.
+  * The class has no methods and is not injected anywhere.
 
 `JwtTokenInterceptor` adds `X-Gateway-Secret: sidis-g6-secret` to every outgoing call and copies the incoming `Authorization: Bearer` header, so calls pass `airport-service`'s gateway secret filter.
 
@@ -87,7 +87,7 @@ Contract notes:
 
 * `AirportClientDTO` maps `airport-service`'s `location` to `airportLocation` (`@JsonProperty`), so routes get the airport coordinates. `airportRunways` and `version` do not match the response and stay `null`; they are not used.
 * Any `4xx` from `airport-service` (for example `409` for a missing airport) is caught and rethrown as `DomainException("Airport does not exist")` → `409`.
-* `AircraftClientDTO` now reads `modelName`; `RouteSearchService.findCompatibleRoutes(...)` takes the model specs as a separate argument. Neither is used by an endpoint.
+* `AircraftClientDTO` now reads `modelName`; `RouteQueryService.findCompatibleRoutes(...)` takes the model specs as a separate argument. Neither is used by an endpoint.
 
 Inbound consumers of this service (over `http://route-service` with their own `JwtTokenInterceptor`):
 

@@ -93,7 +93,7 @@ Inbound consumers of this service (all over `http://aircraft-service` with their
 
 ## 5. Analytics
 
-* **Availability:** registrations grouped per `AircraftAvailability` (`EnumMap`), and counts via `countByStatus`.
+* **Availability:** registrations grouped per `AircraftAvailability` (`EnumMap`), and counts via `countByStatus`. The counts currently fail on Redis (`500`, see `README.md`).
 * **Operational hours:** paged query sorted by `totalOperationalHours` descending, returned as an ordered map.
 * **Fuel per aircraft:** `fuelCapacityLiters / maximumRangeKm`, rounded to 2 decimals, sorted ascending.
 * **Fuel per route:** average L/km of aircraft that flew the route × route `distanceKm`, sorted by `routeId`.
@@ -136,15 +136,15 @@ Current gaps:
 `AircraftSecurityConfig` defines a stateless `SecurityFilterChain`:
 
 * CSRF, form login and HTTP Basic are disabled; sessions are `STATELESS`.
-* All requests are `permitAll()`; there is no authentication or role check inside the service.
+* `/actuator/**`, `/h2-console/**`, `/swagger-ui/**` and `/v3/api-docs/**` are `permitAll()`; every other request must be authenticated.
+* `JwtAuthenticationFilter` (iteration 2) verifies the `Authorization: Bearer` token with `security.jwt.secret` (the same secret as `auth-service` and the gateway) and turns the `roles` claim into `ROLE_<role>` authorities. `@EnableMethodSecurity` is on, so the `@PreAuthorize` rules on the controllers are enforced (roles per endpoint: `README.md`, section 2.1). A missing or invalid token leaves the request unauthenticated (`403`).
 * `gatewaySecretFilter` (`OncePerRequestFilter`, registered before `UsernamePasswordAuthenticationFilter`) requires `X-Gateway-Secret: sidis-g6-secret`. Otherwise it writes `403` with the plain-text body `Unauthorized Access! Please use the API Gateway!`.
 * Paths containing `/actuator`, `/h2-console`, `/swagger-ui` or `/api-docs` skip the check. The OpenAPI document is served at `/api/docs`, which does not match, so Swagger UI cannot load the spec.
 
 Responsibilities split with the API Gateway:
 
-* The gateway's `JwtAuthentication` filter validates the JWT signature (same secret as `auth-service`), returns `401` when it is missing or invalid, and adds `X-User-Name` and `X-Gateway-Secret` to the forwarded request.
-* `aircraft-service` trusts the secret header only; it does not validate the JWT and does not use `X-User-Name`.
-* The `jjwt` dependency and `security.jwt.*` properties were removed from this service.
+* The gateway's `JwtAuthentication` filter validates the JWT signature, returns `401` when it is missing or invalid, and adds `X-User-Name` and `X-Gateway-Secret` to the forwarded request.
+* `aircraft-service` checks the secret header and validates the JWT again to read the roles; it does not use `X-User-Name`.
 
 Known weaknesses:
 
@@ -153,7 +153,7 @@ Known weaknesses:
 
 ## 8. Bootstrap
 
-`Bootstrap` (`ApplicationRunner`) seeds data in PostgreSQL when the tables are empty. It publishes no RabbitMQ events, so this data is not projected into Redis and the read endpoints do not see it:
+`Bootstrap` (`ApplicationRunner`) seeds data in PostgreSQL when the tables are empty and publishes one sync event per model and aircraft, so the data is also projected into Redis. On later starts (tables not empty) nothing is republished:
 
 * 13 aircraft models (Boeing, Airbus, Embraer, Bombardier, ATR).
 * 9 aircraft: `CS-TUA` (`INACTIVE`), `D-ABXA` (`AVAILABLE`), `F-HXKA` (`MAINTENANCE`), `G-X321`, `N789DL` (`INACTIVE`), `PR-EMJ` (`IN_FLIGHT`), and `TEST-001`, `TEST-002`, `TEST-003` (`INACTIVE`), with seating packs, features, certifications, and installed components.

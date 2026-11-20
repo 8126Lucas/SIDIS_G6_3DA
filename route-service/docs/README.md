@@ -21,11 +21,13 @@ Current implemented responsibilities:
 
 Important implementation notes:
 
+* **CQRS (iteration 2).** Commands write to PostgreSQL (`route_db`); after the transaction commits, a `RouteEventPublisher` sends a `RouteChangedEvent` (the whole read model, with its JPA `@Version`) to `route.exchange`, and `RouteRedisProjector` stores it in Redis unless Redis already has the same or a newer version. Reads go through `RouteQueryService` and Redis. On every start, `Bootstrap` republishes every row, so Redis is rebuilt from PostgreSQL. Details: [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md).
+* There are no role checks in this service: any valid token reaches every endpoint.
 * There is optimistic locking on `Route` via `@Version`; conflicts map to `409`.
 * Routes created through the API always get `distanceKm = 1.0` (hardcoded in the `Route` constructor).
 * A missing route is reported as `DomainException` (`409 Conflict`), not `404`.
-* `RouteSearchService`, `AircraftRestClientService`, `FlightRestClientService` and `PeerForwarder` exist but are not used by any endpoint.
-* Every request (except H2 console and Swagger paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403` (see `domain-and-resilience.md`, section 6).
+* `AircraftRestClientService`, `FlightRestClientService` and `PeerForwarder` exist but are not used by any endpoint.
+* Every request (except Actuator, H2 console and Swagger paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403` (see `domain-and-resilience.md`, section 6).
 * Calls to `airport-service` have 2-second timeouts. The client methods are marked `@Retryable`, but `@EnableRetry` is missing, so they are not retried.
 
 ---
@@ -36,9 +38,11 @@ Important implementation notes:
 | :--- | :--- | :--- |
 | Service Port | `8131` (instance 1, PC4), `8132` (instance 2, PC5) | `server.port`, overridden by `SERVER_PORT` in `docker-compose.yml` |
 | API Prefix | `/api/routes` | Base mapping in `RouteController` |
-| Database | `H2 In-Memory` | `jdbc:h2:mem:routetestdb`, one per instance. `docker-compose.yml` passes a PostgreSQL URL, but the module has no PostgreSQL driver yet (see `docs/data-architecture-cqrs.md`, section 7) |
+| Write database | PostgreSQL `jdbc:postgresql://${IP_PC5}:5432/route_db` | User `sidis`; tables created by Hibernate (`ddl-auto=update`) |
+| Read database | Redis cluster `${SPRING_REDIS_CLUSTER_NODES}` | Default `localhost:6391,localhost:6392,localhost:6393`; in the lab `redis-route-1..3`; hash `Route` |
+| Message broker | RabbitMQ `${SPRING_RABBITMQ_ADDRESSES}` | Default `localhost:5672`; exchange `route.exchange` |
+| Metrics | `/actuator/prometheus`, `/actuator/health` | Scraped by Prometheus; exempt from the gateway secret filter |
 | Schema Strategy | `update` | `spring.jpa.hibernate.ddl-auto` (SQL logging enabled) |
-| H2 Console Path | `/api/routes/h2-console` | Spring H2 console path |
 | Service Registry | `${EUREKA_URL_1},${EUREKA_URL_2}` | Both discovery nodes (`prefer-ip-address=true`); registers with `${IP_PC<n>}` as its address |
 | Gateway Secret | `sidis-g6-secret` | Hardcoded in `RouteSecurityConfig` and `JwtTokenInterceptor` |
 | Outgoing Call Timeouts | `2000` ms connect / `2000` ms read | `GlobalRestClientConfig` |
@@ -88,11 +92,5 @@ curl -k -H "Authorization: Bearer <token>" https://192.168.137.1/api/routes/acti
 
 Calling `http://localhost:8131/api/...` directly without `X-Gateway-Secret` returns `403` (`"Unauthorized Access! Please use the API Gateway!"`).
 
-Open H2 console (exempt from the gateway secret filter):
-
-* URL: `http://localhost:8131/api/routes/h2-console`
-* JDBC URL: `jdbc:h2:mem:routetestdb`
-* User: `sa`
-* Password: empty
 
 There is no Swagger UI: `springdoc-openapi` is not a dependency of this service.

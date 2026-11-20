@@ -1,6 +1,6 @@
 # Flight Operations Service — REST API Specification (As Implemented)
 
-This document reflects the current implementation in `FlightController`, `RouteService`, and related classes.
+This document reflects the current implementation in `FlightController`, `FlightService`, `FlightQueryService`, and related classes.
 
 ---
 

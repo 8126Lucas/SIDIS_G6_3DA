@@ -20,19 +20,16 @@ System_Boundary(aisafe_boundary, "AISafe Flight Management System") {
     Container(auth_service, "Auth Service (x2)", "Spring Boot, Spring Security, JWT", "Authenticates collaborators and issues JWTs.")
     ContainerDb(auth_db, "Auth DB", "SQLite (one file per instance)", "Seeded collaborators and roles.")
 
-    ' Services already migrated to CQRS
-    Container(aircraft_service, "Aircraft Service (x2)", "Spring Boot, JPA, Spring Data Redis, AMQP", "Catalog of models and fleet (hangar).\nCQRS: writes to PostgreSQL, reads from Redis.")
-    Container(maintenance_service, "Maintenance Service (x2)", "Spring Boot, JPA, Spring Data Redis, AMQP", "Templates and maintenance records.\nCQRS: writes to PostgreSQL, reads from Redis.")
-
-    ' Services not migrated yet
-    Container(airport_service, "Airport Service (x2)", "Spring Boot, JPA, OpenCSV", "Airports, runways and certifications.")
-    Container(route_service, "Route Service (x2)", "Spring Boot, JPA", "Routes and their history.")
-    Container(flight_service, "Flight Operations Service (x2)", "Spring Boot, JPA", "Flight scheduling and utilization reports.")
-    ContainerDb(h2_dbs, "Airport / Route / Flight DBs", "H2 in memory (per instance)", "Not migrated to PostgreSQL yet.")
+    ' Business services (all CQRS: commands to PostgreSQL, queries from Redis)
+    Container(aircraft_service, "Aircraft Service (x2)", "Spring Boot, JPA, Spring Data Redis, AMQP", "Catalog of models and fleet (hangar).")
+    Container(maintenance_service, "Maintenance Service (x2)", "Spring Boot, JPA, Spring Data Redis, AMQP", "Templates and maintenance records.")
+    Container(airport_service, "Airport Service (x2)", "Spring Boot, JPA, Spring Data Redis, AMQP, OpenCSV", "Airports, runways and certifications.")
+    Container(route_service, "Route Service (x2)", "Spring Boot, JPA, Spring Data Redis, AMQP", "Routes and their history.")
+    Container(flight_service, "Flight Operations Service (x2)", "Spring Boot, JPA, Spring Data Redis, AMQP", "Flight scheduling and utilization reports.")
 
     ' Shared data infrastructure
-    ContainerDb(postgres, "PostgreSQL", "PostgreSQL 15 (PC5)", "Write model (source of truth):\naircraft_db, maintenance_db.")
-    ContainerDb(redis, "Redis Cluster", "Redis 7, 3 nodes per service", "Read model (Query side) of\naircraft and maintenance.")
+    ContainerDb(postgres, "PostgreSQL", "PostgreSQL 15 (PC5)", "Write model (source of truth): aircraft_db,\nmaintenance_db, airport_db, flight_db, route_db.")
+    ContainerDb(redis, "Redis Clusters", "Redis 7, 3 nodes per service", "Read model (Query side),\none cluster per service.")
     ContainerQueue(rabbitmq, "RabbitMQ", "RabbitMQ 3.12", "Topic exchanges and sync queues\nthat project writes into Redis.")
 
     Container(prometheus, "Prometheus", "Prometheus 2.53 (PC1)", "Scrapes /actuator/prometheus of the\ninstances found in Eureka.")
@@ -55,13 +52,19 @@ Rel_L(api_gateway, discovery_service, "Registers & discovers", "Eureka")
 Rel_D(auth_service, auth_db, "Reads/writes", "JDBC")
 Rel_D(aircraft_service, postgres, "Commands", "JDBC")
 Rel_D(maintenance_service, postgres, "Commands", "JDBC")
-Rel_D(aircraft_service, rabbitmq, "Publishes / consumes sync events", "AMQP")
-Rel_D(maintenance_service, rabbitmq, "Publishes / consumes sync events", "AMQP")
-Rel_D(aircraft_service, redis, "Queries / projections", "Redis cluster")
-Rel_D(maintenance_service, redis, "Queries / projections", "Redis cluster")
-Rel_D(airport_service, h2_dbs, "Reads/writes", "JDBC")
-Rel_D(route_service, h2_dbs, "Reads/writes", "JDBC")
-Rel_D(flight_service, h2_dbs, "Reads/writes", "JDBC")
+Rel_D(airport_service, postgres, "Commands", "JDBC")
+Rel_D(route_service, postgres, "Commands", "JDBC")
+Rel_D(flight_service, postgres, "Commands", "JDBC")
+Rel_D(aircraft_service, rabbitmq, "Sync events", "AMQP")
+Rel_D(maintenance_service, rabbitmq, "Sync events", "AMQP")
+Rel_D(airport_service, rabbitmq, "Sync events", "AMQP")
+Rel_D(route_service, rabbitmq, "Sync events", "AMQP")
+Rel_D(flight_service, rabbitmq, "Sync events", "AMQP")
+Rel_D(aircraft_service, redis, "Queries", "Redis")
+Rel_D(maintenance_service, redis, "Queries", "Redis")
+Rel_D(airport_service, redis, "Queries", "Redis")
+Rel_D(route_service, redis, "Queries", "Redis")
+Rel_D(flight_service, redis, "Queries", "Redis")
 
 ' Monitoring
 Rel_U(prometheus, discovery_service, "Finds targets", "Eureka SD")
@@ -70,7 +73,7 @@ SHOW_LEGEND()
 
 note as N1
   Every service registers in Eureka, and the services call each other over
-  HTTP through Eureka (see global-network-and-ports.md, section 7).
+  HTTP through Eureka (see global-network-and-ports.md, section 8).
   Those arrows are left out to keep the diagram readable.
 end note
 

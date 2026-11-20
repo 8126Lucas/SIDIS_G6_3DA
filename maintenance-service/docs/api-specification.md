@@ -7,11 +7,18 @@ This document reflects the current implementation in `MaintenanceRecordControlle
 ## 1. General Service Configuration
 
 * **Base URL (via HAProxy and the API Gateway):** `https://192.168.137.1`
-
-**Read side (iteration 2).** Templates, record searches, reports, alerts and parts summaries read from Redis (`MaintenanceRecordRedis`, `MaintenanceTemplateRedis`). `GET /records/{id}` and the `PATCH` endpoints work on the PostgreSQL entity. Template lookups by id use `findByTemplateId` on Redis, a derived query without an index (`@Indexed`), so they find nothing: `GET /templates/{id}` answers `404`, and so does any record listed by `GET /records`, because each listed record embeds its template. Reports that filter by status (`/ongoing`, `/turnaround-average`, `/alerts`) use `findByStatus` and return empty lists. See [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md), section 7.
 * **Base URL (service, local):** `http://localhost:8121`
 * **API Prefix:** `/api/maintenance`
 * **Content-Type:** `application/json`
+
+**Read side (iteration 2).** Templates, record searches, reports, alerts and parts summaries read from Redis (`MaintenanceRecordRedis`, `MaintenanceTemplateRedis`, `MaintenanceHoursReportRedis`). `GET /records/{id}` and the `PATCH` endpoints work on the PostgreSQL entity. Behaviour checked by running commit `1935a82`:
+
+* `GET /templates`, `GET /templates/{id}`, `/reports/costs`, `/reports/hours` and `/alerts` answer `200`.
+* `GET /records` answers `500` (`No property 'findAll' found for type 'MaintenanceRecordRedis'`): it passes a JPA `Specification` to the Redis repository.
+* `/parts/inventory` and `/parts/low-stock` answer `500` (`NullPointerException`) when a record in Redis has no list of used parts.
+* Calls to `aircraft-service` (`POST /record`, `GET /records?aircraft=`, `/turnaround-average`) forward the caller's token; with a technician's or supervisor's token `aircraft-service` answers `403` and this service returns `500`.
+
+See [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md), section 7.
 
 ### 1.1. Required Headers
 
@@ -21,7 +28,7 @@ This document reflects the current implementation in `MaintenanceRecordControlle
 | `X-Gateway-Secret: sidis-g6-secret` | `MaintenanceSecurityConfig.gatewaySecretFilter` | `403 Forbidden`, body `Unauthorized Access! Please use the API Gateway!` |
 
 * The gateway adds `X-Gateway-Secret` and `X-User-Name` after validating the JWT, so clients only send `Authorization`.
-* The service itself does not validate the JWT and does not read `X-User-Name`; all requests that pass the secret filter are `permitAll()`. There are no role checks (for example, technician vs. supervisor).
+* Since iteration 2 the service validates the JWT again (`JwtAuthenticationFilter`) and requires an authenticated request. Each endpoint has a `@PreAuthorize` role (see `README.md`, section 2.1), but `MaintenanceSecurityConfig` has no `@EnableMethodSecurity`, so the roles are **not enforced**: any valid token passes (checked: an `ATCC` token created a template, a technician's token read `/ongoing`).
 * Paths containing `/actuator`, `/h2-console`, `/swagger-ui` or `/api-docs` skip the secret filter.
 
 ---

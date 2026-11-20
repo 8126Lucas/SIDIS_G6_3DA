@@ -13,8 +13,8 @@ actor "Client / Postman" as client
 participant "API Gateway\n<<Gateway>>" as gateway
 participant "AirportController\n<<REST Controller>>" as controller
 participant "AirportService\n<<UseCase>>" as airport_uc
-participant "AirportRepository\n<<JPA Repository>>" as repo
-database "H2 Database\n<<In-Memory DB>>" as db
+participant "AirportReadRepository\n<<Spring Data Redis>>" as repo
+database "Redis cluster\n<<read model>>" as db
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 
 box "Airport Service [Container]" #LightBlue
@@ -35,9 +35,9 @@ controller -> airport_uc : getAirportByIata(iataCode)
 activate airport_uc
 airport_uc -> repo : findByIataCode(iataCode)
 activate repo
-repo -> db : SELECT * FROM company_registered_airports WHERE iata_code = ?
+repo -> db : read Airport hashes (indexed fields)
 activate db
-db --> repo : Airport row
+db --> repo : AirportReadModel(s)
 deactivate db
 repo --> airport_uc : Optional<Airport>
 deactivate repo
@@ -68,9 +68,9 @@ activate airport_uc
 airport_uc -> airport_uc : Build JPA Specification (exact match, AND)
 airport_uc -> repo : findAll(spec)
 activate repo
-repo -> db : SELECT ... WHERE <filters>
+repo -> db : read Airport hashes (indexed fields)
 activate db
-db --> repo : Airport rows
+db --> repo : AirportReadModel(s)
 deactivate db
 repo --> airport_uc : List<Airport>
 deactivate repo
@@ -93,8 +93,8 @@ controller -> airport_uc : groupAirportsBy(by)
 activate airport_uc
 airport_uc -> repo : findAll()
 activate repo
-repo -> db : SELECT * FROM company_registered_airports
-db --> repo : Airport rows
+repo -> db : read Airport hashes (indexed fields)
+db --> repo : AirportReadModel(s)
 repo --> airport_uc : List<Airport>
 deactivate repo
 

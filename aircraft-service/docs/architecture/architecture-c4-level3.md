@@ -76,6 +76,6 @@ PlantUML source file:
 4. Aircraft registration calls `AircraftLifeCycleUpdaterService` (availability) and then `AddAircraftUseCase` (creation), which publishes to `aircraft.exchange`. Because the availability change runs first, on an aircraft that does not exist yet, the request currently ends in `404`.
 5. The projectors receive the events from the sync queues and save the read models in the Redis cluster.
 6. Read and analytics flows use `AircraftSearchService` / `AircraftModelSearchService` over the query repositories; a single-aircraft lookup that misses in Redis is passed to `PeerForwarder`.
-7. `Bootstrap` seeds models and aircraft only through the command repositories, so the seed data is not in Redis.
+7. `Bootstrap` seeds models and aircraft through the command repositories (when the tables are empty) and publishes one event per row, so the seed data is projected into Redis like any other write.
 8. Compatible routes, route fuel efficiency, model rankings (`assignments`) and the utilization view call `route-service` and/or `flight-service` through `RestClient` adapters.
 9. Exceptions are transformed by `GlobalExceptionHandler` into `ErrorDetails` payloads.

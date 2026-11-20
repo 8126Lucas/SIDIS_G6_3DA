@@ -95,8 +95,9 @@ template_cmd_repo --> maintenance_pg : "maintenance_template\n[JDBC/JPA]"
 record_cmd_repo --> maintenance_pg : "company_maintenance_records\n[JDBC/JPA]"
 template_query_repo --> maintenance_redis : "MaintenanceTemplate:<id>"
 record_query_repo --> maintenance_redis : "MaintenanceRecord:<id>"
-bootstrapper --> template_cmd_repo : "seeds templates\n(PostgreSQL only)"
-bootstrapper --> record_cmd_repo : "seeds records\n(PostgreSQL only)"
+bootstrapper --> template_cmd_repo : "seeds templates"
+bootstrapper --> record_cmd_repo : "seeds records"
+bootstrapper --> rabbit : "seed events\n(fails on a record\nwithout DoneList)"
 
 ' --- outgoing HTTP ---
 aircraft_client --> jwt_interceptor : "outgoing request"

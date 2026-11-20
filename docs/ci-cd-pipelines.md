@@ -10,20 +10,25 @@ The repository has two GitHub Actions workflows in `.github/workflows/`: **CI** 
 
 * `push` to `main`.
 * `pull_request` targeting `main`.
+* A pull request with the label `documentation` skips `compile`, and therefore every job that depends on it.
 
 ### 1.2. Jobs
 
-The workflow has three jobs on `ubuntu-latest` with JDK 21 (Temurin, Maven cache). `java-tests` and `postman-tests` wait for `compile` and then run in parallel.
+The workflow has two active jobs on `ubuntu-latest` with JDK 21 (Temurin, Maven cache). The `postman-tests` job is still in the file but commented out.
 
 | Job | What it does |
 | :--- | :--- |
-| `compile` — Compilação Preliminar | `./mvnw clean package -DskipTests`. If any module does not compile, the workflow stops here (fail-fast) and the slower jobs never start. |
-| `java-tests` — Build e Testes Java E2E | Starts a `redis:7-alpine` service container on `6379`, builds, starts `discovery-service` (profile `node1`), waits 15 s, starts `APIgateway` and the six business services in the background (`-Xmx256m`, logs to `<service>.log`), waits 150 s for Eureka, then runs `./mvnw verify`. |
-| `postman-tests` — Testes de Integração Postman | Same Redis container and same start-up as `java-tests`, then installs Newman (`npm install -g newman`) and runs `docs/postman/SIDIS HTTP Tests.postman_collection.json`. |
+| `compile` — Compilação Preliminar | `./mvnw clean package -DskipTests`. If any module does not compile, the workflow stops here (fail-fast) and the slower job never starts. |
+| `java-tests` — Build e Testes Java E2E | Needs `compile`. Starts three service containers: `postgres:15-alpine` (user `sidis`, with a health check), `rabbitmq:3.12-management-alpine` (`5672`) and `redis:7-alpine` (`6379`). Creates the five databases with `psql`, builds, starts `discovery-service` (profile `node1`), waits 15 s, starts `APIgateway` and the six business services in the background (`-Xmx256m`, logs to `<service>.log`), waits 150 s for Eureka, then runs `./mvnw verify`. |
 
 ### 1.3. Why the services are started
 
-Most tests are end-to-end HTTP tests (`support/GatewayHttpTest` in each module): they log in through `https://localhost:7979/api/auth/login` and call the real gateway, which needs Eureka and the target services to be up. Only `discovery-service` has a self-contained test (it starts its own server on a random port).
+Two kinds of tests run in `./mvnw verify`:
+
+* **End-to-end HTTP tests** (`support/GatewayHttpTest` in each module): they log in through `https://localhost:7979/api/auth/login` and call the real gateway, which needs Eureka and the target services to be up.
+* **Controller tests** with `MockMvc` in `aircraft-service` and `maintenance-service` (added in iteration 2): they run without the rest of the system and enable method security in their own test configuration, so they check the `@PreAuthorize` roles.
+
+`discovery-service` has a self-contained test (it starts its own server on a random port).
 
 Consequences:
 
@@ -34,11 +39,14 @@ Consequences:
 
 ### 1.4. Gaps after iteration 2
 
-The runner still starts the system the way iteration 1 did, while the services now expect more infrastructure:
+PostgreSQL and RabbitMQ are now on the runner, but the end-to-end job still cannot pass:
 
-* **Infrastructure.** Only one standalone Redis is started. There is no PostgreSQL and no RabbitMQ, which `aircraft-service` and `maintenance-service` need, and that Redis is not a cluster, while both services use the cluster client.
-* **Variables.** The workflow does not set `EUREKA_URL_1` and `EUREKA_URL_2`, which every `application.properties` now uses for the Eureka address.
-* **Postman collection.** `postman-tests` runs the previous collection (`SIDIS HTTP Tests`), not `AISafe-Global-System`, and without an environment file.
+* **Eureka variables.** The workflow does not set `EUREKA_URL_1` and `EUREKA_URL_2`. Started without them, a service logs `Invalid eureka server URI: ${EUREKA_URL_1}/`, never registers, and the gateway answers `503` for it (checked by starting `auth-service` without the variables).
+* **Gateway.** `APIgateway` does not start with the current `application.properties` (old key on the `route-service` route, see `APIgateway/docs/routing-and-security.md`).
+* **Redis.** The runner has one standalone Redis on `6379`, while the services use the cluster client and expect three nodes per service on different ports (`6379 - 6393`).
+* **Maintenance startup.** On the runner's empty database, `maintenance-service` stops during `Bootstrap` (see `data-architecture-cqrs.md`, section 7).
+* **SQLite path.** `auth-service` opens `/data/auth.db`, a folder the runner does not create.
+* **Postman.** The Postman job is commented out, so neither collection runs in CI.
 
 ---
 

@@ -12,15 +12,13 @@ autonumber
 actor "Client / Postman" as client
 participant "API Gateway\n<<Gateway>>" as gateway
 participant "FlightController\n<<REST Controller>>" as controller
-participant "RouteService\n<<UseCase>>" as route_svc
-participant "FlightUtilizationReportService\n<<Application Service>>" as report_svc
-participant "FlightRepository\n<<JPA Repository>>" as repo
-database "H2 Database\n<<In-Memory DB>>" as db
+participant "FlightQueryService\n<<Query Service>>" as report_svc
+participant "FlightReadRepository\n<<Spring Data Redis>>" as repo
+database "Redis cluster\n<<read model>>" as db
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 
 box "Flight Operations Service [Container]" #LightBlue
     participant controller
-    participant route_svc
     participant report_svc
     participant repo
     participant exception_handler
@@ -34,22 +32,22 @@ activate gateway
 gateway -> controller : Forward GET /api/flights/aircraft/{registrationNumber}\n(+ X-Gateway-Secret, X-User-Name; checked by gatewaySecretFilter)
 activate controller
 
-controller -> route_svc : getScheduledFlightsForAircraft(registrationNumber)
-activate route_svc
+controller -> report_svc : getScheduledFlightsForAircraft(registrationNumber)
+activate report_svc
 
-route_svc -> repo : findByAircraftRegistrationNumber_RegistrationNumber(...)
+report_svc -> repo : findByAircraftRegistrationNumber(...)
 activate repo
 
-repo -> db : SELECT * FROM company_flights WHERE aircraft_registration = ?
+repo -> db : read Flight hashes (indexed fields)
 activate db
-db --> repo : List<Flight> entities
+db --> repo : FlightReadModel(s)
 deactivate db
 
-repo --> route_svc : List<Flight>
+repo --> report_svc : List<FlightReadModel>
 deactivate repo
 
-route_svc --> controller : List<Flight>
-deactivate route_svc
+report_svc --> controller : List<FlightReadModel>
+deactivate report_svc
 
 controller --> gateway : 200 OK (JSON List of Flights)
 deactivate controller
@@ -71,12 +69,12 @@ activate report_svc
 report_svc -> repo : findAll()
 activate repo
 
-repo -> db : SELECT * FROM company_flights
+repo -> db : read Flight hashes (indexed fields)
 activate db
-db --> repo : List<Flight> entities
+db --> repo : FlightReadModel(s)
 deactivate db
 
-repo --> report_svc : List<Flight>
+repo --> report_svc : List<FlightReadModel>
 deactivate repo
 report_svc -> report_svc : group by route, count flights,\nsort by count desc, route name asc
 
@@ -97,9 +95,9 @@ gateway -> controller : Forward GET /api/flights\n(+ X-Gateway-Secret, X-User-Na
 activate controller
 controller -> repo : flightSearchService.findAll()
 activate repo
-repo -> db : SELECT * FROM company_flights
-db --> repo : List<Flight> entities
-repo --> controller : List<Flight>
+repo -> db : read Flight hashes (indexed fields)
+db --> repo : FlightReadModel(s)
+repo --> controller : List<FlightReadModel>
 deactivate repo
 controller --> gateway : 200 OK (FlightResponse[])
 deactivate controller

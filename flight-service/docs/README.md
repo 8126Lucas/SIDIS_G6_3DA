@@ -19,8 +19,10 @@ Current implemented responsibilities:
 
 Important implementation notes:
 
+* **CQRS (iteration 2).** Commands write to PostgreSQL (`flight_db`); after the transaction commits, a `FlightEventPublisher` sends a `FlightChangedEvent` (the whole read model, with its JPA `@Version`) to `flight.exchange`, and `FlightRedisProjector` stores it in Redis unless Redis already has the same or a newer version. Reads go through `FlightQueryService` and Redis. On every start, `Bootstrap` republishes every row, so Redis is rebuilt from PostgreSQL. Details: [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md).
+* There are no role checks in this service: any valid token reaches every endpoint.
 * There is optimistic locking on `Flight` via `@Version`; conflicts map to `409`.
-* Every request (except H2 console and Swagger paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403` (see `domain-and-resilience.md`, section 6).
+* Every request (except Actuator, H2 console and Swagger paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403` (see `domain-and-resilience.md`, section 6).
 * Flights are only created as `SCHEDULED`; there are no endpoints to start, complete or cancel a flight.
 * The utilization report counts flights per route; it does not sum flight hours.
 * Outgoing calls have 2-second timeouts. Several client methods are marked `@Retryable`, but `@EnableRetry` is missing, so they are not retried.
@@ -34,9 +36,11 @@ Important implementation notes:
 | :--- | :--- | :--- |
 | Service Port | `8111` (instance 1, PC4), `8112` (instance 2, PC5) | `server.port`, overridden by `SERVER_PORT` in `docker-compose.yml` |
 | API Prefix | `/api/flights` | Base mapping in `FlightController` |
-| Database | `H2 In-Memory` | `jdbc:h2:mem:flighttestdb`, one per instance. `docker-compose.yml` passes a PostgreSQL URL, but the module has no PostgreSQL driver yet (see `docs/data-architecture-cqrs.md`, section 7) |
+| Write database | PostgreSQL `jdbc:postgresql://${IP_PC5}:5432/flight_db` | User `sidis`; tables created by Hibernate (`ddl-auto=update`) |
+| Read database | Redis cluster `${SPRING_REDIS_CLUSTER_NODES}` | Default `localhost:6388,localhost:6389,localhost:6390`; in the lab `redis-flight-1..3`; hash `Flight` |
+| Message broker | RabbitMQ `${SPRING_RABBITMQ_ADDRESSES}` | Default `localhost:5672`; exchange `flight.exchange` |
+| Metrics | `/actuator/prometheus`, `/actuator/health` | Scraped by Prometheus; exempt from the gateway secret filter |
 | Schema Strategy | `update` | `spring.jpa.hibernate.ddl-auto` |
-| H2 Console Path | `/api/flight/h2-console` | Spring H2 console path (singular `flight`) |
 | Service Registry | `${EUREKA_URL_1},${EUREKA_URL_2}` | Both discovery nodes (`prefer-ip-address=true`); registers with `${IP_PC<n>}` as its address |
 | Gateway Secret | `sidis-g6-secret` | Hardcoded in `FlightSecurityConfig` and `JwtTokenInterceptor` |
 | Outgoing Call Timeouts | `2000` ms connect / `2000` ms read | `GlobalRestClientConfig` |
@@ -85,11 +89,5 @@ curl -k -H "Authorization: Bearer <token>" https://192.168.137.1/api/flights
 
 Calling `http://localhost:8111/api/...` directly without `X-Gateway-Secret` returns `403` (`"Unauthorized Access! Please use the API Gateway!"`).
 
-Open H2 console (exempt from the gateway secret filter):
-
-* URL: `http://localhost:8111/api/flight/h2-console`
-* JDBC URL: `jdbc:h2:mem:flighttestdb`
-* User: `sa`
-* Password: empty
 
 There is no Swagger UI: `springdoc-openapi` is not a dependency of this service.

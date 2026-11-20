@@ -1,14 +1,16 @@
 @startuml
 skinparam linetype polyline
-skinparam nodesep 60
-skinparam ranksep 70
+skinparam nodesep 40
+skinparam ranksep 60
 skinparam shadowing false
 skinparam componentStyle uml2
 
-title Component Diagram (C4 - Level 3) - Flight Operations Service (As Implemented)
+title Component Diagram (C4 - Level 3) - Flight Operations Service (As Implemented, CQRS)
 
 component "API Gateway\n<<Spring Cloud Gateway>>" as api_gateway
-database "H2 Database\n<<In-Memory>>" as flight_db
+database "PostgreSQL\nflight_db\n<<Write model>>" as flight_pg
+database "Redis Cluster\nFlight:<flightId>\n<<Read model>>" as flight_redis
+queue "RabbitMQ\nflight.exchange" as rabbit
 component "Aircraft Service\n<<Microservice>>" as aircraft_service
 component "Route Service\n<<Microservice>>" as route_service
 component "Airport Service\n<<Microservice>>" as airport_service
@@ -17,61 +19,62 @@ package "Flight Operations Service [Container]" {
     component "FlightSecurityConfig\n<<SecurityFilterChain + gatewaySecretFilter>>" as security_filter
     component "FlightController\n<<Spring REST Controller>>" as flight_controller
 
-    component "RouteService\n<<UseCase>>" as route_svc
-    component "AircraftSearchService\n<<Spring Service>>" as aircraft_search_svc
-    component "FlightSearchService\n<<Spring Service>>" as flight_search_svc
-    component "FlightUtilizationReportService\n<<Spring Service>>" as flight_report_svc
+    package "Command side" {
+        component "FlightService\n<<UseCase>>" as flight_svc
+        component "AircraftSearchService\n<<Spring Service>>" as aircraft_search_svc
+        component "FlightRepository\n<<Spring Data JPA>>" as flight_repo
+    }
 
-    component "RouteRestClientService\n<<RestClient Adapter>>" as route_client
+    package "Query side" {
+        component "FlightQueryService\n<<Spring Service>>" as query_svc
+        component "FlightReadRepository\n<<Spring Data Redis>>" as read_repo
+    }
+
+    package "Synchronisation" {
+        component "FlightReadModelMapper" as mapper
+        component "FlightEventPublisher\n<<@TransactionalEventListener\nAFTER_COMMIT>>" as publisher
+        component "FlightRedisProjector\n<<@RabbitListener>>\n(version check)" as projector
+    }
+
     component "AircraftRestClientService\n<<RestClient Adapter>>" as aircraft_client
+    component "RouteRestClientService\n<<RestClient Adapter>>" as route_client
     component "AirportRestClientService\n<<RestClient Adapter>>" as airport_client
-    component "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>\n(shared builder, 2 s timeouts)" as jwt_interceptor
-
+    component "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>" as jwt_interceptor
     component "Bootstrap\n<<ApplicationRunner>>" as bootstrapper
-
-    component "FlightRepository\n<<Spring Data JPA Repository>>" as flight_repo
-
-    component "Flight\n<<JPA Aggregate Root>>" as flight_entity
-    component "AircraftReference\n<<Embeddable Value Object>>" as aircraft_ref
-    component "RouteReference\n<<Embeddable Value Object>>" as route_ref
-    component "FlightStatus\n<<Enum>>" as flight_status
-
-    component "GlobalExceptionHandler\n<<@RestControllerAdvice>>" as exception_handler
-    component "ErrorDetails\n<<DTO Payload>>" as error_details
 }
 
-api_gateway --> security_filter : "Routes /api/flights/**\n(JWT validated, X-Gateway-Secret added)\n[HTTP/JSON]"
+api_gateway --> security_filter : "Routes /api/flights/~**\n(JWT validated, X-Gateway-Secret added)"
 aircraft_service --> security_filter : "GET /api/flights,\n/aircraft/{registration}"
 security_filter --> flight_controller : "secret OK"
 
+' --- commands ---
 flight_controller --> aircraft_search_svc : "aircraft + model lookup"
-flight_controller --> route_svc : "POST /scheduled,\nGET /aircraft/{registration}"
-flight_controller --> flight_search_svc : "GET /"
-flight_controller --> flight_report_svc : "GET /reports/route-utilization"
-
+flight_controller --> flight_svc : "POST /scheduled"
 aircraft_search_svc --> aircraft_client : "aircraft, model"
-route_svc --> route_client : "route by id, PATCH usage"
-route_svc --> airport_client : "airport by IATA"
-route_svc --> flight_repo : "overlap query + save"
-flight_search_svc --> flight_repo : "findAll"
-flight_report_svc --> flight_repo : "findAll"
-bootstrapper --> flight_repo : "Seeds flights"
+flight_svc --> route_client : "route by id, PATCH usage"
+flight_svc --> airport_client : "airport by IATA"
+flight_svc --> flight_repo : "overlap query + save"
+flight_svc --> mapper : "FlightChangedEvent\n(Spring event)"
+mapper ..> publisher
+publisher --> rabbit : "flight.event.updated\n(after commit)"
+rabbit --> projector : "flight.sync.queue"
+projector --> read_repo : "save if newer version"
 
-flight_repo --> flight_entity : "Manages persistence"
+' --- queries ---
+flight_controller --> query_svc : "GET /, GET /aircraft/{registration},\nGET /reports/route-utilization"
+query_svc --> read_repo : "findAll / findByAircraftRegistrationNumber"
 
-flight_entity *-- aircraft_ref : "Embeds"
-flight_entity *-- route_ref : "Embeds"
-flight_entity --> flight_status : "Uses"
+' --- stores ---
+flight_repo --> flight_pg : "company_flights\n[JDBC/JPA]"
+read_repo --> flight_redis
+bootstrapper --> flight_repo : "seeds if empty"
+bootstrapper --> publisher : "republishes every\nflight on start"
 
-flight_repo <--> flight_db : "company_flights\n[JDBC/JPA]"
-
-exception_handler --> error_details : "Constructs and returns"
-
-aircraft_client --> jwt_interceptor : "outgoing request"
-route_client --> jwt_interceptor : "outgoing request"
-airport_client --> jwt_interceptor : "outgoing request"
-jwt_interceptor --> aircraft_service : "HTTP RestClient\n(X-Gateway-Secret, Authorization)"
-jwt_interceptor --> route_service : "HTTP RestClient\n(X-Gateway-Secret, Authorization)"
-jwt_interceptor --> airport_service : "HTTP RestClient\n(X-Gateway-Secret, Authorization)"
+aircraft_client --> jwt_interceptor
+route_client --> jwt_interceptor
+airport_client --> jwt_interceptor
+jwt_interceptor --> aircraft_service : "HTTP RestClient"
+jwt_interceptor --> route_service : "HTTP RestClient"
+jwt_interceptor --> airport_service : "HTTP RestClient"
 
 @enduml

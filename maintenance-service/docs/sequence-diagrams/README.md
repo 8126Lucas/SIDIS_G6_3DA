@@ -26,7 +26,7 @@ In every flow the API Gateway first validates the JWT and forwards the request w
 #### Flow A — Template by Id
 
 1. Client requests one template.
-2. Controller delegates to `MaintenanceTemplateSearchService.findByTemplateId(...)`, a derived query on Redis. Without `@Indexed` it finds nothing, even for an existing template, so every lookup takes the next step.
+2. Controller delegates to `MaintenanceTemplateSearchService.findByTemplateId(...)` on Redis, which finds the template (`200`).
 3. A missing template is passed to `PeerForwarder` (with service id `aircraft-service`); the forwarded call fails and the result is `404`.
 4. Otherwise the controller maps to `MaintenanceTemplateResponse` and returns `200 OK`.
 
@@ -39,8 +39,8 @@ In every flow the API Gateway first validates the JWT and forwards the request w
 
 #### Flow C — Search Records
 
-1. When `aircraft` is set, the controller checks it in `aircraft-service` (`404` if missing).
-2. `MaintenanceRecordSearchService` builds a `Specification` on `aircraftRegistration`, attribute and start date range, and returns the page content (`200 OK`).
+1. When `aircraft` is set, the controller checks it in `aircraft-service` (`404` if missing). The call forwards the caller's token, so for a technician or supervisor `aircraft-service` answers `403` and the request ends in `500`.
+2. `MaintenanceRecordSearchService` builds a JPA `Specification` on `aircraftRegistration`, attribute and start date range and passes it to the Redis repository, which does not support it: `500` (`No property 'findAll' found for type 'MaintenanceRecordRedis'`).
 3. Without `aircraft`, `aircraftRegistration.isEmpty()` throws `NullPointerException` → `500`.
 
 #### Flow D — Rejected Requests

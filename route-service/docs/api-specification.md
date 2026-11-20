@@ -1,6 +1,6 @@
 # Route Service — REST API Specification (As Implemented)
 
-This document reflects the current implementation in `RouteController`, `RouteService`, `RouteExportService`, and related classes.
+This document reflects the current implementation in `RouteController`, `RouteService` (commands), `RouteQueryService` (queries), `RouteExportService`, and related classes.
 
 ---
 

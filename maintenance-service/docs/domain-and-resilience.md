@@ -132,14 +132,17 @@ Current gaps:
 `MaintenanceSecurityConfig` defines a stateless `SecurityFilterChain`:
 
 * CSRF, form login and HTTP Basic are disabled; sessions are `STATELESS`.
-* All requests are `permitAll()`; there is no authentication or role check inside the service.
+* `/actuator/**`, `/h2-console/**`, `/swagger-ui/**` and `/v3/api-docs/**` are `permitAll()`; every other request must be authenticated.
+* `JwtAuthenticationFilter` (iteration 2) verifies the `Authorization: Bearer` token with `security.jwt.secret` and turns the `roles` claim into `ROLE_<role>` authorities.
+* The controller declares `@PreAuthorize` roles (see `README.md`, section 2.1), but the class has `@EnableWebSecurity` and not `@EnableMethodSecurity`, so they are not evaluated: any valid token reaches every endpoint.
 * `gatewaySecretFilter` (`OncePerRequestFilter`, registered before `UsernamePasswordAuthenticationFilter`) requires `X-Gateway-Secret: sidis-g6-secret`. Otherwise it writes `403` with the plain-text body `Unauthorized Access! Please use the API Gateway!`.
 * Paths containing `/actuator`, `/h2-console`, `/swagger-ui` or `/api-docs` skip the check. The OpenAPI document is served at `/api/docs`, which does not match, so Swagger UI cannot load the spec.
 
 Responsibilities split with the API Gateway:
 
 * The gateway's `JwtAuthentication` filter validates the JWT signature (same secret as `auth-service`), returns `401` when it is missing or invalid, and adds `X-User-Name` and `X-Gateway-Secret` to the forwarded request.
-* `maintenance-service` trusts the secret header only; it does not validate the JWT, does not use `X-User-Name`, and has no `jjwt` dependency.
+* `maintenance-service` checks the secret header and validates the JWT again; it does not use `X-User-Name`.
+* Calls to `aircraft-service` forward the caller's token, so they inherit the caller's role; `aircraft-service` rejects technicians and supervisors with `403`.
 
 Known weaknesses:
 
@@ -148,7 +151,7 @@ Known weaknesses:
 
 ## 8. Bootstrap
 
-`Bootstrap` (`ApplicationRunner`) seeds data in PostgreSQL when there are no records. It publishes no RabbitMQ events, so the seeded templates and records are not in Redis and only `GET /records/{id}` (which reads PostgreSQL) sees them:
+`Bootstrap` (`ApplicationRunner`, `@Transactional`) seeds data in PostgreSQL when there are no records and no templates, then publishes one event per template and per record. Building the record events calls `record.getDoneList().getCompletionNotes()`, which throws `NullPointerException` for the records that have no `DoneList`; the transaction rolls back and the application stops. The template and record events sent before the failure stay in the queues and reach Redis, so the read side holds data that PostgreSQL does not. The data it tries to seed:
 
 | Template (id) | Operation / Attribute | Record | Aircraft | Status | Used Parts |
 | :--- | :--- | :--- | :--- | :--- | :--- |

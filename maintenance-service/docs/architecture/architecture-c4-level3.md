@@ -43,7 +43,7 @@ The `maintenance-service` currently exposes two controllers and the following ma
 * **`UseCaseLoggingAdvice`**
    * AOP logging of `@UseCase` classes (`@within` pointcut).
 * **`Bootstrap`**
-   * Seeds 4 templates and 4 records in PostgreSQL only (no events, so they are not in Redis).
+   * Seeds 4 templates and 4 records in PostgreSQL and publishes their events, inside one transaction. It currently fails on a record without a `DoneList`, so the service does not start on an empty database (see `../README.md`).
 
 External integration clients:
 

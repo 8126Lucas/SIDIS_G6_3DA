@@ -65,7 +65,7 @@ Request names follow `Action - expected status [user story]`, for example `Creat
 * The same script generates unique values for each run (`modelName`, `aircraftReg`, `airportIata`, ...). In the app these values persist between runs, so run `00 - Setup` before repeating the collection. Newman starts fresh every time.
 * Each folder runs on its own, but the requests inside a service folder depend on each other. Run them in order.
 * Some tests check the seeded data, such as the costs of CS-TUA. If they fail after manual changes, restart the services to reset their in-memory databases.
-* All tokens reach all endpoints, because the gateway only validates the JWT and no service has rules per role. The role tokens saved by `01 - Auth Service` are there to try a call as another user.
+* Since iteration 2, `aircraft-service` checks roles (`@PreAuthorize`), so some requests need a token of another role than `backoffice`. The role tokens saved by `01 - Auth Service` can be used for that. `maintenance-service` declares roles but does not enforce them yet; `airport-service`, `flight-service` and `route-service` have no role checks.
 
 ## Expected statuses
 
@@ -86,16 +86,24 @@ Each test in `09 - Known Issues` pins a wrong behaviour, so a run stays green an
 
 ## Status after iteration 2
 
-The expectations describe the API of iteration 1. Against commit `230065c` (CQRS in aircraft and maintenance), 81 of 323 assertions fail. Most failures come from the gaps listed in [`../data-architecture-cqrs.md`](../data-architecture-cqrs.md), section 7, and spread to the requests that depend on them:
+The expectations describe the API of iteration 1, and every request is sent as `backoffice`. Against commit `1935a82`, 89 of 323 assertions fail:
+
+| Cause | Failed assertions |
+| --- | --- |
+| Role checks (RBAC) in `aircraft-service`: the endpoint needs `ATCC`, the collection sends `backoffice` | 14 |
+| A request needs an id that an earlier, failed request should have stored | 9 |
+| Behaviour of the current code (below) | 66 |
 
 | Area | Behaviour now | Cause |
 | --- | --- | --- |
 | `POST /api/hangar/aircraft` | Always `404 Aircraft not found in database` | The controller changes the availability before creating the aircraft |
-| `GET /api/catalog/{model}` right after creating the model | `404` | Catalog lookup uses `findByModelName` on Redis without an index |
-| Seeded aircraft (`CS-TUA`, `D-ABXA`, ...) | `404` on read endpoints | Seed data is saved only in PostgreSQL |
-| `GET /api/hangar/analytics/status-summary` | `500` | `countByStatus` on Redis without an index |
+| `POST /api/flights/scheduled` | `409 Aircraft range information is unavailable` | The model projection in Redis loses range, fuel and speed |
 | `POST /api/maintenance/templates` | `201` with no body, so the template id is not stored | Response changed from `200` with the template |
-| `POST /api/maintenance/record` | `400 Malformed JSON` | The template id was not stored (row above), so the body is sent with `"templateId": ,` |
-| Scheduling flights, maintenance records, both journeys | Fail in chain | No aircraft can be created or read |
+| `GET /api/maintenance/records` | `500 No property 'findAll' found` | JPA `Specification` used on a Redis repository |
+| `/api/maintenance/parts/*` | `500` | `NullPointerException` on records without used parts |
+| Maintenance calls to `aircraft-service` | `500` (from a `403`) | The caller's token is forwarded and its role is not accepted by `aircraft-service` |
+| Journeys 1 and 2 | Fail in chain | No aircraft can be created and no flight can be scheduled |
 
-When the code is fixed, re-run the collection and update the expectations that changed on purpose (for example the template `201`).
+`maintenance-service` was only reachable after inserting a row in its database by hand: on an empty database it stops during `Bootstrap` (see [`../data-architecture-cqrs.md`](../data-architecture-cqrs.md), section 7).
+
+To make the collection useful again it has to log in with the role each request needs (the collection script supports per-role tokens, see `01 - Auth Service`) and follow the contract changes that are intended, such as the template `201`.

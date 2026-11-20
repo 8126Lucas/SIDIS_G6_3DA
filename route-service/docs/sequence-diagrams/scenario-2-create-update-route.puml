@@ -15,7 +15,7 @@ participant "RouteController\n<<REST Controller>>" as controller
 participant "RouteService\n<<UseCase>>" as route_uc
 participant "AirportRestClientService\n<<RestClient Adapter>>" as airport_client
 participant "RouteRepository\n<<JPA Repository>>" as repo
-database "H2 Database\n<<In-Memory DB>>" as db
+database "PostgreSQL\n<<write model>>" as db
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 participant "Airport Service\n<<External Microservice>>" as airport_api
 
@@ -139,5 +139,12 @@ else route found
 end
 deactivate controller
 deactivate gateway
+
+
+note over repo, db
+  After the transaction commits, RouteEventPublisher sends a
+  RouteChangedEvent to RabbitMQ and RouteRedisProjector updates Redis
+  (ignored when Redis already holds the same or a newer version).
+end note
 
 @enduml

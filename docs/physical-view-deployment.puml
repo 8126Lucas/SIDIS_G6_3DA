@@ -58,9 +58,10 @@ HAP --> GW2 : round robin\n+ health check
 ' --- DISCOVERY ---
 DN1 <--> DN2 : peer replication
 
-' --- DATA (aircraft and maintenance, the services already migrated) ---
+' --- DATA (examples; every business service does the same) ---
 AC1 --> PG : JDBC (write)
 MT2 --> PG : JDBC (write)
+RT1 --> PG : JDBC (write)
 AC1 --> MQ12 : AMQP events
 R1 .. R2 : Redis cluster
 R2 .. R3 : Redis cluster
@@ -74,10 +75,9 @@ end note
 
 note bottom of PC5
   All services: two instances, 300M memory limit.
-  aircraft and maintenance write to PostgreSQL, publish
-  events to RabbitMQ and read from their Redis cluster.
-  airport, flight and route still run on H2 in memory:
-  their PostgreSQL and Redis entries are not used yet.
+  aircraft, maintenance, airport, flight and route write to
+  PostgreSQL, publish events to RabbitMQ and read from their
+  own Redis cluster. auth keeps a SQLite file per instance.
 end note
 
 @enduml

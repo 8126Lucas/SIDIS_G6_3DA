@@ -15,7 +15,7 @@ participant "AirportController\n<<REST Controller>>" as controller
 participant "AirportCsvService\n<<Application Service>>" as csv_svc
 participant "AirportService\n<<UseCase>>" as airport_uc
 participant "AirportRepository\n<<JPA Repository>>" as repo
-database "H2 Database\n<<In-Memory DB>>" as db
+database "PostgreSQL\n<<write model>>" as db
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 
 box "Airport Service [Container]" #LightBlue
@@ -135,5 +135,12 @@ else airport found
 end
 deactivate controller
 deactivate gateway
+
+
+note over repo, db
+  After the transaction commits, AirportEventPublisher sends a
+  AirportChangedEvent to RabbitMQ and AirportRedisProjector updates Redis
+  (ignored when Redis already holds the same or a newer version).
+end note
 
 @enduml

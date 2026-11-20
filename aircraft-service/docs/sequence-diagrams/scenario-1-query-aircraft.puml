@@ -99,9 +99,9 @@ loop for each AircraftAvailability
     activate search_svc
     search_svc -> repo : countByStatus(status)
     activate repo
-    repo -> db : derived query on status\n(no @Indexed: no secondary index exists)
-    db --> repo : nothing found
-    repo --> search_svc : no value (request ends in 500)
+    repo -> db : count on the status index
+    db --> repo : no value returned
+    repo --> search_svc : null for a primitive long\n(request ends in 500)
     deactivate repo
     search_svc --> controller : long
     deactivate search_svc

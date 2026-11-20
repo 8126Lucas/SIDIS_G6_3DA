@@ -10,7 +10,7 @@ This `docs/` folder contains the high-level system architectural blueprints, C4 
 
 The **AISafe Flight Management System** is a distributed, microservice-based platform built on **Java 21** and **Spring Boot 3.x**. It provides full-lifecycle support for airline operations, including fleet management, airport infrastructure, maintenance records, route definitions, authentication, and flight scheduling.
 
-In iteration 2 the system runs on **five PCs**, with **two instances of every component** spread over them, a load balancer in front of the gateways, and a shared data layer for the services migrated to CQRS.
+In iteration 2 the system runs on **five PCs**, with **two instances of every component** spread over them, a load balancer in front of the gateways, and a shared data layer (PostgreSQL, Redis, RabbitMQ) used by every business service with data, all following CQRS.
 
 ### Core Ecosystem Components
 
@@ -19,11 +19,11 @@ In iteration 2 the system runs on **five PCs**, with **two instances of every co
 * **Discovery Service (`8761` PC1, `8762` PC3):** Two peer Spring Cloud Netflix Eureka Server nodes for the service registry and client-side load balancing.
 * **Auth Service (`8101 - 8110`):** Manages user accounts, credentials, and JWT token issuance. SQLite file per instance.
 * **Aircraft Service (`8081 - 8090`):** Manages aircraft models, operational specifications, and fleet hangar instances. CQRS: PostgreSQL + Redis + RabbitMQ.
-* **Airport Service (`8091 - 8100`):** Manages airport infrastructure, runway specs, and OpenCSV data imports.
+* **Airport Service (`8091 - 8100`):** Manages airport infrastructure, runway specs, and OpenCSV data imports. CQRS: PostgreSQL + Redis + RabbitMQ.
 * **Maintenance Service (`8121 - 8130`):** Manages checklists, maintenance logs, and scheduled aircraft overhauls. CQRS: PostgreSQL + Redis + RabbitMQ.
-* **Route Service (`8131 - 8140`):** Manages flight routes, network distances, and waypoint histories.
-* **Flight Operations Service (`8111 - 8120`):** Handles flight schedules, route assignments, real-time status transitions, and utilization metrics.
-* **Data and messaging:** PostgreSQL 15 (PC5) as write store, one Redis cluster per CQRS service as read store, RabbitMQ 3.12 for the synchronisation events.
+* **Route Service (`8131 - 8140`):** Manages flight routes, network distances, and waypoint histories. CQRS: PostgreSQL + Redis + RabbitMQ.
+* **Flight Operations Service (`8111 - 8120`):** Handles flight schedules, route assignments, real-time status transitions, and utilization metrics. CQRS: PostgreSQL + Redis + RabbitMQ.
+* **Data and messaging:** PostgreSQL 15 (PC5) as write store, one Redis cluster per business service as read store, RabbitMQ 3.12 for the synchronisation events.
 * **Monitoring:** Prometheus (`9090`, PC1) scrapes the Spring Boot Actuator metrics of the instances registered in Eureka.
 
 ---
@@ -61,7 +61,7 @@ docs/
 
 ### 3.2. C4 Level 2 — Container Diagram
 * **File:** `container-diagram-c4-level2.puml`
-* **Scope:** Illustrates the internal container structure: **HAProxy** in front of the two **API Gateway** instances, the routing to the microservices, the two **Eureka** nodes, the write store (**PostgreSQL**), read store (**Redis cluster**) and message broker (**RabbitMQ**) of the CQRS services, the SQLite of `auth-service`, the H2 databases of the services not yet migrated, and **Prometheus**. Inter-service REST calls are listed in `global-network-and-ports.md`, section 8.
+* **Scope:** Illustrates the internal container structure: **HAProxy** in front of the two **API Gateway** instances, the routing to the microservices, the two **Eureka** nodes, the write store (**PostgreSQL**), read store (**Redis cluster**) and message broker (**RabbitMQ**) of the business services, the SQLite of `auth-service`, and **Prometheus**. Inter-service REST calls are listed in `global-network-and-ports.md`, section 8.
 
 ### 3.3. UML Logical View — Level 1
 * **File:** `global-logical-view-level1.puml`
@@ -73,7 +73,7 @@ docs/
 
 ### 3.5. Data Architecture — CQRS and Synchronisation
 * **Files:** `data-architecture-cqrs.md`, `cqrs-data-flow.puml`
-* **Scope:** Why SQLite was replaced by a central PostgreSQL, how `aircraft-service` and `maintenance-service` split commands (PostgreSQL) from queries (Redis cluster), the RabbitMQ exchanges and queues that project each write into Redis, and the gaps found in the current implementation.
+* **Scope:** Why SQLite was replaced by a central PostgreSQL, how the five business services split commands (PostgreSQL) from queries (Redis cluster), the two implementations of that pattern in the team, the RabbitMQ exchanges and queues that project each write into Redis, and the gaps found when running the current code.
 
 ### 3.6. Domain Model (DDD) — UML Class Diagram
 * **File:** `domain-model-ddd.puml`

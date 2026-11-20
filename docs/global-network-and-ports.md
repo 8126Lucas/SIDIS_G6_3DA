@@ -8,7 +8,7 @@ This document describes the network topology, port allocation, distribution over
 
 Clients call the system only through **HAProxy** on PC1 (`https://192.168.137.1`, port `443`). HAProxy forwards each TLS connection, without decrypting it, to one of the two **API Gateway** instances (`7979` on PC1, `7980` on PC4). The gateway validates the JWT and routes the request by path prefix to a business service, resolved through the **Eureka Discovery Service** (two peer nodes). Every service runs two instances on different PCs; they register in Eureka with their PC's IP, so any gateway or service can reach any instance.
 
-Business services call each other over HTTP, also through Eureka, and each one rejects requests that do not carry the gateway secret header. `aircraft-service` and `maintenance-service` also use PostgreSQL, RabbitMQ and a Redis cluster (see [`data-architecture-cqrs.md`](data-architecture-cqrs.md)).
+Business services call each other over HTTP, also through Eureka, and each one rejects requests that do not carry the gateway secret header. The five business services with data of their own use PostgreSQL, RabbitMQ and a Redis cluster (see [`data-architecture-cqrs.md`](data-architecture-cqrs.md)).
 
 ---
 
@@ -130,9 +130,29 @@ Both gateways and both `auth-service` instances share the same secret, so a toke
 
 ### 7.2. Roles
 
-`auth-service` seeds one collaborator per role (`ADMIN`, `ATCC`, `BACKOFFICE`, `MAINTENANCE_TECHNICIAN`, `MAINTENANCE_SUPERVISOR`) and puts the roles in the token, but neither the gateway nor any service checks them: every authenticated collaborator can call every endpoint.
+`auth-service` seeds one collaborator per role and puts the roles in the token:
+
+| Username / password | Role |
+| :--- | :--- |
+| `admin` / `admin123` | `ADMIN` |
+| `atcc` / `atcc123` | `ATCC` |
+| `backoffice` / `backoffice123` | `BACKOFFICE` |
+| `technician` / `technician123` | `MAINTENANCE_TECHNICIAN` |
+| `supervisor` / `supervisor123` | `MAINTENANCE_SUPERVISOR` |
+
+The gateway still only validates the token. Roles are checked inside the services, where a `JwtAuthenticationFilter` reads the `roles` claim (as `ROLE_<role>`) and `@PreAuthorize` protects each endpoint:
+
+| Service | Role checks |
+| :--- | :--- |
+| `aircraft-service` | **Enforced** (`@EnableMethodSecurity`). For example `POST /api/hangar/aircraft`, `GET /api/hangar/aircraft` and the availability analytics need `ATCC`; model changes, availability changes, fuel and operational-hours analytics need `BACKOFFICE`; `GET /api/hangar/aircraft/{reg}` accepts both. A wrong role gets `403 Access Denied`. |
+| `maintenance-service` | **Declared but not enforced.** The controller has `@PreAuthorize` on every endpoint (templates, records and status changes: `MAINTENANCE_TECHNICIAN`; ongoing, turnaround and parts: `MAINTENANCE_SUPERVISOR`; costs, alerts and hours: `ATCC`), but `MaintenanceSecurityConfig` has no `@EnableMethodSecurity`, so any authenticated collaborator passes. The controller tests enable it in their own test configuration, so they do not show the gap. |
+| `airport-service`, `flight-service`, `route-service` | No role checks. |
 
 Details: [`auth-service/docs/security-and-authorization.md`](../auth-service/docs/security-and-authorization.md).
+
+### 7.3. Roles in calls between services
+
+A service that calls another one forwards the caller's `Authorization` header (`JwtTokenInterceptor`), so the second service checks the **original user's** role. `maintenance-service` calls `aircraft-service` (`GET /api/hangar/aircraft/{reg}`, `GET /api/hangar/aircraft?size=1000`), which only accepts `ATCC` or `BACKOFFICE`. With a technician's or supervisor's token, `aircraft-service` answers `403` and `maintenance-service` turns it into `500`. As a result, a technician cannot create a maintenance record (`POST /api/maintenance/record`), and record searches and the turnaround report fail for the roles meant to use them.
 
 ---
 
@@ -157,10 +177,10 @@ Retries: `aircraft-service` and `maintenance-service` retry failed calls up to 3
 
 ### 8.2. Asynchronous (RabbitMQ)
 
-RabbitMQ is used only inside `aircraft-service` and `maintenance-service`, to project their writes into Redis (CQRS). No event crosses service boundaries yet. Exchanges, queues and routing keys: [`data-architecture-cqrs.md`](data-architecture-cqrs.md), section 4.
+Each of the five services with a database uses RabbitMQ inside itself, to project its writes into Redis (CQRS). No event crosses service boundaries. Exchanges, queues and routing keys: [`data-architecture-cqrs.md`](data-architecture-cqrs.md), section 4.2.
 
 ---
 
 ## 9. Monitoring
 
-`prometheus` (PC1, `9090`, `prometheus.yml`) discovers its targets in Eureka (`http://discovery-node1:8761/eureka`) and scrapes `/actuator/prometheus` every 15 seconds, using HTTPS for the gateways. Only the components with `micrometer-registry-prometheus` expose that endpoint: `aircraft-service`, `maintenance-service`, `auth-service`, `APIgateway` and `discovery-service`. `airport-service`, `flight-service` and `route-service` are discovered but have no metrics endpoint.
+`prometheus` (PC1, `9090`, `prometheus.yml`) discovers its targets in Eureka (`http://discovery-node1:8761/eureka`) and scrapes `/actuator/prometheus` every 15 seconds, using HTTPS for the gateways. All eight modules include `micrometer-registry-prometheus` and expose `/actuator/prometheus`, `/actuator/health` and `/actuator/info`; the gateway secret filter of the five business services lets `/actuator` through. `auth-service` does not exempt it: its security chain requires authentication on every path except login, so Prometheus gets `403` from it.

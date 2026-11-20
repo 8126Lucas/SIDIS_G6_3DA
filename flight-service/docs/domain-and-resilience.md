@@ -30,7 +30,7 @@ None of these methods is called by an endpoint, so every flight created through 
 Scheduling is triggered by `POST /api/flights/scheduled`:
 
 1. `FlightController` loads the aircraft and its model through `AircraftSearchService`.
-2. `RouteService.scheduleFlight(...)` loads the route and both airports, runs `validateFlightSchedule(...)`, patches the route usage in `route-service`, and saves the new `Flight`.
+2. `FlightService.scheduleFlight(...)` loads the route and both airports, runs `validateFlightSchedule(...)`, patches the route usage in `route-service`, and saves the new `Flight`.
 
 Rules in `validateFlightSchedule(...)` (all `DomainException` → `409`):
 
@@ -47,10 +47,9 @@ Rules in `validateFlightSchedule(...)` (all `DomainException` → `409`):
 
 | Use Case / Service | Responsibility | User Story |
 | :--- | :--- | :--- |
-| `RouteService` (`@UseCase`) | Scheduling orchestration, validation, route usage update; flights by aircraft | US212, US213 |
+| `FlightService` (`@UseCase`, renamed from `RouteService`) | Scheduling orchestration, validation, route usage update; saves to PostgreSQL and publishes the change | US212 |
 | `AircraftSearchService` | Aircraft and model lookup in `aircraft-service` (also has unused filtering and ranking helpers) | US212 |
-| `FlightSearchService` | All flights (also has unused per-aircraft and date-range helpers) | — |
-| `FlightUtilizationReportService` | Flights per route | US229 |
+| `FlightQueryService` | All flights, flights by aircraft, flights by aircraft in a time window, route utilization report; reads Redis (replaces `FlightSearchService` and `FlightUtilizationReportService`) | US213, US229 |
 
 `UseCaseLoggingAdvice` uses the pointcut `within(com.sidis.flightservice.UseCase)`, which matches the `UseCase` annotation type itself rather than classes annotated with it (`@within(...)`), so no use case calls are logged.
 

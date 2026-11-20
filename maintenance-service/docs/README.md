@@ -23,12 +23,19 @@ Current implemented responsibilities:
 Important implementation notes:
 
 * **CQRS (iteration 2).** Commands write to PostgreSQL (`maintenance_db`) and publish an event to RabbitMQ; a listener in the service projects it into the Redis cluster. Template reads, record searches, reports and alerts read from Redis; `GET /records/{id}` still reads PostgreSQL. Details: [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md).
-* **Known gaps of the CQRS version:** template lookups by id and the records listed by `GET /records` (each embeds its template) fail with `404`, and status-based reports return empty lists, because the Redis derived queries have no `@Indexed` field; seeded templates and records are only in PostgreSQL.
-* Creating a template or a record now answers `201 Created` with an empty body.
+* The read models have `@Indexed` fields, so template lookups by id and status-based reports work on Redis.
+* **Known gaps (verified by running commit `1935a82`):**
+  * **The service does not start on an empty database.** `Bootstrap` seeds PostgreSQL and publishes the seed events inside one transaction, then fails with a `NullPointerException` on a record without a `DoneList` (`Bootstrap.java:212`). PostgreSQL is rolled back, but the events already queued reach Redis, which then holds records that do not exist on the write side. Every restart repeats it.
+  * **Roles are not enforced.** The controller has `@PreAuthorize` on every endpoint, but `MaintenanceSecurityConfig` lacks `@EnableMethodSecurity` (the controller tests enable it themselves, so they pass).
+  * **Calls to `aircraft-service` fail for maintenance roles.** The caller's token is forwarded and `aircraft-service` only accepts `ATCC`/`BACKOFFICE`, so a technician cannot create a record (`500`, from a `403`).
+  * `GET /records` answers `500` (`findAll(Specification, Pageable)` is not supported on Redis); `/parts/inventory` and `/parts/low-stock` answer `500` (`NullPointerException`).
+  * `PATCH /records/{id}` (attribute change) publishes no event, so the template in Redis keeps the old attribute.
+* Creating a template or a record answers `201 Created` with an empty body.
+* `GET /api/maintenance/reports/hours` (iteration 2, `ATCC`) returns the total maintenance hours per aircraft, from the `MaintenanceHoursReport` read model.
 * There is optimistic locking on `MaintenanceRecord` via `@Version` (not on `MaintenanceTemplate`); conflicts map to `409`.
 * Records are completed through `PATCH /api/maintenance/records/{id}/complete`; `updateProgress(...)` (duration and used parts) is still not exposed.
 * `DomainException` now maps to `404 Not Found`, so every business-rule rejection (for example an invalid status transition) is also reported as `404`.
-* `GET /api/maintenance/records` (US218) only works when the `aircraft` filter is given; without it the search service dereferences `null` and returns `500` (see `api-specification.md`, section 3.10).
+* `GET /api/maintenance/records` (US218) also dereferences `null` when the `aircraft` filter is missing (see `api-specification.md`, section 3.10).
 * Outgoing calls have 2-second timeouts and up to 3 attempts (`@Retryable`, enabled with `@EnableRetry`).
 * A template that is not found locally is looked up in other instances through `PeerForwarder`, but the service id passed is `aircraft-service` (see `domain-and-resilience.md`, section 6).
 
@@ -50,6 +57,17 @@ Important implementation notes:
 | Service Registry | `${EUREKA_URL_1},${EUREKA_URL_2}` | Both discovery nodes; registers with `${IP_PC<n>}` as its address |
 | Outgoing Call Timeouts | `2000` ms connect / `2000` ms read | `GlobalRestClientConfig` |
 | Gateway Secret | `sidis-g6-secret` | Hardcoded in `MaintenanceSecurityConfig` and `JwtTokenInterceptor` |
+
+### 2.1. Roles per Endpoint (declared, not enforced)
+
+| Endpoint | `@PreAuthorize` role |
+| :--- | :--- |
+| `POST /templates`, `GET /templates/{id}`, `POST /record`, `GET /records/{id}`, `PATCH /records/{id}/status`, `PATCH /records/{id}`, `PATCH /records/{id}/complete` | `MAINTENANCE_TECHNICIAN` |
+| `GET /ongoing`, `GET /turnaround-average`, `GET /parts/inventory`, `GET /parts/low-stock` | `MAINTENANCE_SUPERVISOR` |
+| `GET /reports/costs`, `GET /alerts`, `GET /reports/hours` | `ATCC` |
+| `GET /templates`, `GET /records` | any authenticated user |
+
+Without `@EnableMethodSecurity` these annotations have no effect at runtime (see section 1).
 
 External client base URLs configured in code (resolved through Eureka via `@LoadBalanced` `RestClient.Builder`):
 

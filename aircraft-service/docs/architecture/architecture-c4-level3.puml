@@ -107,8 +107,9 @@ model_cmd_repo --> aircraft_pg : "aircraft_models_catalog\n[JDBC/JPA]"
 aircraft_cmd_repo --> aircraft_pg : "company_aircrafts\n[JDBC/JPA]"
 model_query_repo --> aircraft_redis : "AircraftModel:<modelName>"
 aircraft_query_repo --> aircraft_redis : "Aircraft:<registration>"
-bootstrapper --> model_cmd_repo : "seeds catalog\n(PostgreSQL only)"
-bootstrapper --> aircraft_cmd_repo : "seeds fleet\n(PostgreSQL only)"
+bootstrapper --> model_cmd_repo : "seeds catalog"
+bootstrapper --> aircraft_cmd_repo : "seeds fleet"
+bootstrapper --> rabbit : "one event per seeded row"
 
 ' --- outgoing HTTP ---
 flight_search_svc --> flight_client : "all flights"

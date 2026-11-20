@@ -14,18 +14,24 @@ The `route-service` currently exposes one controller and the following main appl
    * Creation and update (`POST /`, `PATCH /{routeId}`).
    * Queries (`GET /{routeId}`, `GET /{routeId}/history`, `GET /`, `GET /from/{airportIataCode}`, `GET /active`, `GET /alternatives`).
    * Network analytics and export (`GET /total-distance`, `GET /export/geojson`, `GET /export/kml`).
-* **`RouteService`** (`@UseCase`)
-   * Creation rules (IATA format, distinct airports, unique name, operational airports), updates, status transitions and history replacement, lookups, `Specification`-based search, sorting, and total distance.
+* **`RouteService`** (`@UseCase`) — command side
+   * Creation rules (IATA format, distinct airports, unique name, operational airports), updates, status transitions and history replacement. Saves the `Route` in PostgreSQL and raises a `RouteChangedEvent`.
+* **`RouteQueryService`** — query side (iteration 2; replaces `RouteSearchService` and the read methods of `RouteService`)
+   * Lookups by id, details, history, routes per airport, search, active routes, total distance, alternatives and compatible routes, all read from Redis.
 * **`RouteExportService`** (`@UseCase`)
-   * GeoJSON and KML generation (US228).
-* **`RouteSearchService`**
-   * Compatible-route filtering by aircraft capacity and range (not used by any endpoint).
+   * GeoJSON and KML generation (US228), from the read side.
+* **`RouteReadRepository`** / **`RouteReadModelMapper`** / **`RouteReadModel`**
+   * Spring Data Redis over the route Redis cluster (`Route:<routeId>`, `status` and `iataCode` indexed); the read model carries the JPA `@Version`.
+* **`RouteEventPublisher`** / **`RouteRedisProjector`** / **`RabbitMQConfig`**
+   * After the transaction commits, the publisher sends the event to `route.exchange` (`route.event.updated`); the projector (`route.sync.queue`, concurrency 1) stores it in Redis unless Redis already holds the same or a newer version.
 * **`AirportRestClientService`** / **`AircraftRestClientService`** / **`FlightRestClientService`**
    * `RestClient` adapters for `airport-service` (used), `aircraft-service` (not injected), and `flight-service` (no methods), built from the shared `GlobalRestClientConfig` builder (2 s timeouts, `JwtTokenInterceptor`). Their `@Retryable` annotations are inactive (no `@EnableRetry`).
 * **`PeerForwarder`**
    * Forwards a GET to other instances of a service; not used by any controller.
 * **`RouteRepository`**
-   * Spring Data JPA persistence with `JpaSpecificationExecutor`.
+   * Spring Data JPA over PostgreSQL (`route_db`); the write model.
+* **`Bootstrap`**
+   * Seeds routes when needed, then republishes every route on every start so Redis is rebuilt from PostgreSQL.
 * **`GlobalExceptionHandler`**
    * Cross-cutting HTTP error normalization (`ErrorDetails`).
 * **`UseCaseLoggingAdvice`**
@@ -51,7 +57,8 @@ PlantUML source file:
 
 1. Inbound requests arrive through the API Gateway for `/api/routes/**`; the gateway validates the JWT and adds `X-Gateway-Secret`, which `gatewaySecretFilter` checks (`403` when missing).
 2. Creation and update go from `RouteController` to `RouteService`, which validates the airports through `AirportRestClientService` and persists through `RouteRepository`.
-3. Read and analytics flows use `RouteService` over `RouteRepository`.
-4. Export flows use `RouteExportService`, which reads all routes and builds the GeoJSON / KML text.
-5. `aircraft-service` and `airport-service` call the read endpoints of this service; `flight-service` reads a route and then patches its history when it schedules a flight.
-6. Exceptions are transformed by `GlobalExceptionHandler` into `ErrorDetails` payloads.
+3. Creation and update save the route in PostgreSQL; after commit, `RouteEventPublisher` sends the change to RabbitMQ and `RouteRedisProjector` writes it to Redis.
+4. Read and analytics flows use `RouteQueryService` over `RouteReadRepository` (Redis).
+5. Export flows use `RouteExportService`, which reads all routes and builds the GeoJSON / KML text.
+6. `aircraft-service` and `airport-service` call the read endpoints of this service; `flight-service` reads a route and then patches its history when it schedules a flight.
+7. Exceptions are transformed by `GlobalExceptionHandler` into `ErrorDetails` payloads.

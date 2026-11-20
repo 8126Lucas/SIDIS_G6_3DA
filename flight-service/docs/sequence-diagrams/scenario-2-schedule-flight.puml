@@ -13,9 +13,9 @@ actor "Client / Postman" as client
 participant "API Gateway\n<<Gateway>>" as gateway
 participant "FlightController\n<<REST Controller>>" as controller
 participant "AircraftSearchService\n<<Application Service>>" as aircraft_search
-participant "RouteService\n<<UseCase>>" as route_svc
+participant "FlightService\n<<UseCase>>" as route_svc
 participant "FlightRepository\n<<JPA Repository>>" as repo
-database "H2 Database\n<<In-Memory DB>>" as db
+database "PostgreSQL\n<<write model>>" as db
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 participant "Aircraft Service\n<<External Microservice>>" as aircraft_svc
 participant "Route Service\n<<External Microservice>>" as route_api
@@ -91,5 +91,12 @@ deactivate controller
 deactivate gateway
 
 note right of route_svc : The route usage is patched before the flight is saved\nand is not rolled back if the save fails.
+
+
+note over repo, db
+  After the transaction commits, FlightEventPublisher sends a
+  FlightChangedEvent to RabbitMQ and FlightRedisProjector updates Redis
+  (ignored when Redis already holds the same or a newer version).
+end note
 
 @enduml

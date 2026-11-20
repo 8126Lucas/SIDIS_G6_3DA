@@ -42,7 +42,7 @@ In every flow the API Gateway first validates the JWT and forwards the request w
 
 1. Client requests the summary.
 2. For each `AircraftAvailability`, the controller calls `countByAvailability(...)`.
-3. `AircraftQueryRepository.countByStatus(...)` is a derived query on a field without `@Indexed`, so Redis has no index to answer it; the request currently ends in `500` instead of returning the map.
+3. `AircraftQueryRepository.countByStatus(...)` returns no value on Redis, although `status` is `@Indexed`; the method returns a primitive `long`, so the request ends in `500` (`Null return value from advice does not match primitive return type`) instead of returning the map.
 
 #### Flow D — Rejected Requests
 
@@ -65,10 +65,10 @@ Scenario 2 describes the write flows in `POST /api/hangar/aircraft` (US102) and 
 ### Key Steps
 
 1. Client sends `POST /api/hangar/aircraft` with model name, registration, dates, hours, and availability.
-2. The controller first calls `AircraftLifeCycleUpdaterService.changeAvailability(...)`, which looks the aircraft up in PostgreSQL. The aircraft does not exist yet, so the request ends with `404 Aircraft not found in database` (current behaviour).
+2. `@PreAuthorize` requires the `ATCC` role (`403` otherwise). The controller then calls `AircraftLifeCycleUpdaterService.changeAvailability(...)`, which looks the aircraft up in PostgreSQL. The aircraft does not exist yet, so the request ends with `404 Aircraft not found in database` (current behaviour).
 3. The creation it would run next is `AddAircraftUseCase`: load the model from PostgreSQL (`409` if missing), save the aircraft, publish `aircraft.event.created`, answer `201 Created`.
 4. `AircraftRedisProjector` (on whichever instance takes the message from `aircraft.sync.queue`) writes `Aircraft:<registration>` to Redis.
-5. `PATCH` validates path/body match (`409`), loads the aircraft from PostgreSQL (`404`), applies the new availability, saves, publishes `aircraft.event.updated`, and returns `200 OK`; the projector then replaces the Redis hash.
+5. `PATCH` requires `BACKOFFICE` (`403` otherwise), validates path/body match (`409`), loads the aircraft from PostgreSQL (`404`), applies the new availability, saves, publishes `aircraft.event.updated`, and returns `200 OK`; the projector then replaces the Redis hash.
 
 ---
 

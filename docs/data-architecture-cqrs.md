@@ -1,6 +1,6 @@
 # AISafe Flight Management System — Data Architecture, CQRS and Asynchronous Synchronisation
 
-This document describes how the services store and synchronise their data in the second iteration, as implemented: the move from SQLite to a central PostgreSQL, the CQRS split between a write store and a Redis read store, and the RabbitMQ events that keep both sides in sync.
+This document describes how the services store and synchronise their data in the second iteration, as implemented at commit `1935a82`: the move from SQLite to a central PostgreSQL, the CQRS split between a write store and a Redis read store, and the RabbitMQ events that keep both sides in sync.
 
 Diagram: [`cqrs-data-flow.puml`](cqrs-data-flow.puml).
 
@@ -22,90 +22,105 @@ The data was therefore split by purpose:
 
 ## 2. Store per Service
 
-| Service | Write side (as implemented) | Read side (as implemented) |
+| Service | Write side | Read side | Redis nodes (host ports) |
+| :--- | :--- | :--- | :--- |
+| `aircraft-service` | PostgreSQL `aircraft_db` | Redis hashes `Aircraft`, `AircraftModel` | `6379`, `6380`, `6381` |
+| `maintenance-service` | PostgreSQL `maintenance_db` | Redis hashes `MaintenanceRecord`, `MaintenanceTemplate`, `MaintenanceHoursReport` | `6382`, `6383`, `6384` |
+| `airport-service` | PostgreSQL `airport_db` | Redis hash `Airport` | `6385`, `6386`, `6387` |
+| `flight-service` | PostgreSQL `flight_db` | Redis hash `Flight` | `6388`, `6389`, `6390` |
+| `route-service` | PostgreSQL `route_db` | Redis hash `Route` | `6391`, `6392`, `6393` |
+| `auth-service` | SQLite `/data/auth.db`, one file per instance (`./data/auth-service-N`) | — | — |
+
+PostgreSQL: image `postgres:15-alpine`, container `postgresql-1`, port `5432`, user `sidis`, data in `./data/postgres`. `postgres-init.sql` creates the five databases and Hibernate creates the tables (`ddl-auto=update`).
+
+---
+
+## 3. Two Implementations of the Same Pattern
+
+All five services follow CQRS (commands write to PostgreSQL and publish an event; a listener projects it into Redis; queries read Redis), but they were built in two different ways.
+
+| | Aircraft, Maintenance | Airport, Flight, Route |
 | :--- | :--- | :--- |
-| `aircraft-service` | PostgreSQL `aircraft_db` | Redis cluster `redis-aircraft-1..3` |
-| `maintenance-service` | PostgreSQL `maintenance_db` | Redis cluster `redis-maintenance-1..3` |
-| `auth-service` | SQLite `/data/auth.db`, one file per instance (`./data/auth-service-N`) | — |
-| `airport-service` | H2 in memory (code) | — |
-| `flight-service` | H2 in memory (code) | — |
-| `route-service` | H2 in memory (code) | — |
+| Repositories | `*CommandRepository` (JPA) + `*QueryRepository` (Spring Data Redis) | JPA repository + `*ReadRepository` (Spring Data Redis) |
+| Read model | One `*Redis` class per aggregate, copied field by field | One `*ReadModel` record per aggregate, built by a `*ReadModelMapper` |
+| Query code | Search, report and alert services read the query repositories | One `*QueryService` per service |
+| Event | One event per aggregate with every read-model field (`AircraftSyncEvent`, ...) | `*ChangedEvent` that wraps the whole read model |
+| When the event is sent | Inside the command, with `rabbitTemplate.convertAndSend`, **before** the transaction commits | `@TransactionalEventListener(AFTER_COMMIT)` in a `*EventPublisher`, **only after** PostgreSQL commits |
+| Out-of-order events | Last event wins | Each read model carries the JPA `@Version`; the projector ignores an event whose version is not newer than the stored one |
+| Startup | `Bootstrap` seeds PostgreSQL and publishes one event per seeded row (only when the tables are empty) | `Bootstrap` seeds if needed, then republishes **every** row on every start, so Redis is rebuilt from PostgreSQL |
+| Listener | `@RabbitListener` with default concurrency | `@RabbitListener(concurrency = "1")` |
 
-`postgres-init.sql` also creates `airport_db`, `flight_db` and `route_db`, and `docker-compose.yml` already gives those services a PostgreSQL URL and a Redis cluster (`redis-airport-*`, `redis-flight-*`, `redis-route-*`). Their code has not been migrated yet: the `pom.xml` has only the H2 driver, and there is no Redis or RabbitMQ code. See section 7.
-
-PostgreSQL: image `postgres:15-alpine`, container `postgresql-1`, port `5432`, user `sidis`, data in `./data/postgres`. Hibernate creates the tables (`ddl-auto=update`).
-
----
-
-## 3. CQRS in Aircraft and Maintenance
-
-Each aggregate has two repositories and two representations:
-
-| Aggregate | Command repository (JPA, PostgreSQL) | Query repository (Spring Data Redis) | Redis hash |
-| :--- | :--- | :--- | :--- |
-| Aircraft | `AircraftCommandRepository` → `Aircraft` | `AircraftQueryRepository` → `AircraftRedis` | `Aircraft:<registration>` |
-| Aircraft model | `AircraftModelCommandRepository` → `AircraftModel` | `AircraftModelQueryRepository` → `AircraftModelRedis` | `AircraftModel:<modelName>` |
-| Maintenance record | `MaintenanceRecordCommandRepository` → `MaintenanceRecord` | `MaintenanceRecordQueryRepository` → `MaintenanceRecordRedis` | `MaintenanceRecord:<id>` |
-| Maintenance template | `MaintenanceTemplateCommandRepository` → `MaintenanceTemplate` | `MaintenanceTemplateQueryRepository` → `MaintenanceTemplateRedis` | `MaintenanceTemplate:<id>` |
-
-The `*Redis` classes are flat read models: they keep identifiers (model name, aircraft registration, template id) instead of JPA relations.
-
-### 3.1. Which side each use case uses
-
-| Use case | Reads from | Writes to | Publishes |
-| :--- | :--- | :--- | :--- |
-| `AddModelUseCase` | — | PostgreSQL | `aircraftmodel.event.created` |
-| `AircraftModelUpdater` | PostgreSQL | PostgreSQL | `aircraftmodel.event.updated` |
-| `AircraftModelSearchService` | Redis | — | — |
-| `AddAircraftUseCase` | PostgreSQL (model) | PostgreSQL | `aircraft.event.created` |
-| `AircraftLifeCycleUpdaterService` | PostgreSQL | PostgreSQL | `aircraft.event.updated` |
-| `AircraftSearchService`, `FuelEfficiencyService`, `FlightSearchService` | Redis | — | — |
-| `AddMaintenanceTemplateUseCase` | — | PostgreSQL | `maintenancetemplate.event.created` |
-| `AddMaintenanceRecordUseCase` | PostgreSQL (template) | PostgreSQL | `maintenance.event.created` |
-| `MaintenanceRecordProgressService` (also serves `GET /records/{id}`) | PostgreSQL | PostgreSQL | `maintenance.event.updated` |
-| `MaintenanceTemplateSearchService`, `MaintenanceRecordSearchService`, `MaintenanceReportService`, `MaintenanceAlertService`, `PartsInventoryService` | Redis | — | — |
-
-Commands validate against the write model (for example, the model must exist in PostgreSQL before an aircraft is added). Queries and reports read Redis, with one exception: `GET /api/maintenance/records/{id}` goes through `MaintenanceRecordProgressService` and reads PostgreSQL.
+Sending after commit and checking versions makes the second approach safer: a rolled-back command never reaches Redis, and a late, older event cannot overwrite a newer one.
 
 ---
 
-## 4. Synchronisation with RabbitMQ
+## 4. CQRS per Service
 
-After saving to PostgreSQL, the command publishes a JSON event (`Jackson2JsonMessageConverter`) to a topic exchange. A `@RabbitListener` in the same service (the *projector*) receives it and creates or replaces the Redis hash.
+### 4.1. Which side each use case uses
 
-| Exchange (topic) | Routing keys sent | Queue (durable) | Binding | Event | Projector |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `aircraft.exchange` | `aircraft.event.created`, `aircraft.event.updated` | `aircraft.sync.queue` | `aircraft.event.#` | `AircraftSyncEvent` | `AircraftRedisProjector` |
-| `aircraftmodel.exchange` | `aircraftmodel.event.created`, `aircraftmodel.event.updated` | `aircraftmodel.sync.queue` | `aircraftmodel.event.#` | `AircraftModelSyncEvent` | `AircraftModelRedisProjector` |
-| `maintenance.exchange` | `maintenance.event.created`, `maintenance.event.updated` | `maintenance.sync.queue` | `maintenance.event.#` | `MaintenanceRecordSyncEvent` | `MaintenanceRecordRedisProjector` |
-| `maintenancetemplate.exchange` | `maintenancetemplate.event.created` | `maintenancetemplate.sync.queue` | `maintenancetemplate.event.#` | `MaintenanceTemplateSyncEvent` | `MaintenanceTemplateRedisProjector` |
+| Service | Commands (PostgreSQL + event) | Queries (Redis) |
+| :--- | :--- | :--- |
+| Aircraft | `AddModelUseCase`, `AircraftModelUpdater`, `AddAircraftUseCase`, `AircraftLifeCycleUpdaterService` | `AircraftModelSearchService`, `AircraftSearchService`, `FuelEfficiencyService`, `FlightSearchService` |
+| Maintenance | `AddMaintenanceTemplateUseCase`, `AddMaintenanceRecordUseCase`, `MaintenanceRecordProgressService` | `MaintenanceTemplateSearchService`, `MaintenanceRecordSearchService`, `MaintenanceReportService`, `MaintenanceAlertService`, `PartsInventoryService` |
+| Airport | `AirportService` (create, update details, status, certifications; the CSV import parses the file with `AirportCsvService` and creates each airport through `AirportService`) | `AirportQueryService` (by IATA, search, grouping, busiest airports, routes per airport) |
+| Flight | `FlightService` (schedule a flight) | `FlightQueryService` (all flights, flights per aircraft, route utilization report) |
+| Route | `RouteService` (create, update) | `RouteQueryService` (by id, details, history, per airport, search, active routes, total distance, alternatives, compatible routes), `RouteExportService` (GeoJSON, KML) |
 
-Each event carries the whole read model (for example `AircraftSyncEvent`: registration, model name, status, manufacturing date, operational and flight hours, mean range, features), so the projector does not query PostgreSQL.
+Commands validate against the write model (for example, the model must exist in PostgreSQL before an aircraft is added). One read still uses the write side: `GET /api/maintenance/records/{id}` goes through `MaintenanceRecordProgressService` and reads PostgreSQL.
 
-### 4.1. Two instances, one queue
+### 4.2. RabbitMQ exchanges and queues
+
+All exchanges are topic exchanges, all queues are durable, and messages are JSON (`Jackson2JsonMessageConverter`).
+
+| Exchange | Routing keys | Queue | Event | Projector |
+| :--- | :--- | :--- | :--- | :--- |
+| `aircraft.exchange` | `aircraft.event.created`, `.updated` | `aircraft.sync.queue` | `AircraftSyncEvent` | `AircraftRedisProjector` |
+| `aircraftmodel.exchange` | `aircraftmodel.event.created`, `.updated` | `aircraftmodel.sync.queue` | `AircraftModelSyncEvent` | `AircraftModelRedisProjector` |
+| `maintenance.exchange` | `maintenance.event.created`, `.updated` | `maintenance.sync.queue` | `MaintenanceRecordSyncEvent` | `MaintenanceRecordRedisProjector` |
+| `maintenancetemplate.exchange` | `maintenancetemplate.event.created` | `maintenancetemplate.sync.queue` | `MaintenanceTemplateSyncEvent` | `MaintenanceTemplateRedisProjector` |
+| `airport.exchange` | `airport.event.updated` | `airport.sync.queue` | `AirportChangedEvent` | `AirportRedisProjector` |
+| `flight.exchange` | `flight.event.updated` | `flight.sync.queue` | `FlightChangedEvent` | `FlightRedisProjector` |
+| `route.exchange` | `route.event.updated` | `route.sync.queue` | `RouteChangedEvent` | `RouteRedisProjector` |
+
+Events stay inside their own service: no service consumes another service's events. Calls between services are still synchronous HTTP (see `global-network-and-ports.md`, section 8).
+
+### 4.3. Two instances, one queue
 
 Both instances of a service declare and listen to the **same queue**, so RabbitMQ delivers each event to only one of them (competing consumers). This is enough because the Redis cluster is shared: whichever instance projects the event, both instances read the same result.
 
-### 4.2. Consistency
+### 4.4. Consistency
 
 The read side is **eventually consistent**. A command returns as soon as PostgreSQL is updated and the event is published; the query side changes a few milliseconds later. A read sent immediately after a write can still return the old value or `404`.
 
-### 4.3. Brokers
+### 4.5. Indexes
 
-Three RabbitMQ 3.12 nodes are declared (`rabbitmq-1` and `rabbitmq-2` on PC5, `rabbitmq-3` on PC3). Services receive all three in `spring.rabbitmq.addresses` and connect to the first one that answers (3-second connection timeout).
+Spring Data Redis answers queries on non-key fields only for fields marked `@Indexed`:
+
+| Read model | Indexed fields |
+| :--- | :--- |
+| `AircraftRedis` | `modelName`, `status`, `manufacturingDate`, `seatingPack`, `certifications` |
+| `AircraftModelRedis` | `modelName` |
+| `MaintenanceRecordRedis` | `aircraftRegistration`, `maintenanceTemplateId`, `startDate`, `endDate`, `durationHours`, `status` |
+| `MaintenanceTemplateRedis` | `name`, `operation`, `attribute` |
+| `AirportReadModel` | `status`, `city`, `country` |
+| `FlightReadModel` | `aircraftRegistrationNumber` |
+| `RouteReadModel` | `status`, `iataCode` |
 
 ---
 
-## 5. Redis Cluster
+## 5. Brokers and Redis Clusters
 
-Each service with a read model has three `redis:7-alpine` nodes on different PCs:
+**RabbitMQ.** Three RabbitMQ 3.12 nodes are declared (`rabbitmq-1` and `rabbitmq-2` on PC5, `rabbitmq-3` on PC3). Services receive them in `spring.rabbitmq.addresses` and connect to the first one that answers.
+
+**Redis.** Each service has three `redis:7-alpine` nodes on different PCs and uses the Spring Data Redis cluster client (`spring.data.redis.cluster.nodes`, `max-redirects=3`): keys are spread over the nodes by hash slot.
 
 | Cluster | Nodes (container → host port, PC) |
 | :--- | :--- |
-| Aircraft | `redis-aircraft-1` → `6379` (PC1), `redis-aircraft-2` → `6380` (PC2), `redis-aircraft-3` → `6381` (PC3) |
-| Maintenance | `redis-maintenance-1` → `6382` (PC1), `redis-maintenance-2` → `6383` (PC2), `redis-maintenance-3` → `6384` (PC3) |
-
-The services use the Spring Data Redis cluster client (`spring.data.redis.cluster.nodes`, `max-redirects=3`): keys are spread over the nodes by hash slot, and the client follows redirects to the node that owns a key.
+| Aircraft | `redis-aircraft-1..3` → `6379` (PC1), `6380` (PC2), `6381` (PC3) |
+| Maintenance | `redis-maintenance-1..3` → `6382` (PC1), `6383` (PC2), `6384` (PC3) |
+| Airport | `redis-airport-1..3` → `6385` (PC4), `6386` (PC5), `6387` (PC5) |
+| Flight | `redis-flight-1..3` → `6388` (PC4), `6389` (PC5), `6390` (PC5) |
+| Route | `redis-route-1..3` → `6391` (PC4), `6392` (PC5), `6393` (PC5) |
 
 ---
 
@@ -116,17 +131,20 @@ The services use the Spring Data Redis cluster client (`spring.data.redis.cluste
 3. RabbitMQ routes the event to `aircraft.sync.queue`; one instance's `AircraftRedisProjector` writes `Aircraft:<registration>` to the Redis cluster.
 4. `GET /api/hangar/aircraft/{reg}` on either instance reads the hash from Redis.
 
+(As implemented, step 2 is never reached: see section 7.)
+
 ---
 
 ## 7. Known Gaps (As Implemented)
 
-Found when running the system and reading the code at commit `230065c`:
+Verified by running the system at commit `1935a82` on one machine (PostgreSQL, one Redis cluster per service and RabbitMQ in Docker; the eight modules as jars):
 
-* **Redis is not started as a cluster.** The Redis containers in `docker-compose.yml` run with the default configuration (`cluster-enabled no`) and nothing runs `redis-cli --cluster create`, while the services use the cluster client. A cluster has to be created by hand before the read side works.
-* **Third Redis node address.** `SPRING_REDIS_CLUSTER_NODES` of aircraft and maintenance points the third node to `${IP_PC4}` (`6381` / `6384`), but `redis-aircraft-3` and `redis-maintenance-3` run on PC3.
-* **The RabbitMQ nodes are not clustered.** They share an Erlang cookie, but no node joins the others, so they are three separate brokers. Queues and messages are not replicated, and the extra addresses only act as fallbacks.
-* **Seeded data is not projected.** Both `Bootstrap` classes save the initial data only in PostgreSQL and publish no events, so the seeded aircraft, models, templates and records do not exist on the read side until they are changed.
-* **Lookups by non-key fields return nothing.** Spring Data Redis only answers derived queries on fields marked `@Indexed`, and no read model has one. `findByModelName` (catalog lookup), `findByTemplateId` (template lookup, and the records listed by `GET /api/maintenance/records`, which embed their template), `findByStatus` (ongoing activities, turnaround, alerts) and `countByStatus` (availability summary) therefore find nothing, although the hashes exist; `findById` would read the same hash by its key.
-* **Attribute changes are not projected.** `PATCH /api/maintenance/records/{id}` changes the template's attribute in PostgreSQL (by dirty checking) but publishes no event, so `MaintenanceTemplate:<id>` in Redis keeps the old attribute.
 * **Adding an aircraft fails.** `HangarController.addAircraft` calls `changeAvailability` before `AddAircraftUseCase`, so it looks for the aircraft before creating it and answers `404 Aircraft not found in database`.
-* **Airport, flight and route are not migrated.** Their code still uses H2. The PostgreSQL URL that `docker-compose.yml` passes them needs a driver they do not have, and their Redis containers are not used.
+* **Model specs are lost in the projection.** For seeded models, the Redis hash keeps `standardSeatingCapacity` but not the maximum range, fuel capacity or cruising speed, which are in PostgreSQL. Because `flight-service` reads the range from the catalog, **every flight schedule fails** with `409 Aircraft range information is unavailable`.
+* **`countByStatus` returns no value.** `GET /api/hangar/analytics/status-summary` answers `500` (`Null return value from advice does not match primitive return type`), even with `status` indexed.
+* **Maintenance does not start on an empty database.** `Bootstrap` saves the seed data and publishes its events inside one transaction; it fails with a `NullPointerException` on a record without a `DoneList` (`Bootstrap.java:212`). The transaction rolls back, so PostgreSQL stays empty, but the events already sent are in the queue and reach Redis: the read side then holds records that do not exist on the write side. Every restart repeats the failure.
+* **Maintenance record search is not supported on Redis.** `GET /api/maintenance/records` uses `findAll(Specification, Pageable)` on the Redis repository and answers `500 No property 'findAll' found for type 'MaintenanceRecordRedis'`.
+* **Parts summaries fail.** `/api/maintenance/parts/inventory` and `/parts/low-stock` answer `500` (`NullPointerException`) when a record in Redis has no list of used parts.
+* **Attribute changes are not projected.** `PATCH /api/maintenance/records/{id}` changes the template's attribute in PostgreSQL but publishes no event, so `MaintenanceTemplate:<id>` in Redis keeps the old attribute (seen in code; it could not be run because records cannot be created, see `global-network-and-ports.md`, section 7.3).
+* **Redis is not started as a cluster.** The Redis containers in `docker-compose.yml` run with the default configuration (`cluster-enabled no`) and nothing runs `redis-cli --cluster create`, while the services use the cluster client. A cluster has to be created by hand before the read side works.
+* **The RabbitMQ nodes are not clustered.** They share an Erlang cookie, but no node joins the others, so they are three separate brokers. Queues and messages are not replicated, and the extra addresses only act as fallbacks.

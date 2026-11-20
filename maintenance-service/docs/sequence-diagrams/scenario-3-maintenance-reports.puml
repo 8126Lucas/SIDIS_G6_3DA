@@ -78,7 +78,7 @@ activate controller
 controller -> alert_svc : findAircraftDueForMaintenance(180, 500)
 activate alert_svc
 alert_svc -> record_repo : findByStatus(COMPLETED)
-record_repo --> alert_svc : empty list\n(derived query on status, no @Indexed)
+record_repo --> alert_svc : List<MaintenanceRecordRedis>\n(status is @Indexed)
 
 alert_svc -> aircraft_client : findAll()
 activate aircraft_client
