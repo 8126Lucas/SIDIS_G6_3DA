@@ -91,7 +91,9 @@ public class AirportController {
                 runways,
                 certifications,
                 contacts,
-                request.airportPhotos()
+                request.airportPhotos() == null
+                        ? List.of()
+                        : request.airportPhotos()
         );
         airportService.execute(airport);
     }
@@ -291,7 +293,10 @@ public class AirportController {
                             facilities.gateCount()
                     ),
                     airport.routeDistance(),
-                    airport.runways().stream()
+                    (airport.runways() == null
+                            ? List.<AirportReadModel.RunwayData>of()
+                            : airport.runways())
+                            .stream()
                             .map(runway -> new RunwayResponse(
                                     runway.runwayName(),
                                     runway.length(),
@@ -299,7 +304,11 @@ public class AirportController {
                                     runway.status()
                             ))
                             .toList(),
-                    airport.certifications().stream()
+
+                    (airport.certifications() == null
+                            ? List.<AirportReadModel.CertificationData>of()
+                            : airport.certifications())
+                            .stream()
                             .map(certification -> new CertificationResponse(
                                     certification.name(),
                                     certification.category(),
@@ -307,13 +316,17 @@ public class AirportController {
                                     certification.expiresAt()
                             ))
                             .toList(),
-                    airport.contacts().stream()
+
+                    (airport.contacts() == null
+                            ? List.<AirportReadModel.ContactData>of()
+                            : airport.contacts())
+                            .stream()
                             .map(contact -> new ContactResponse(
                                     contact.type(),
                                     contact.value()
                             ))
                             .toList(),
-                    airport.photos(),
+                    airport.photos() == null ? List.of() : airport.photos(),
                     airport.operationalHours()
             );
         }

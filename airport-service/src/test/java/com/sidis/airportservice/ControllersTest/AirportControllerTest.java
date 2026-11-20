@@ -78,7 +78,7 @@ class AirportControllerTest {
 
     // POST /api/airports
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldRegisterAirportSuccessfully() throws Exception {
         String json = """
         {
@@ -114,7 +114,7 @@ class AirportControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldReturn400WhenAirportJsonIsInvalid() throws Exception {
         mockMvc.perform(post("/api/airports")
                         .with(csrf())
@@ -125,7 +125,7 @@ class AirportControllerTest {
 
     // POST /api/airports/{iataCode}/certifications
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldAddCertificationSuccessfully() throws Exception {
         Certification certification = mock(Certification.class);
         when(certification.getName()).thenReturn("ISO 9001");
@@ -158,7 +158,7 @@ class AirportControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldReturn400WhenCertificationExpiryIsBeforeStart() throws Exception {
         String json = """
         {
@@ -179,7 +179,7 @@ class AirportControllerTest {
 
     // GET /api/airports/{iataCode}
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldGetAirportSuccessfully() throws Exception {
         AirportReadModel readModel = mock(AirportReadModel.class);
 
@@ -204,7 +204,7 @@ class AirportControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldHandleAirportNotFound() throws Exception {
         when(airportQueryService.getAirportByIata("XXX")).thenReturn(Optional.empty());
         mockMvc.perform(get("/api/airports/XXX")).andExpect(status().isNotFound());
@@ -212,7 +212,7 @@ class AirportControllerTest {
 
     // GET /api/airports
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldSearchAirportsSuccessfully() throws Exception {
         when(airportQueryService.searchAirports(
                 "Porto", "Portugal", null))
@@ -226,7 +226,7 @@ class AirportControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldSearchAirportsWithoutFilters() throws Exception {
         when(airportQueryService.searchAirports(null, null, null)).thenReturn(List.of());
         mockMvc.perform(get("/api/airports"))
@@ -236,7 +236,7 @@ class AirportControllerTest {
 
     // PATCH /api/airports/{iataCode}/status
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldUpdateAirportStatusSuccessfully() throws Exception {
         when(airportService.updateStatus(
                 eq("OPO"), any(AirportStatus.class)))
@@ -258,7 +258,7 @@ class AirportControllerTest {
 
     // PATCH /api/airports/{iataCode}/details
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldUpdateAirportDetailsSuccessfully() throws Exception {
         when(airportService.updateDetails(
                 eq("OPO"), anyString(), anyString(), anyList()))
@@ -285,7 +285,7 @@ class AirportControllerTest {
 
     // GET /api/airports/{iataCode}/routes
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldGetAirportRoutesSuccessfully() throws Exception {
         when(airportQueryService.findRoutesByAirport("OPO")).thenReturn(List.of());
         mockMvc.perform(get("/api/airports/OPO/routes"))
@@ -296,7 +296,7 @@ class AirportControllerTest {
 
     // GET /api/airports/busiest
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldGetBusiestAirportsSuccessfully() throws Exception {
         when(airportQueryService.busiestAirports()).thenReturn(List.of());
         mockMvc.perform(get("/api/airports/busiest"))
@@ -306,7 +306,7 @@ class AirportControllerTest {
 
     // GET /api/airports/grouped
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldGetAirportsGroupedByCountryByDefault() throws Exception {
         when(airportQueryService.groupAirportsBy("country")).thenReturn(Map.of());
         mockMvc.perform(get("/api/airports/grouped"))
@@ -316,7 +316,7 @@ class AirportControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldGetAirportsGroupedByCity() throws Exception {
         when(airportQueryService.groupAirportsBy("city")).thenReturn(Map.of());
         mockMvc.perform(get("/api/airports/grouped")
@@ -327,7 +327,7 @@ class AirportControllerTest {
 
     // POST /api/airports/import
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldImportCsvSuccessfully() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -345,7 +345,7 @@ class AirportControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldReturn400WhenCsvFileIsMissing() throws Exception {
         mockMvc.perform(multipart("/api/airports/import")
                         .with(csrf()))
