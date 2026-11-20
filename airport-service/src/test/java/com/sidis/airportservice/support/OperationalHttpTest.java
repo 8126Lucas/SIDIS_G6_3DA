@@ -16,6 +16,7 @@ public abstract class OperationalHttpTest extends GatewayHttpTest {
 
     protected String unusedIata() throws Exception {
         Set<String> used = new HashSet<>();
+        authenticateAs("backoffice");
         get("/api/airports").forEach(a -> used.add(a.path("iataCode").asText()));
         for (int attempt = 0; attempt < 100; attempt++) {
             StringBuilder code = new StringBuilder();
