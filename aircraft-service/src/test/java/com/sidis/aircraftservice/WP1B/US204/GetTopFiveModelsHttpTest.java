@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.lang.Thread;
+import java.lang.System;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -25,6 +27,9 @@ class GetTopFiveModelsHttpTest extends OperationalHttpTest {
 
         String modelFirst = firstAircraft.path("modelName").asText();
         String modelLast = lastAircraft.path("modelName").asText();
+
+        Thread.sleep(1000);
+        
         var response = get("/api/catalog/rankings?mode=assignments");
 
         assertTrue(response.isArray());
@@ -40,8 +45,10 @@ class GetTopFiveModelsHttpTest extends OperationalHttpTest {
 
     @Test
     void shouldRankModelsByFlightHours() throws Exception {
-        String aircraft1=createAircraft(100000.0);
-        String aircraft2=createAircraft(653300000.0);
+        double maxHours = System.currentTimeMillis(); 
+        
+        String aircraft1 = createAircraft(maxHours / 2);
+        String aircraft2 = createAircraft(maxHours);
 
         var firstAircraft = get("/api/hangar/aircraft/" + aircraft1);
         var lastAircraft = get("/api/hangar/aircraft/" +aircraft2);
@@ -49,7 +56,11 @@ class GetTopFiveModelsHttpTest extends OperationalHttpTest {
         String modelFirst = firstAircraft.path("modelName").asText();
         String modelLast = lastAircraft.path("modelName").asText();
 
+        Thread.sleep(1000);
+
         var response = get("/api/catalog/rankings?mode=flight-hours");
+
+        System.out.println(response.toPrettyString());
 
         assertTrue(response.isArray());
 

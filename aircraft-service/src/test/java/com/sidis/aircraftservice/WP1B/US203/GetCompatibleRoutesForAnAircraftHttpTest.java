@@ -21,7 +21,7 @@ class GetCompatibleRoutesForAnAircraftHttpTest extends GatewayHttpTest {
 
     @Test
     void shouldReturn404WhenAircraftDoesNotExist() throws Exception {
-        authenticate("backoffice", "backoffice123");
+        authenticate("atcc", "atcc123");
         var response = expect(404, request("GET", "/api/hangar/aircraft/nan/compatible-routes", null));
         assertEquals(404, response.path("status").asInt());
     }

@@ -43,7 +43,7 @@ public class AddMaintenanceRecordUseCase {
     }
 
     @Transactional
-    public void executeShort(String registrationNumber, Long templateId, Double durationHours, String description, LocalDate startDate) {
+    public MaintenanceRecord executeShort(String registrationNumber, Long templateId, Double durationHours, String description, LocalDate startDate) {
         MaintenanceTemplate template = maintenanceTemplateCommandRepository.findById(templateId)
                 .orElseThrow(() -> new DomainException("Maintenance Template does not exist"));
         MaintenanceRecord record = new MaintenanceRecord(
@@ -63,8 +63,9 @@ public class AddMaintenanceRecordUseCase {
                     part.getPrice()));
         }
 
-        DoneListRedis doneListRedis = new DoneListRedis(record.getDoneList().getCompletionNotes(),
-                record.getDoneList().getTasksDone());
+        DoneListRedis doneListRedis = record.getDoneList() != null 
+            ? new DoneListRedis(record.getDoneList().getCompletionNotes(), record.getDoneList().getTasksDone()) 
+            : null;
 
         MaintenanceRecordSyncEvent event = new MaintenanceRecordSyncEvent(
                 record.getRecordId(),
@@ -85,7 +86,7 @@ public class AddMaintenanceRecordUseCase {
                 "maintenance.event.created",
                 event
         );
-
+        return record;
     }
 
     public void execute(MaintenanceRecord maintenanceRecord) {
@@ -98,8 +99,9 @@ public class AddMaintenanceRecordUseCase {
                     part.getPrice()));
         }
 
-        DoneListRedis doneListRedis = new DoneListRedis(maintenanceRecord.getDoneList().getCompletionNotes(),
-                maintenanceRecord.getDoneList().getTasksDone());
+        DoneListRedis doneListRedis = maintenanceRecord.getDoneList() != null 
+            ? new DoneListRedis(maintenanceRecord.getDoneList().getCompletionNotes(), maintenanceRecord.getDoneList().getTasksDone()) 
+            : null;
 
         MaintenanceRecordSyncEvent event = new MaintenanceRecordSyncEvent(
                 maintenanceRecord.getRecordId(),

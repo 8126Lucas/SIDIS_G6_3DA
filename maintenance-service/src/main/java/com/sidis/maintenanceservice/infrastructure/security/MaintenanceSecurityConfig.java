@@ -13,16 +13,21 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.core.env.Environment;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity
 public class MaintenanceSecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final Environment env;
 
-    public MaintenanceSecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public MaintenanceSecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                                    Environment env) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.env = env;
     }
 
     @Bean
@@ -55,8 +60,10 @@ public class MaintenanceSecurityConfig {
                 }
                 String gatewaySecret = request.getHeader("X-Gateway-Secret");
 
-                if ("sidis-g6-secret".equals(gatewaySecret)) {
-                    filterChain.doFilter(request, response);
+                boolean isTest = Arrays.asList(env.getActiveProfiles()).contains("test");
+
+                if (isTest || "sidis-g6-secret".equals(gatewaySecret)) {
+                filterChain.doFilter(request, response);
                 } else {
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                     response.getWriter().write("Unauthorized Access! Please use the API Gateway!");

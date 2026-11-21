@@ -15,6 +15,6 @@ import java.util.Optional;
 @Repository
 public interface AircraftQueryRepository extends CrudRepository<AircraftRedis, String>, PagingAndSortingRepository<AircraftRedis, String> {
     Optional<AircraftRedis> findByRegistrationNumber(String registrationNumber);
-    long countByStatus(AircraftAvailability availability);
+    Long countByStatus(AircraftAvailability availability);
     List<AircraftRedis> findAll();
 }

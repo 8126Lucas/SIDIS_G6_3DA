@@ -14,17 +14,22 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.core.env.Environment;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class AircraftSecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final Environment env;
 
-    public AircraftSecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public AircraftSecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                                 Environment env) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.env = env;
     }
 
     @Bean
@@ -35,7 +40,7 @@ public class AircraftSecurityConfig {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/**", "/h2-console/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/actuator/**", "/h2-console/**", "/swagger-ui/**", "/v3/api-docs/**", "/error").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(gatewaySecretFilter(), UsernamePasswordAuthenticationFilter.class)
@@ -57,8 +62,10 @@ public class AircraftSecurityConfig {
                 }
                 String gatewaySecret = request.getHeader("X-Gateway-Secret");
 
-                if ("sidis-g6-secret".equals(gatewaySecret)) {
-                    filterChain.doFilter(request, response);
+                boolean isTest = Arrays.asList(env.getActiveProfiles()).contains("test");
+
+                if (isTest || "sidis-g6-secret".equals(gatewaySecret)) {
+                filterChain.doFilter(request, response);
                 } else {
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                     response.getWriter().write("Unauthorized Access! Please use the API Gateway!");

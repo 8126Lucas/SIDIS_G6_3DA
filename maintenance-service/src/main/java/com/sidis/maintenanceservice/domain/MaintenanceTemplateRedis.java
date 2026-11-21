@@ -10,6 +10,7 @@ import java.util.Map;
 @RedisHash("MaintenanceTemplate")
 public class MaintenanceTemplateRedis {
     @Id
+    @Indexed
     private Long templateId;
     @Indexed
     private String name;

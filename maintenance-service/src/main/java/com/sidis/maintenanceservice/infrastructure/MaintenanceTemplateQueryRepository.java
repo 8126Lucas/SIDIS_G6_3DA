@@ -12,5 +12,7 @@ import java.util.Optional;
 @Repository
 public interface MaintenanceTemplateQueryRepository extends CrudRepository<MaintenanceTemplateRedis, Long> {
     List<MaintenanceTemplateRedis> findAll();
-    Optional<MaintenanceTemplateRedis> findByTemplateId(Long recordId);
+    default Optional<MaintenanceTemplateRedis> findByTemplateId(Long templateId) {
+        return findById(templateId);
+    }
 }

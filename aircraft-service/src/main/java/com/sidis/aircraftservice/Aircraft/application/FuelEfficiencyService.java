@@ -113,6 +113,7 @@ public class FuelEfficiencyService {
                                 }
 
                                 AircraftModelRedis model = aircraftModelSearchService.spotAircraftInCatalog(aircraft.getModelName()).orElse(null);
+                                if (model == null || model.getAircraftModelSpecs() == null) return 0.0;
                                 AircraftSpecsRedis specs = model.getAircraftModelSpecs();
                                 if (specs.getFuelCapacity() == null || specs.getMaximumRange() == null
                                         || specs.getMaximumRange() == 0) {

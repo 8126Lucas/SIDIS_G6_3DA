@@ -22,7 +22,8 @@ public class MaintenanceTemplateRedisProjector {
 
         MaintenanceTemplateRedis templateRedis = maintenanceQueryRepository.findById(event.templateId())
                 .orElseGet(MaintenanceTemplateRedis::new);
-
+        
+        templateRedis.setTemplateId(event.templateId());
         templateRedis.setName(event.name());
         templateRedis.setOperation(MaintenanceType.valueOf(String.valueOf(event.operation())));
         templateRedis.setExpectedDuration(event.expectedDuration());

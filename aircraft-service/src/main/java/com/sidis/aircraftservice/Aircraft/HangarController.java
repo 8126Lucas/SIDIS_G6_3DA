@@ -65,22 +65,20 @@ public class HangarController {
     @PreAuthorize("hasRole('ATCC')")
     @ResponseStatus(HttpStatus.CREATED)
     public void addAircraft(@Valid @RequestBody AddAircraftRequest request) {
-        aircraftLifeCycleUpdaterService.changeAvailability(
-                request.registrationNumber(),
-                AircraftAvailability.valueOf(request.availability())
-        );
-
+        AircraftAvailability availability = AircraftAvailability.valueOf(request.availability());
         addAircraftUseCase.execute(
-                request.registrationNumber(),
-                request.modelName(),
-                request.manufacturingDate(),
-                request.totalOperationalHours(),
-                request.totalFlightHours()
-        );
+            request.registrationNumber(), 
+            request.modelName(),
+            request.manufacturingDate(), 
+            request.totalOperationalHours(), 
+            request.totalFlightHours());
+        aircraftLifeCycleUpdaterService.changeAvailability(
+            request.registrationNumber(), 
+            availability);
     }
 
     @GetMapping("/aircraft/{registrationNumber}")
-    @PreAuthorize("hasAnyRole('ATCC', 'BACKOFFICE')")
+    @PreAuthorize("hasAnyRole('ATCC', 'BACKOFFICE', 'MAINTENANCE_SUPERVISOR', 'MAINTENANCE_TECHNICIAN')")
     public AircraftResponse getAircraft(@PathVariable String registrationNumber, HttpServletRequest request) {
         return aircraftSearchService.spotAircraftInHangar(registrationNumber)
                 .map(AircraftResponse::from)
@@ -168,10 +166,7 @@ public class HangarController {
     @PreAuthorize("hasRole('ATCC')")
     public Map<AircraftAvailability, Long> getAircraftAvailabilitySummary() {
         return Arrays.stream(AircraftAvailability.values())
-                .collect(Collectors.toMap(
-                        status -> status,
-                        aircraftSearchService::countByAvailability
-                ));
+                .collect(Collectors.toMap(status -> status, aircraftSearchService::countByAvailability));
     }
 
     /**

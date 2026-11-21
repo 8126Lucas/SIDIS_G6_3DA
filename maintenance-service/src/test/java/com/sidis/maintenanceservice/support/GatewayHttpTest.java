@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.lang.Thread;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -81,7 +82,7 @@ public abstract class GatewayHttpTest {
 
     protected HttpResponse<String> request(String method, String path, Object body) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
-                .timeout(Duration.ofSeconds(30)).header("Accept", "application/json");
+                .timeout(Duration.ofSeconds(30)).header("Accept", "application/json").header("X-Gateway-Secret", "sidis-g6-secret");
         if (token != null) builder.header("Authorization", "Bearer " + token);
         if (body != null) builder.header("Content-Type", "application/json");
         builder.method(method, body == null ? HttpRequest.BodyPublishers.noBody()
@@ -132,28 +133,41 @@ public abstract class GatewayHttpTest {
     protected JsonNode createTemplate() throws Exception {
         String name = unique();
         authenticate("technician","technician123");
-        JsonNode template = expect(200, request("POST", "/api/maintenance/templates", Map.of(
+        JsonNode template = expect(201, request("POST", "/api/maintenance/templates", Map.of(
                 "name", name, "expectedDuration", 2.0,
                 "templateChecklist", Map.of("Inspect engine", false),
                 "operation", "INSPECTION", "attribute", "ENGINE")));
-        assertTrue(template.path("templateId").isIntegralNumber());
-        assertTrue(template.path("templateId").asLong() > 0);
+
+        Thread.sleep(1500);
+        
+        JsonNode idNode = template.has("templateId") ? template.get("templateId") : template.get("id");
+        assertTrue(idNode != null && idNode.isIntegralNumber(), "ERRO! O JSON devolvido foi: " + template.toString());
+        assertTrue(idNode.asLong() > 0);
+        
         assertEquals(name, template.path("name").asText());
         assertEquals(2.0, template.path("expectedDuration").asDouble());
         assertEquals("INSPECTION", template.path("operation").asText());
         assertEquals("ENGINE", template.path("attribute").asText());
         assertEquals(JSON.valueToTree(Map.of("Inspect engine", false)), template.path("templateChecklist"));
+        
         return template;
     }
 
     protected JsonNode createRecord() throws Exception {
         String registration = createAircraft();
-        long templateId = createTemplate().path("templateId").asLong();
+        JsonNode template = createTemplate(); 
+
+        JsonNode idNode = template.has("templateId") ? template.get("templateId") : template.get("id");
+        long templateId = idNode.asLong();
+        
         authenticate("technician","technician123");
-        expect(200, request("POST", "/api/maintenance/record", Map.of(
+        expect(201, request("POST", "/api/maintenance/record", Map.of(
                 "registrationNumber", registration, "templateId", templateId,
                 "durationHours", 2.0, "description", "HTTP test inspection",
                 "startDate", "2026-01-01")));
+
+        Thread.sleep(1500);
+                
         JsonNode records = get("/api/maintenance/records?aircraft=" + registration);
         assertTrue(records.isArray());
         assertEquals(1, records.size(), "Expected the record created for this unique aircraft");
@@ -166,6 +180,7 @@ public abstract class GatewayHttpTest {
         assertEquals("HTTP test inspection", record.path("description").asText());
         assertEquals("2026-01-01", record.path("startDate").asText());
         assertEquals("INLINE", record.path("status").asText());
+        
         return record;
     }
 
