@@ -4,12 +4,14 @@ import com.sidis.maintenanceservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Disabled;
 import java.util.Map;
+import java.lang.Thread;
 import static org.junit.jupiter.api.Assertions.*;
 
 class MaintenanceAlertHttpTest extends GatewayHttpTest {
 
     @Test void shouldReturnAlertsWithDefaultThresholds() throws Exception {
         String registration = createAircraft();
+        Thread.sleep(1000);
         authenticate("atcc","atcc123");
         var rows = get("/api/maintenance/alerts");
         assertTrue(rows.isArray());
@@ -18,7 +20,8 @@ class MaintenanceAlertHttpTest extends GatewayHttpTest {
     }
     @Test void shouldAcceptCustomThresholds() throws Exception {
         String registration = createAircraft();
-        authenticate("supervisor","supervisor123");
+        Thread.sleep(1000);
+        authenticate("atcc","atcc123");
         var rows = get("/api/maintenance/alerts?calendarDaysThreshold=90&flightHoursThreshold=300");
         assertTrue(rows.isArray());
         assertTrue(java.util.stream.StreamSupport.stream(rows.spliterator(), false)

@@ -45,6 +45,7 @@ public class MaintenanceRecordRedisProjector {
             }
         }
 
+        recordRedis.setRecordId(event.recordId());
         recordRedis.setAircraftRegistration(event.aircraftRegistration());
         recordRedis.setStatus(MaintenanceStatus.valueOf(String.valueOf(event.status())));
         recordRedis.setMaintenanceTemplateId(event.maintenanceTemplateId());

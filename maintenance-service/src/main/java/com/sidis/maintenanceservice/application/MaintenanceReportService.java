@@ -83,7 +83,7 @@ public class MaintenanceReportService {
     }
 
     private Double recordCost(MaintenanceRecordRedis record) {
-        if (record.getUsedParts() == null) return 0.0;
+        if (record.getUsedParts().isEmpty()) return 0.0;
 
         return record.getUsedParts()
                 .stream()

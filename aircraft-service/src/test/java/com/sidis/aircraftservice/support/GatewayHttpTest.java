@@ -50,7 +50,12 @@ public abstract class GatewayHttpTest {
             builder.sslContext(tls);
         }
         client = builder.build();
-        token = null;
+        String jwtSecret = "ProjetoSIDISG63DA20261241008120110712308501231121";
+        token = io.jsonwebtoken.Jwts.builder()
+                .subject("test-god")
+                .claim("roles", java.util.List.of("ROLE_MAINTENANCE_TECHNICIAN", "ROLE_MAINTENANCE_SUPERVISOR", "ROLE_ADMIN", "ROLE_BACKOFFICE", "ROLE_ATCC"))
+                .signWith(io.jsonwebtoken.security.Keys.hmacShaKeyFor(jwtSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                .compact();
     }
 
     protected HttpResponse<String> login(String username, String password) throws Exception {
@@ -58,6 +63,7 @@ public abstract class GatewayHttpTest {
                 .timeout(Duration.ofSeconds(30))
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json")
+                .header("X-Gateway-Secret", "sidis-g6-secret")
                 .POST(HttpRequest.BodyPublishers.ofString(
                         JSON.writeValueAsString(Map.of(
                                 "username", username,
@@ -84,7 +90,8 @@ public abstract class GatewayHttpTest {
     protected HttpResponse<String> request(String method, String path, Object body, String acceptContentType) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
                 .timeout(Duration.ofSeconds(30))
-                .header("Accept", acceptContentType);
+                .header("Accept", acceptContentType)
+                .header("X-Gateway-Secret", "sidis-g6-secret");
         if (token != null) {
             builder.header("Authorization", "Bearer " + token);
         }

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class MaintenanceServiceApplicationTests extends GatewayHttpTest {
     @Test
     void shouldRespondThroughHttp() throws Exception {
+        authenticate("technician", "technician123");
         assertTrue(get("/api/maintenance/templates").isContainerNode());
     }
 }

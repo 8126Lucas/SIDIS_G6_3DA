@@ -9,6 +9,8 @@ import com.sidis.aircraftservice.AircraftCatalog.infrastructure.AircraftModelCom
 import com.sidis.aircraftservice.infrastructure.messaging.AircraftModelSyncEvent;
 import com.sidis.aircraftservice.infrastructure.messaging.AircraftSyncEvent;
 import com.sidis.aircraftservice.infrastructure.messaging.RabbitMQConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -21,6 +23,7 @@ import java.util.*;
 @Component
 //@Profile("dev")
 public class Bootstrap implements ApplicationRunner {
+    private static final Logger log = LoggerFactory.getLogger(Bootstrap.class);
     private final AircraftModelCommandRepository aircraftModelRepository;
     private final AircraftCommandRepository aircraftRepository;
     private final RabbitTemplate rabbitTemplate;
@@ -36,12 +39,40 @@ public class Bootstrap implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (aircraftModelRepository.count() == 0) {
-            seedAircraftModels();
+        if (aircraftModelRepository.count() == 0) seedAircraftModels();
+        if (aircraftRepository.count() == 0) seedAircraft();
+        republishModels();
+        republishAircrafts();
+    }
+    
+    private void republishModels() {
+        List<AircraftModel> models = aircraftModelRepository.findAll();
+        for (AircraftModel model : models) {
+            AircraftSpecsRedis specs = new AircraftSpecsRedis(
+                    model.getAircraftModelSpecs().getFuelCapacity(),
+                    model.getAircraftModelSpecs().getMaximumRange(),
+                    model.getAircraftModelSpecs().getCruisingSpeed(),
+                    model.getAircraftModelSpecs().getStandardSeatingCapacity());
+            rabbitTemplate.convertAndSend(RabbitMQConfig.MODEL_EXCHANGE_NAME,
+                    "aircraftmodel.event.created",
+                    new AircraftModelSyncEvent(model.getModelName(), model.getModelImage(),
+                            model.getManufacturer(), specs));
         }
-        if (aircraftRepository.count() == 0) {
-            seedAircraft();
+        log.info("Republished {} models", models.size());
+    }
+    
+    private void republishAircrafts() {
+        List<Aircraft> aircrafts = aircraftRepository.findAll();
+        for (Aircraft aircraft : aircrafts) {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.AIRCRAFT_EXCHANGE_NAME,
+                    "aircraft.event.created",
+                    new AircraftSyncEvent(aircraft.getRegistrationNumber(),
+                            aircraft.getModel().getModelName(), aircraft.getStatus().name(),
+                            aircraft.getManufacturingDate(), aircraft.getTotalOperationalHours(),
+                            aircraft.getTotalFlightHours(), aircraft.getMeanRange(),
+                            aircraft.getFeatures()));
         }
+        log.info("Republished {} aircrafts", aircrafts.size());
     }
 
     private void seedAircraftModels() {
@@ -139,26 +170,6 @@ public class Bootstrap implements ApplicationRunner {
         );
 
         aircraftModelRepository.saveAll(initialAircraftModels);
-
-        for (AircraftModel model : initialAircraftModels) {
-            AircraftSpecsRedis specs = new AircraftSpecsRedis(
-                    model.getAircraftModelSpecs().getFuelCapacity(),
-                    model.getAircraftModelSpecs().getMaximumRange(),
-                    model.getAircraftModelSpecs().getCruisingSpeed(),
-                    model.getAircraftModelSpecs().getStandardSeatingCapacity());
-
-            AircraftModelSyncEvent event = new AircraftModelSyncEvent(
-                    model.getModelName(),
-                    model.getModelImage(),
-                    model.getManufacturer(),
-                    specs
-            );
-            rabbitTemplate.convertAndSend(
-                    RabbitMQConfig.MODEL_EXCHANGE_NAME,
-                    "aircraftmodel.event.created",
-                    event
-            );
-        }
     }
 
     private void seedAircraft() {
@@ -330,23 +341,5 @@ public class Bootstrap implements ApplicationRunner {
         List<Aircraft> initialAircrafts = List.of(a1, a2, a3, a4, a5, a6,small,medium,large);
 
         aircraftRepository.saveAll(initialAircrafts);
-
-        for (Aircraft aircraft : initialAircrafts) {
-            AircraftSyncEvent event = new AircraftSyncEvent(
-                    aircraft.getRegistrationNumber(),
-                    aircraft.getModel().getModelName(),
-                    aircraft.getStatus().name(),
-                    aircraft.getManufacturingDate(),
-                    aircraft.getTotalOperationalHours(),
-                    aircraft.getTotalFlightHours(),
-                    aircraft.getMeanRange(),
-                    aircraft.getFeatures()
-            );
-            rabbitTemplate.convertAndSend(
-                    RabbitMQConfig.AIRCRAFT_EXCHANGE_NAME,
-                    "aircraft.event.created",
-                    event
-            );
-        }
     }
 }

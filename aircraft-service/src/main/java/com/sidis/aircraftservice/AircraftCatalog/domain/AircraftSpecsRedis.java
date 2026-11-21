@@ -1,8 +1,13 @@
 package com.sidis.aircraftservice.AircraftCatalog.domain;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class AircraftSpecsRedis {
+    @JsonProperty("fuelCapacity")   
     private Double fuelCapacityLiters;
+    @JsonProperty("maximumRange")   
     private Double maximumRangeKm;
+    @JsonProperty("cruisingSpeed")  
     private Double cruisingSpeedKph;
     private Integer standardSeatingCapacity;
 

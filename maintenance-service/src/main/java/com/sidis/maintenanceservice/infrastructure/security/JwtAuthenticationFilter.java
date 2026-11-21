@@ -17,6 +17,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.ArrayList;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -40,10 +41,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         .getPayload();
 
                 @SuppressWarnings("unchecked")
-                List<String> roles = claims.get("roles", List.class);
-
+                Object rolesClaim = claims.get("roles");
+                List<String> roles = new ArrayList<>();
+                if (rolesClaim instanceof List) {
+                    roles = (List<String>) rolesClaim;
+                } else if (rolesClaim instanceof String) {
+                    roles.add((String) rolesClaim);
+                }
                 List<SimpleGrantedAuthority> authorities = roles.stream()
-                        .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                        .map(role -> new SimpleGrantedAuthority(role.startsWith("ROLE_") ? role : "ROLE_" + role))
                         .toList();
 
                 UsernamePasswordAuthenticationToken authentication =

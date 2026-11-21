@@ -4,6 +4,7 @@ import com.sidis.maintenanceservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Disabled;
 import java.util.Map;
+import java.lang.Thread;
 import static org.junit.jupiter.api.Assertions.*;
 
 // Persistence is verified through the public API; Java overloads share the same HTTP operation.
@@ -11,6 +12,7 @@ class AddMaintenanceTemplateUseCaseToRepoTest extends GatewayHttpTest {
 
     @Test void shouldPersistMaintenanceTemplateThroughHttp() throws Exception {
         var template = createTemplate();
+        Thread.sleep(1000);
         var saved = get("/api/maintenance/templates/" + template.path("templateId").asLong());
         assertEquals(template, saved);
         assertEquals("INSPECTION", saved.path("operation").asText());
