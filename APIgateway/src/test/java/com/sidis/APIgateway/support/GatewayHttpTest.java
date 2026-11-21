@@ -49,8 +49,8 @@ public abstract class GatewayHttpTest {
         }
         client = builder.build();
         HttpResponse<String> response = request("POST", "/api/auth/login", Map.of(
-                "username", System.getenv().getOrDefault("SIDIS_BACKOFFICE_USERNAME", "backoffice"),
-                "password", System.getenv().getOrDefault("SIDIS_BACKOFFICE_PASSWORD", "backoffice123")));
+                "username", System.getenv().getOrDefault("SIDIS_BACKOFFICE_USERNAME", "atcc"),
+                "password", System.getenv().getOrDefault("SIDIS_BACKOFFICE_PASSWORD", "atcc123")));
         assertEquals(200, response.statusCode(), "Gateway login failed (check test credentials).");
         token = JSON.readTree(response.body()).path("token").asText();
         assertFalse(token.isBlank(), "Login must return a token");

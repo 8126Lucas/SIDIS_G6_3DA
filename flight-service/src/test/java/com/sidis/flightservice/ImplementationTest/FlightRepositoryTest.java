@@ -20,7 +20,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
-@ActiveProfiles("test")
+@ActiveProfiles("unit")
 class FlightRepositoryTest {
     @Autowired
     private FlightRepository flightRepository;

@@ -18,7 +18,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
-@ActiveProfiles("test")
+@ActiveProfiles("unit")
 class RouteRepositoryTest {
     @Autowired
     private RouteRepository routeRepository;
