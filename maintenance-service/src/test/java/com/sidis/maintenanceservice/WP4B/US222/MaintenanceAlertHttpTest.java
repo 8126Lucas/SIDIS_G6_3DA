@@ -10,6 +10,7 @@ class MaintenanceAlertHttpTest extends GatewayHttpTest {
 
     @Test void shouldReturnAlertsWithDefaultThresholds() throws Exception {
         String registration = createAircraft();
+        authenticate("atcc","atcc123");
         var rows = get("/api/maintenance/alerts");
         assertTrue(rows.isArray());
         assertTrue(java.util.stream.StreamSupport.stream(rows.spliterator(), false)
@@ -17,6 +18,7 @@ class MaintenanceAlertHttpTest extends GatewayHttpTest {
     }
     @Test void shouldAcceptCustomThresholds() throws Exception {
         String registration = createAircraft();
+        authenticate("supervisor","supervisor123");
         var rows = get("/api/maintenance/alerts?calendarDaysThreshold=90&flightHoursThreshold=300");
         assertTrue(rows.isArray());
         assertTrue(java.util.stream.StreamSupport.stream(rows.spliterator(), false)

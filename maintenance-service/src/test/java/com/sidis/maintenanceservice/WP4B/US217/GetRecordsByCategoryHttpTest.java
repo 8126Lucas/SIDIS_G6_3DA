@@ -16,8 +16,12 @@ class GetRecordsByCategoryHttpTest extends GatewayHttpTest {
     void shouldReturn200AfterCategoryAlteration() throws Exception {
         var created = createRecord();
         long recordId = created.path("id").asLong();
+
+        authenticate("technician","technician123");
         JsonNode original = get("/api/maintenance/records/" + recordId);
         String originalAttribute = original.path("template").path("attribute").asText();
+
+        authenticate("technician","technician123");
         var patchResponse = request("PATCH", "/api/maintenance/records/" + recordId, Map.of("attribute", "AVIONICS"));
         assertEquals(200, patchResponse.statusCode());
         JsonNode updated = get("/api/maintenance/records/" + recordId);
@@ -30,8 +34,12 @@ class GetRecordsByCategoryHttpTest extends GatewayHttpTest {
     void shouldReturn400WhenMaintenanceAttributeIsInvalid() throws Exception {
         var created = createRecord();
         long recordId = created.path("id").asLong();
+
+        authenticate("technician","technician123");
         JsonNode original = get("/api/maintenance/records/" + recordId);
         String originalAttribute = original.path("template").path("attribute").asText();
+
+        authenticate("technician","technician123");
         var patchResponse = request("PATCH", "/api/maintenance/records/" + recordId, Map.of("attribute", "INVALID_CATEGORY"));
         assertEquals(400, patchResponse.statusCode());
         JsonNode afterRequest = get("/api/maintenance/records/" + recordId);

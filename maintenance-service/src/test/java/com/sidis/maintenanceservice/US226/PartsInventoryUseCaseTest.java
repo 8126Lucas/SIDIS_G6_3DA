@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PartsInventoryUseCaseTest extends GatewayHttpTest {
 
     @Test void shouldReadInventoryAndThresholdAlertsThroughHttp() throws Exception {
+        authenticate("technician","technician123");
         var inventory = get("/api/maintenance/parts/inventory");
         var alerts = get("/api/maintenance/parts/low-stock?threshold=5");
         assertTrue(inventory.isArray());
@@ -28,6 +29,7 @@ class PartsInventoryUseCaseTest extends GatewayHttpTest {
     @Disabled("No public endpoint adds used parts; cannot seed aggregation fixtures.")
     @Test void shouldAggregateSamePartAcrossMultipleRecords() {}
     @Test void shouldAggregateMultipleDifferentParts() throws Exception {
+        authenticate("technician","technician123");
         var rows = get("/api/maintenance/parts/inventory");
         assertBootstrapInventory(rows);
         for (int i = 1; i < rows.size(); i++) {
@@ -37,6 +39,7 @@ class PartsInventoryUseCaseTest extends GatewayHttpTest {
         }
     }
     @Test void shouldReturnLowStockAlertWhenUsageExceedsThreshold() throws Exception {
+        authenticate("technician","technician123");
         var alerts = get("/api/maintenance/parts/low-stock?threshold=2");
         var tire = findRow(alerts, "partSerialNumber", "TIRE-900");
         assertEquals(4, tire.path("totalQuantityUsed").asInt());
@@ -47,6 +50,7 @@ class PartsInventoryUseCaseTest extends GatewayHttpTest {
         }
     }
     @Test void shouldNotAlertWhenUsageBelowThreshold() throws Exception {
+        authenticate("technician","technician123");
         var inventory = get("/api/maintenance/parts/inventory");
         assertBootstrapInventory(inventory);
         var alerts = get("/api/maintenance/parts/low-stock?threshold=5");
@@ -54,6 +58,7 @@ class PartsInventoryUseCaseTest extends GatewayHttpTest {
         assertTrue(alerts.isEmpty(), "All seeded quantities are below 5: " + alerts);
     }
     @Test void shouldAlertWhenUsageEqualsThreshold() throws Exception {
+        authenticate("technician","technician123");
         var alerts = get("/api/maintenance/parts/low-stock?threshold=2");
         var engine = findRow(alerts, "partSerialNumber", "ENG-001");
         assertEquals(2, engine.path("totalQuantityUsed").asInt());

@@ -14,6 +14,8 @@ public class GetMaintenanceHoursHttpTest extends GatewayHttpTest {
     void shouldReturnTotalMaintenanceHoursByAircraft() throws Exception {
         JsonNode created = createRecord();
         String aircraft = created.path("aircraftRegistration").asText();
+
+        authenticate("technician","technician123");
         JsonNode response = get("/api/maintenance/reports/hours");
         assertTrue(response.isArray());
         JsonNode row = findRow(response, "aircraftRegistration", aircraft);
@@ -24,6 +26,8 @@ public class GetMaintenanceHoursHttpTest extends GatewayHttpTest {
     @Test
     void shouldNotReturnAircraftWithoutMaintenanceRecords() throws Exception {
         String aircraft = createAircraft();
+
+        authenticate("atcc","atcc123");
         JsonNode response = get("/api/maintenance/reports/hours");
         assertTrue(response.isArray());
         boolean aircraftExists = StreamSupport.stream(response.spliterator(), false).anyMatch(row -> row.path("aircraftRegistration").asText().equals(aircraft));

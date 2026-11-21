@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ViewUtilizationHttpTest extends OperationalHttpTest {
     @Test
     void shouldReturnAircraftUtilizationHtml() throws Exception {
+        authenticate("backoffice", "backoffice123");
         HttpResponse<String> response = request("GET", "/api/hangar/view/utilization",null,"text/html");
         assertEquals(200, response.statusCode());
         assertTrue(response.headers().firstValue("Content-Type").orElse("").contains("text/html"));

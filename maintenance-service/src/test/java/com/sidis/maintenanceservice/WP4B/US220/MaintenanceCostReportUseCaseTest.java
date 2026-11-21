@@ -12,6 +12,8 @@ class MaintenanceCostReportUseCaseTest extends GatewayHttpTest {
     @Test void shouldReportZeroCostForAircraftWithNoUsedParts() throws Exception {
         var record = createRecord();
         String registration = record.path("aircraftRegistration").asText();
+
+        authenticate("atcc","atcc123");
         var rows = get("/api/maintenance/reports/costs?groupBy=aircraft");
         var row = java.util.stream.StreamSupport.stream(rows.spliterator(), false)
                 .filter(r -> registration.equals(r.path("group").asText())).findFirst().orElseThrow();
@@ -20,7 +22,9 @@ class MaintenanceCostReportUseCaseTest extends GatewayHttpTest {
     @Test void shouldReportZeroCostForModelWithNoUsedParts() throws Exception {
         var record = createRecord();
         String registration = record.path("aircraftRegistration").asText();
+        authenticate("atcc","atcc123");
         String model = get("/api/hangar/aircraft/" + registration).path("modelName").asText();
+        authenticate("atcc","atcc123");
         var rows = get("/api/maintenance/reports/costs?groupBy=model");
         var row = java.util.stream.StreamSupport.stream(rows.spliterator(), false)
                 .filter(r -> model.equals(r.path("group").asText())).findFirst().orElseThrow();

@@ -4,9 +4,12 @@ import com.sidis.airportservice.Airport.application.AirportService;
 import com.sidis.airportservice.Airport.domain.*;
 import com.sidis.airportservice.Airport.application.AirportCsvService;
 import com.sidis.airportservice.Airport.infrastructure.client.route.RouteResponse;
-import com.sidis.airportservice.exceptions.DomainException;
+import com.sidis.airportservice.exceptions.ResourceNotFoundException;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.sidis.airportservice.Airport.application.AirportQueryService;
@@ -30,6 +33,7 @@ public class AirportController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('BACKOFFICE')")//US106/US207
     public void registerAirport(@Valid @RequestBody AddAirportRequest request) {
         AirportLocation location = new AirportLocation(
                 request.location().city(),
@@ -93,7 +97,8 @@ public class AirportController {
     }
 
     @PostMapping("/{iataCode}/certifications")
-    @ResponseStatus(HttpStatus.CREATED)//ok
+    @ResponseStatus(HttpStatus.CREATED)//US106a
+    @PreAuthorize("hasAnyRole('ATCC', 'BACKOFFICE')")
     public CertificationResponse addCertification(@PathVariable String iataCode,@Valid @RequestBody AddCertificationRequest request) {
         Certification certification = airportService.addCertification(
                 iataCode,
@@ -106,13 +111,15 @@ public class AirportController {
     }
 
     @GetMapping("/{iataCode}")
+    @PreAuthorize("hasAnyRole('ATCC', 'BACKOFFICE')")//US107
     public AirportResponse getAirport(@PathVariable String iataCode) {
         AirportReadModel airport = airportQueryService.getAirportByIata(iataCode)
-                .orElseThrow(() -> new DomainException("Airport does not exist"));
+                .orElseThrow(() -> new ResourceNotFoundException("Airport does not exist"));
         return AirportResponse.from(airport);
     }
 
     @GetMapping
+    @PreAuthorize("hasRole('ATCC')")//US108
     public List<AirportResponse> searchAirports(
             @RequestParam(required = false) String city,
             @RequestParam(required = false) String country,
@@ -124,6 +131,7 @@ public class AirportController {
     }
 
     @PatchMapping("/{iataCode}/status")
+    @PreAuthorize("hasRole('BACKOFFICE')")//US109
     public AirportResponse updateAirportStatus(
             @PathVariable String iataCode,
             @Valid @RequestBody UpdateAirportStatusRequest request) {
@@ -134,7 +142,8 @@ public class AirportController {
         return AirportResponse.from(airport);
     }
 
-    @PatchMapping("/{iataCode}/details")//ok
+    @PatchMapping("/{iataCode}/details")
+    @PreAuthorize("hasRole('ATCC')")//US208
     public AirportResponse updateAirportDetails(
             @PathVariable String iataCode,
             @Valid @RequestBody UpdateAirportDetailsRequest request) {
@@ -154,12 +163,14 @@ public class AirportController {
     }
 
     @GetMapping("/{iataCode}/routes")
+    @PreAuthorize("hasRole('ATCC')")//US209
     public List<RouteResponse> getAirportRoutes(@PathVariable String iataCode) {
         return airportQueryService.findRoutesByAirport(iataCode);
     }
 
 
     @GetMapping("/busiest")
+    @PreAuthorize("hasRole('BACKOFFICE')")//US210
     public List<AirportRouteStatisticResponse> getBusiestAirports() {
         return airportQueryService.busiestAirports()
                 .stream()
@@ -168,6 +179,7 @@ public class AirportController {
     }
 
     @GetMapping("/grouped")
+    @PreAuthorize("hasRole('ATCC')")//US211
     public Map<String, List<AirportResponse>> getGroupedAirports(
             @RequestParam(required = false, defaultValue = "country") String by) {
         return airportQueryService.groupAirportsBy(by)
@@ -184,23 +196,28 @@ public class AirportController {
      * Posts the data of airports from a .csv file
      */
     @PostMapping("/import")
-    public void importCsv(@RequestParam("file") MultipartFile file) throws Exception {
+    @PreAuthorize("hasRole('BACKOFFICE')")//US225
+    public void importCsv(@RequestParam(value = "file", required = false) MultipartFile file) throws Exception {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("CSV file is required");
+        }
         List<Airport> airports = airportCsvService.importFile(file.getInputStream());
         airports.forEach(airportService::execute);
     }
 
-    record AddAirportRequest(String iataCode, String airportType, String name,
-                             String status, AirportLocationRequest location,
-                             FacilitiesRequest facilities, Double routeDistance,
-                             List<RunwayRequest> runways,
+
+    record AddAirportRequest(@NotBlank String iataCode,@NotBlank String airportType,@NotBlank String name,
+                             @NotBlank String status, @NotNull @Valid AirportLocationRequest location,
+                             @NotNull @Valid FacilitiesRequest facilities,@NotNull Double routeDistance,
+                             @NotNull List<RunwayRequest> runways,
                              List<CertificationRequest> certifications,
                              List<ContactRequest> contacts, List<String> airportPhotos) {}
 
-    record AirportLocationRequest(String city, Double longitude,
-                                  Double latitude, String region, String timezone, String country) {}
+    record AirportLocationRequest(@NotBlank String city,@NotNull Double longitude,
+                                  @NotNull Double latitude,@NotBlank String region,@NotBlank String timezone,@NotBlank  String country) {}
 
-    record FacilitiesRequest(Integer terminalCount, List<String> services,
-                             Integer gateCount) {}
+    record FacilitiesRequest(@NotNull Integer terminalCount,@NotNull List<String> services,
+                             @NotNull Integer gateCount) {}
 
     record RunwayRequest(String runwayName, Double length, String orientation,
                          String status) {}

@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class MaintenanceAlertUseCaseTest extends GatewayHttpTest {
 
     private com.fasterxml.jackson.databind.JsonNode alert(String registration, double threshold) throws Exception {
+        authenticate("atcc","atcc123");
         var rows = get("/api/maintenance/alerts?calendarDaysThreshold=180&flightHoursThreshold=" + threshold);
         return java.util.stream.StreamSupport.stream(rows.spliterator(), false)
                 .filter(r -> registration.equals(r.path("registrationNumber").asText())).findFirst().orElseThrow();
@@ -30,6 +31,7 @@ class MaintenanceAlertUseCaseTest extends GatewayHttpTest {
     }
     @Test void shouldAlertWhenDaysSinceLastMaintenanceExceedsThreshold() throws Exception {
         // Bootstrap contains completed maintenance for CS-TUA; a high hour limit isolates calendar alerts.
+        authenticate("atcc","atcc123");
         var rows = get("/api/maintenance/alerts?calendarDaysThreshold=1&flightHoursThreshold=1000000000");
         var row = findRow(rows, "registrationNumber", "CS-TUA");
         assertTrue(row.path("lastMaintenanceDate").isTextual(), row.toString());
