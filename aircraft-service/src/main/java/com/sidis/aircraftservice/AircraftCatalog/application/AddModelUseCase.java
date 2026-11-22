@@ -5,6 +5,7 @@ import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecs;
 import com.sidis.aircraftservice.AircraftCatalog.domain.AircraftSpecsRedis;
 import com.sidis.aircraftservice.AircraftCatalog.infrastructure.AircraftModelCommandRepository;
 import com.sidis.aircraftservice.UseCase;
+import com.sidis.aircraftservice.exceptions.DomainException;
 import com.sidis.aircraftservice.infrastructure.messaging.AircraftModelSyncEvent;
 import com.sidis.aircraftservice.infrastructure.messaging.AircraftSyncEvent;
 import com.sidis.aircraftservice.infrastructure.messaging.RabbitMQConfig;
@@ -42,6 +43,9 @@ public class AddModelUseCase {
      * @param aircraftModelSpecs the group of physical characteristics of the model
      */
     public void execute(String modelName, String manufacturer, List <String> modelImage, AircraftSpecs aircraftModelSpecs) {
+        if (aircraftModelRepository.findByModelName(modelName).isPresent()) {
+            throw new DomainException("Aircraft Model already exists!");
+        }
         AircraftModel model = new AircraftModel(modelName, manufacturer,aircraftModelSpecs, modelImage);
         aircraftModelRepository.save(model);
 
@@ -69,6 +73,9 @@ public class AddModelUseCase {
      * @param aircraftModel the model object to be persisted
      */
     public void execute(AircraftModel aircraftModel) {
+        if (aircraftModelRepository.findByModelName(aircraftModel.getModelName()).isPresent()) {
+            throw new DomainException("Aircraft Model already exists!");
+        }
         aircraftModelRepository.save(aircraftModel);
 
         AircraftSpecsRedis specs = new AircraftSpecsRedis(
