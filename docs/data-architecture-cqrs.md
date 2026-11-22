@@ -140,20 +140,9 @@ Two queries no longer rely on Redis queries and filter in memory instead: `count
 
 ## 7. Known Gaps (As Implemented)
 
-The gaps found by running the system at commit `1935a82` were fixed in code after it:
+Checked by running commit `8fbc480` on one machine with the `test` profile (PostgreSQL, RabbitMQ and one standalone Redis per service in Docker; the eight modules as jars). Writes reach Redis in all five services, and `Bootstrap` rebuilds Redis on every start. The remaining gaps:
 
-| Gap at `1935a82` | Fix |
-| :--- | :--- |
-| Adding an aircraft answered `404` (availability changed before the aircraft existed). | `HangarController.addAircraft` now creates the aircraft first, then changes its availability. |
-| Model specs (range, fuel capacity, cruising speed) were lost in the projection, so every flight schedule failed with `409`. | `AircraftSpecsRedis` maps the event fields with `@JsonProperty` (`fuelCapacity`, `maximumRange`, `cruisingSpeed`); `FuelEfficiencyService` also skips models without specs. |
-| `GET /api/hangar/analytics/status-summary` answered `500`. | `countByAvailability` counts in memory (section 4.5). |
-| Maintenance did not start on an empty database (`NullPointerException` on records without a `DoneList`). | Every place that builds a `DoneListRedis` now accepts a missing `DoneList`. |
-| Maintenance record search answered `500` (`Specification` on a Redis repository). | Filtering and paging in memory (section 4.5). |
-| Parts summaries answered `500` on records without used parts. | `MaintenanceRecordRedis.getUsedParts()` returns an empty list instead of `null`. |
-| Attribute changes were not projected. | `changeRecordAttribute` saves the template and publishes `maintenancetemplate.event.updated` and the record event. |
-
-These fixes are read from the code; the system was not run again for this update. The remaining gaps:
-
+* **A failing projection is retried forever.** The listeners have no error handling and no dead-letter queue, so an event that cannot be projected goes back to the queue endlessly. Seen with `PATCH /api/maintenance/records/{id}` and `"attribute": null`: PostgreSQL stores `null`, `MaintenanceTemplateRedisProjector` throws `No enum constant ...MaintenanceAttribute.null`, and the message was redelivered about a thousand times per second until the service was stopped. Other events on the same queue were still projected. Because `Bootstrap` republishes every template on start, the loop comes back on every restart while the template keeps `null`.
 * **Redis is not started as a cluster.** The Redis containers in `docker-compose.yml` run with the default configuration (`cluster-enabled no`) and nothing runs `redis-cli --cluster create`, while the services use the cluster client. A cluster has to be created by hand before the read side works.
 * **The RabbitMQ nodes are not clustered.** They share an Erlang cookie, but no node joins the others, so they are three separate brokers. Queues and messages are not replicated, and the extra addresses only act as fallbacks.
-* **`route-service` test profile uses the aircraft database.** `route-service/src/main/resources/application-test.properties` points to `jdbc:postgresql://localhost:5432/aircraft_db`, so in CI the route tables are created in `aircraft_db` and `route_db` stays empty.
+* **`route-service` test profile uses the aircraft database.** `route-service/src/main/resources/application-test.properties` points to `jdbc:postgresql://localhost:5432/aircraft_db`, so in CI the route tables are created in `aircraft_db` and `route_db` stays empty (confirmed: `company_routes` is in `aircraft_db`).

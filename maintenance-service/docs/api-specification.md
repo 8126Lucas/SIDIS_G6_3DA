@@ -11,7 +11,7 @@ This document reflects the current implementation in `MaintenanceRecordControlle
 * **API Prefix:** `/api/maintenance`
 * **Content-Type:** `application/json`
 
-**Read side (iteration 2).** Templates, record searches, reports, alerts and parts summaries read from Redis (`MaintenanceRecordRedis`, `MaintenanceTemplateRedis`, `MaintenanceHoursReportRedis`). `GET /records/{id}` and the `PATCH` endpoints work on the PostgreSQL entity. The `500` errors seen when running commit `1935a82` (`GET /records`, `/parts/*`) were fixed in code after it. Calls to `aircraft-service` forward the caller's token: the single-aircraft lookup (`POST /record`, `GET /records?aircraft=`, reports) accepts maintenance roles, while the fleet list used by `/alerts` needs `ATCC`.
+**Read side (iteration 2).** Templates, record searches, reports, alerts and parts summaries read from Redis (`MaintenanceRecordRedis`, `MaintenanceTemplateRedis`, `MaintenanceHoursReportRedis`). `GET /records/{id}` and the `PATCH` endpoints work on the PostgreSQL entity. Calls to `aircraft-service` forward the caller's token: the single-aircraft lookup (`POST /record`, `GET /records?aircraft=`, reports) accepts maintenance roles, while the fleet list used by `/alerts` needs `ATCC`.
 
 See [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md), section 7.
 
@@ -297,7 +297,7 @@ Notes:
 
 * The attribute is changed on the record's `MaintenanceTemplate`, not on the record, so every record that shares that template changes category.
 * `MaintenanceRecordProgressService.changeRecordAttribute` saves the template, publishes `MaintenanceTemplateSyncEvent` (`maintenancetemplate.event.updated`) and then the record event (`maintenance.event.updated`), so the new attribute reaches `MaintenanceTemplate:<id>` in Redis.
-* `attribute` is not validated: an empty body or `"attribute": null` sets the template attribute to `null` in PostgreSQL and still answers `200`, but the projector then fails (`MaintenanceAttribute.valueOf("null")`) and Redis keeps the old attribute. An unknown value fails JSON parsing → `400`.
+* `attribute` is not validated: an empty body or `"attribute": null` sets the template attribute to `null` in PostgreSQL and still answers `200`, but the projector then fails (`MaintenanceAttribute.valueOf("null")`), Redis keeps the old attribute, and the event is redelivered endlessly (checked by running the system; see `../../docs/data-architecture-cqrs.md`, section 7). An unknown value fails JSON parsing → `400`.
 * A missing record → `404`.
 
 ---
@@ -398,7 +398,7 @@ Current behavior:
 Notes:
 
 * `AircraftRestClientService.findAll()` calls `GET /api/hangar/aircraft?size=1000`, so only the first 1000 aircraft are checked.
-* A `4xx` from `aircraft-service` returns an empty list (no alerts); other errors are retried up to 3 times and then end in `500`. `GET /api/hangar/aircraft` needs `ATCC`, so with a supervisor's token (allowed by `@PreAuthorize` here) the alert list is always empty.
+* A `4xx` from `aircraft-service` returns an empty list (no alerts); other errors are retried up to 3 times and then end in `500`. `GET /api/hangar/aircraft` needs `ATCC`, so with any other token (including the supervisor's, allowed by `@PreAuthorize` here) the alert list is always empty.
 * An aircraft with `totalFlightHours = null` makes the threshold comparison throw (`500`).
 
 ---

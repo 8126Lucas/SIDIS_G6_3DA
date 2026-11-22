@@ -18,7 +18,7 @@ Current implemented responsibilities:
 
 Important implementation notes:
 
-* The startup failure caused by the old key on the `route-service` route was fixed after commit `1935a82` (see `routing-and-security.md`, section 1). A `test` profile for CI repeats the routes with Eureka on `localhost`.
+* A `test` profile for CI repeats the routes with Eureka on `localhost` (see `routing-and-security.md`, section 1).
 * The gateway only checks that the token is signed with the shared secret and not expired. It does not read the `roles` claim; roles are checked only inside `aircraft-service` (see `../../docs/global-network-and-ports.md`, section 7.2).
 * The gateway's end-to-end tests (`support/GatewayHttpTest`) now log in as `atcc` / `atcc123` by default.
 * Every rejection by the JWT filter is `401 Unauthorized` with an empty body.

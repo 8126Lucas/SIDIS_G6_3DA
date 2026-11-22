@@ -83,31 +83,28 @@ Each test in `09 - Known Issues` pins a wrong behaviour, so a run stays green an
 | --- | --- | --- |
 | Duplicate model overwrites the existing one | `201` | `409` |
 | `GET /api/hangar/analytics/fuel-efficiency` when flights exist | `500` | `200` |
-| `GET /api/hangar/aircraft/{reg}/compatible-routes` | Always empty while `meanRange` is 0 | The routes the aircraft can fly |
 | Reactivating a suspended route | `409` | `200` |
-| `GET /api/maintenance/records` without `aircraft` | `500` | `200` |
 | `GET /api/routes/alternatives` without a required parameter | `500` | `400` |
 
-## Status after iteration 2
+All four were reproduced by hand against commit `8fbc480`. Two requests of the folder no longer describe a bug: `Compatible routes of D-ABXA` (the endpoint returns routes; it now fails only because the collection sends `backoffice` and the endpoint needs `ATCC`) and `Filter records by attribute only - 500` (now `200`). Both should be moved to their service folders.
 
-The expectations describe the API of iteration 1, and every request is sent as `backoffice`. Against commit `1935a82`, 89 of 323 assertions fail:
+## Status at commit `8fbc480`
+
+Run locally with the `test` profile (see [`../ci-cd-pipelines.md`](../ci-cd-pipelines.md), section 1.5).
+
+**`SIDIS HTTP Tests` (CI):** 65 requests, 42 assertions, 0 failures on a fresh database. It is not repeatable on the same database: a second run fails 5 assertions (the fixed registration `CS-TST` already exists, and the maintenance costs and turnaround checks change after the records the first run created). It also leaves `OPO` in `UNDER_MAINTENANCE` (US109) without restoring it.
+
+**`AISafe-Global-System`:** 86 of 323 assertions fail, the same 86 in two runs in a row (run after `SIDIS HTTP Tests`). None of them is a new API bug:
 
 | Cause | Failed assertions |
 | --- | --- |
-| Role checks (RBAC) in `aircraft-service`: the endpoint needs `ATCC`, the collection sends `backoffice` | 14 |
-| A request needs an id that an earlier, failed request should have stored | 9 |
-| Behaviour of the current code (below) | 66 |
+| A request needs an id or resource that an earlier, failed request should have created | 43 |
+| Role checks in `aircraft-service`: the endpoint needs `ATCC`, the collection sends `backoffice` | 23 |
+| `OPO` left in `UNDER_MAINTENANCE` by `SIDIS HTTP Tests`, so routes and flights from `OPO` are refused (`Airport is not operational`, `Route is not active`) | 10 |
+| Expectation out of date: templates and records now answer `201` (was `200`) | 4 |
+| Alerts are empty because the aircraft list needs `ATCC` (real gap, see `maintenance-service/docs/README.md`) | 3 |
+| Expectation out of date: unknown airport now answers `404` (was `409`) | 1 |
+| `test` profile: `aircraft-service` skips the secret filter, so the direct call gets Spring's `403` body, not `Unauthorized Access!` | 1 |
+| Known issue that is no longer a bug (records by attribute only) | 1 |
 
-| Area | Behaviour at `1935a82` | Cause | At `8fbc480` |
-| --- | --- | --- | --- |
-| `POST /api/hangar/aircraft` | Always `404 Aircraft not found in database` | The controller changed the availability before creating the aircraft | Fixed in code |
-| `POST /api/flights/scheduled` | `409 Aircraft range information is unavailable` | The model projection in Redis lost range, fuel and speed | Fixed in code |
-| `POST /api/maintenance/templates` | `201` with no body, so the template id is not stored | Response changed from `200` with the template | Returns `201` **with** the template again |
-| `GET /api/maintenance/records` | `500 No property 'findAll' found` | JPA `Specification` used on a Redis repository | Fixed in code (filtering in memory) |
-| `/api/maintenance/parts/*` | `500` | `NullPointerException` on records without used parts | Fixed in code |
-| Maintenance calls to `aircraft-service` | `500` (from a `403`) | The caller's token is forwarded and its role was not accepted by `aircraft-service` | Fixed for `GET /api/hangar/aircraft/{reg}`; the aircraft list used by alerts still needs `ATCC` |
-| Journeys 1 and 2 | Fail in chain | No aircraft could be created and no flight could be scheduled | Should pass once the two fixes above are in place |
-
-The `Bootstrap` failure on an empty maintenance database was also fixed (see [`../data-architecture-cqrs.md`](../data-architecture-cqrs.md), section 7).
-
-The last column is read from the code: the global collection was not run again against `8fbc480`. It still sends every request as `backoffice`, so the 14 role failures remain until each request logs in with the role it needs (the collection script supports per-role tokens, see `01 - Auth Service`). `09 - Known Issues` also needs checking: `GET /api/maintenance/records` without `aircraft` should now answer `200`, so that pinned request is expected to fail and move to its service folder.
+To make the collection green again it has to log in with the role each request needs (the collection script supports per-role tokens, see `01 - Auth Service`), accept `201`/`404` where the API changed, and not depend on the state of the seeded `OPO`.

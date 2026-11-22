@@ -62,9 +62,9 @@ Consequences:
 * The 120-second wait is fixed: if a service takes longer to register, the first tests can fail with `503` from the gateway.
 * The service logs are not uploaded as artifacts; `java-tests` prints their last 100 lines on failure, `postman-tests` does not.
 
-### 1.5. What changed since iteration 2 started
+### 1.5. Local run and remaining points
 
-The gaps that stopped the end-to-end job at `1935a82` were addressed by the `test` profile: Eureka, PostgreSQL, RabbitMQ and Redis addresses point to the runner, Redis runs as one standalone instance per service on the expected port, the SQLite file is created in the working directory, the gateway route key was fixed, the maintenance `Bootstrap` no longer fails on an empty database, and the Postman job is enabled.
+The system was started locally the same way as `postman-tests` (same containers, jars with `-Dspring.profiles.active=test`): every module registered in Eureka and `SIDIS HTTP Tests` passed (65 requests, 42 assertions, 0 failures). The gateway needs up to 30 seconds after the services register before it routes to them (`503` until its Eureka cache refreshes); the fixed 120-second wait covers this.
 
 Remaining points:
 

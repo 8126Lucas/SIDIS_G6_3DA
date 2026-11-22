@@ -102,7 +102,7 @@ The services' ports are published on their PC, so they can also be reached direc
 | `/api/maintenance/**` | `lb://maintenance-service` | Yes |
 | `/api/routes/**` | `lb://route-service` | Yes |
 
-All six routes use the `spring.cloud.gateway.server.webflux.routes[n]` keys (the old key on the `route-service` route was fixed after `1935a82`). The `test` profile (`application-test.properties`) repeats the same routes with Eureka on `http://localhost:8761/eureka/`, for CI.
+All six routes use the `spring.cloud.gateway.server.webflux.routes[n]` keys. The `test` profile (`application-test.properties`) repeats the same routes with Eureka on `http://localhost:8761/eureka/`, for CI.
 
 Details: [`APIgateway/docs/routing-and-security.md`](../APIgateway/docs/routing-and-security.md).
 
@@ -159,7 +159,8 @@ Details: [`auth-service/docs/security-and-authorization.md`](../auth-service/doc
 A service that calls another one forwards the caller's `Authorization` header (`JwtTokenInterceptor`), so the second service checks the **original user's** role. `maintenance-service` calls `aircraft-service` in two ways:
 
 * `GET /api/hangar/aircraft/{reg}` (record creation, model names in the turnaround and cost reports) now also accepts `MAINTENANCE_TECHNICIAN` and `MAINTENANCE_SUPERVISOR`, so a technician can create a record.
-* `GET /api/hangar/aircraft?size=1000` (maintenance alerts) still needs `ATCC`. With a supervisor's token `aircraft-service` answers `403`; `AircraftRestClientService.findAll` catches it and returns an empty list, so the supervisor gets an empty alert list instead of an error.
+* `GET /api/hangar/aircraft?size=1000` (maintenance alerts) still needs `ATCC`. With any other token (the supervisor included) `aircraft-service` answers `403`; `AircraftRestClientService.findAll` catches it and returns an empty list, so the alert list is empty instead of an error (checked by running the system).
+* `ADMIN` is not accepted by any `@PreAuthorize` in `aircraft-service`, so an `ADMIN` creating a maintenance record gets `500` (from the forwarded `403`).
 
 ### 7.4. Test profile
 

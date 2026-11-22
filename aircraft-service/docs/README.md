@@ -24,7 +24,10 @@ Important implementation notes:
 
 * **CQRS (iteration 2).** Commands write to PostgreSQL (`aircraft_db`) and publish an event to RabbitMQ; a listener in the service projects it into the Redis cluster, and every read and analytics endpoint reads from Redis. Details: [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md).
 * `Bootstrap` seeds PostgreSQL when the tables are empty and then, on **every** start, republishes one event per model and aircraft, so Redis is rebuilt from PostgreSQL. The read models have `@Indexed` fields (`modelName`, `status`, ...), so lookups such as `GET /api/catalog/{modelName}` work.
-* The three gaps found by running commit `1935a82` were fixed in code: `POST /api/hangar/aircraft` now creates the aircraft before changing its availability, the model specs (range, fuel capacity, cruising speed) reach Redis (`@JsonProperty` on `AircraftSpecsRedis`), and the status summary counts in memory instead of calling `countByStatus` on Redis.
+* **Known gaps (checked by running commit `8fbc480`):**
+  * `GET /api/hangar/analytics/fuel-efficiency` answers `500` once flights exist (`NullPointerException` on a `Double` from `FlightClientDTO`, because `flight-service` does not return `range`/`flightHours`).
+  * `POST /api/catalog/model` with an existing `modelName` answers `201` and overwrites the model (images, manufacturer and specs) instead of `409`.
+  * Only `ATCC` can list the fleet (`GET /api/hangar/aircraft`), and `maintenance-service` uses that list for its alerts, so alerts are empty for every other role. `ADMIN` is refused (`403`) on every endpoint that has a role.
 * **Roles (RBAC).** `JwtAuthenticationFilter` reads the `roles` claim of the token (a list or a single string; a `ROLE_` prefix is not added twice) and `@PreAuthorize` checks it on each endpoint (`@EnableMethodSecurity` is on). See section 2.1. A token that cannot be parsed is logged to `System.err` with its stack trace and the request continues unauthenticated.
 * There is optimistic locking on `Aircraft` via `@Version` (not on `AircraftModel`); conflicts now map to `409`.
 * Every request (except Actuator and Swagger UI paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403`. With the Spring profile `test` active the check is skipped. `/error` is open, so errors keep their real status.

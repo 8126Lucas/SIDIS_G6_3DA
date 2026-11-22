@@ -332,7 +332,7 @@ Notes:
 
 * Capacity comes from the aircraft `SeatingPack`, or falls back to the model `standardSeatingCapacity`.
 * Route capacity is read from `routeRequirements.requiredCapacity` (`RouteClientDTO.capacity()`), which now matches `route-service`'s response.
-* In `RouteSearchService`, the fallback to model `maximumRange` is overwritten by `meanRange`; since `meanRange` starts at `0.0`, only zero-distance routes match unless `meanRange` was updated.
+* Range is the aircraft's `meanRange` when it is greater than `0`, otherwise the model's `maximumRange` (so new aircraft, with `meanRange = 0.0`, use the model range).
 * `originAirportIata` and `destinationAirportIata` are always `null`, because `route-service` returns `originIataCode` and `destinationIataCode`.
 
 ---

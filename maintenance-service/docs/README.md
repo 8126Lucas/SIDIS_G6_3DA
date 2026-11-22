@@ -25,10 +25,11 @@ Important implementation notes:
 * **CQRS (iteration 2).** Commands write to PostgreSQL (`maintenance_db`) and publish an event to RabbitMQ; a listener in the service projects it into the Redis cluster. Template reads, record searches, reports and alerts read from Redis; `GET /records/{id}` still reads PostgreSQL. Details: [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md).
 * The read models have `@Indexed` fields, so template lookups by id and status-based reports work on Redis.
 * `Bootstrap` seeds PostgreSQL when it is empty and then, on **every** start, republishes every template and record, so Redis is rebuilt from PostgreSQL.
-* The gaps found by running commit `1935a82` were fixed in code: the service starts on an empty database (records without a `DoneList` are accepted), `GET /records` filters in memory instead of using a JPA `Specification` on Redis, the parts summaries handle records without used parts, and `PATCH /records/{id}` now projects the attribute change. `aircraft-service` now accepts maintenance roles on `GET /api/hangar/aircraft/{reg}`, so a technician can create a record.
-* **Known gaps:**
-  * **Roles are not enforced.** The controller has `@PreAuthorize` on every endpoint, but `MaintenanceSecurityConfig` lacks `@EnableMethodSecurity` (the controller tests enable it themselves, so they pass).
-  * **Alerts are empty for a supervisor.** `GET /alerts` loads the fleet with `GET /api/hangar/aircraft`, which needs `ATCC`; with a supervisor's token `aircraft-service` answers `403` and the client returns an empty list.
+* **Known gaps (checked by running commit `8fbc480`):**
+  * **Roles are not enforced.** The controller has `@PreAuthorize` on every endpoint, but `MaintenanceSecurityConfig` lacks `@EnableMethodSecurity` (the controller tests enable it themselves, so they pass). For example, an `ATCC` token creates templates.
+  * **Alerts are empty for everyone except `ATCC`.** `GET /alerts` loads the fleet with `GET /api/hangar/aircraft`, which needs `ATCC`; with any other token (including the supervisor, who is allowed on `/alerts`) `aircraft-service` answers `403` and the client returns an empty list.
+  * **`ADMIN` cannot create records.** `aircraft-service` refuses the forwarded `ADMIN` token (`403`), which becomes `500` here.
+  * **`"attribute": null` breaks the projection.** `PATCH /records/{id}` with a null attribute answers `200` and stores `null` in PostgreSQL, but the projector cannot read it and the event is redelivered forever (see `../../docs/data-architecture-cqrs.md`, section 7).
 * Creating a template or a record answers `201 Created` with the created template or record in the body.
 * With the Spring profile `test` active, `gatewaySecretFilter` does not check `X-Gateway-Secret` (used by CI).
 * `GET /api/maintenance/reports/hours` (iteration 2, `ATCC`) returns the total maintenance hours per aircraft, from the `MaintenanceHoursReport` read model.

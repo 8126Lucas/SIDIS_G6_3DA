@@ -15,7 +15,7 @@ Routes are defined in `application.properties` (`spring.cloud.gateway.server.web
 | `route-service` | `/api/routes/**` | `lb://route-service` | `JwtAuthentication` |
 | `flight-service` | `/api/flights/**` | `lb://flight-service` | `JwtAuthentication` |
 
-* All six routes use the `spring.cloud.gateway.server.webflux.routes[n].*` keys. Up to commit `1935a82` the `route-service` id used the old key `spring.cloud.gateway.routes[4].id`, which stopped the gateway from starting; it was fixed after that commit.
+* All six routes use the `spring.cloud.gateway.server.webflux.routes[n].*` keys.
 * The `test` profile (`application-test.properties`, used by CI) declares the same six routes and points Eureka to `http://localhost:8761/eureka/`.
 * Paths are forwarded unchanged (no `StripPrefix` / `RewritePath`).
 * A path that matches no route returns `404 Not Found` from the gateway.
