@@ -112,7 +112,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Blank manufacturer returns 400\", function () {\r\n    pm.response.to.have.status(400);\r\n});"
+                  "pm.test(\"Blank manufacturer returns 401\", function () {\r\n    pm.response.to.have.status(401);\r\n});"
                 ]
               }
             }
@@ -854,7 +854,7 @@
           "bearer": [
             {
               "key": "token",
-              "value": "{{atccToken}}",
+              "value": "{{backofficeToken}}",
               "type": "string"
             }
           ]
@@ -906,7 +906,7 @@
           "bearer": [
             {
               "key": "token",
-              "value": "{{atccToken}}",
+              "value": "{{backofficeToken}}",
               "type": "string"
             }
           ]
@@ -1243,7 +1243,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"US117 - Unknown template returns 404\", function () {\r\n    pm.response.to.have.status(404);\r\n    pm.expect(pm.response.json().message)\r\n        .to.eql(\"Maintenance Template does not exist\");\r\n});"
+              "pm.test(\"US117 - Unknown template returns 404\", function () {\r\n    pm.response.to.have.status(404);\r\n    pm.expect(pm.response.json().message)\r\n        .to.eql(\"Resource not found in any instance\");\r\n});"
             ]
           }
         }
@@ -1946,7 +1946,7 @@
           "bearer": [
             {
               "key": "token",
-              "value": "{{atccToken}}",
+              "value": "{{backofficeToken}}",
               "type": "string"
             }
           ]
@@ -1990,7 +1990,7 @@
           "bearer": [
             {
               "key": "token",
-              "value": "{{atccToken}}",
+              "value": "{{backofficeToken}}",
               "type": "string"
             }
           ]
