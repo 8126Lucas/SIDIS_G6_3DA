@@ -210,27 +210,27 @@ jobs:
   
       - name: Dar permissões de execução
         run: chmod +x mvnw
-  
+
       - name: Iniciar Eureka e Gateway
         run: |
           ./mvnw clean package -DskipTests
-          nohup java -Xmx256m -Dspring.profiles.active=node1 -jar discovery-service/target/*.jar > eureka.log 2>&1 &
+          nohup java -Xmx256m -Dspring.profiles.active=test,node1 -jar discovery-service/target/*.jar > eureka.log 2>&1 &
           sleep 15
-          nohup java -Xmx256m -jar APIgateway/target/*.jar > gateway.log 2>&1 &
-  
+          nohup java -Xmx256m -Dspring.profiles.active=test -jar APIgateway/target/*.jar > gateway.log 2>&1 &
+
       - name: Executar Microsserviços
         run: |
-          nohup java -Xmx256m -jar auth-service/target/*.jar > auth.log 2>&1 &
-          nohup java -Xmx256m -jar aircraft-service/target/*.jar > aircraft.log 2>&1 &
-          nohup java -Xmx256m -jar maintenance-service/target/*.jar > maintenance.log 2>&1 &
-          nohup java -Xmx256m -jar flight-service/target/*.jar > flight.log 2>&1 &
-          nohup java -Xmx256m -jar route-service/target/*.jar > route.log 2>&1 &
-          nohup java -Xmx256m -jar airport-service/target/*.jar > airport.log 2>&1 &
+          nohup java -Xmx256m -Dspring.profiles.active=test -jar auth-service/target/*.jar > auth.log 2>&1 &
+          nohup java -Xmx256m -Dspring.profiles.active=test -jar aircraft-service/target/*.jar > aircraft.log 2>&1 &
+          nohup java -Xmx256m -Dspring.profiles.active=test -jar maintenance-service/target/*.jar > maintenance.log 2>&1 &
+          nohup java -Xmx256m -Dspring.profiles.active=test -jar flight-service/target/*.jar > flight.log 2>&1 &
+          nohup java -Xmx256m -Dspring.profiles.active=test -jar route-service/target/*.jar > route.log 2>&1 &
+          nohup java -Xmx256m -Dspring.profiles.active=test -jar airport-service/target/*.jar > airport.log 2>&1 &
   
       - name: Esperar pelo registo no Eureka
         run: |
-          echo "A aguardar 150 segundos para o Eureka registar todos os nós..."
-          sleep 150
+          echo "A aguardar 120 segundos para o Eureka registar todos os nós..."
+          sleep 120
   
       - name: Instalar Newman
         run: npm install -g newman
