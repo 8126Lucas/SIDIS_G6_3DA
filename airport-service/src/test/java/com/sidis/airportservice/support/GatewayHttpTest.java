@@ -63,7 +63,8 @@ public abstract class GatewayHttpTest {
 
     protected HttpResponse<String> request(String method, String path, Object body) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
-                .timeout(Duration.ofSeconds(30)).header("Accept", "application/json");
+                .timeout(Duration.ofSeconds(30)).header("Accept", "application/json")
+                .header("X-Gateway-Secret", "sidis-g6-secret");
         if (token != null) builder.header("Authorization", "Bearer " + token);
         if (body != null) builder.header("Content-Type", "application/json");
         builder.method(method, body == null ? HttpRequest.BodyPublishers.noBody()
@@ -97,6 +98,7 @@ public abstract class GatewayHttpTest {
                 .timeout(Duration.ofSeconds(30))
                 .header("Authorization", "Bearer " + token)
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .header("X-Gateway-Secret", "sidis-g6-secret")
                 .POST(HttpRequest.BodyPublishers.ofString(body)).build(),
                 HttpResponse.BodyHandlers.ofString());
     }

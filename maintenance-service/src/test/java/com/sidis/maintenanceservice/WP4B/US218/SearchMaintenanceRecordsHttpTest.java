@@ -55,6 +55,8 @@ class SearchMaintenanceRecordsHttpTest extends GatewayHttpTest {
     void shouldReturnRecordsByUpdatedMaintenanceAttribute() throws Exception {
         JsonNode created = createRecord();
         long recordId = created.path("id").asLong();
+
+        authenticate("technician","technician123");
         expect(200, request("PATCH", "/api/maintenance/records/" + recordId, Map.of("attribute", "AVIONICS")));
         JsonNode response = get("/api/maintenance/records?attribute=AVIONICS");
 
@@ -66,7 +68,6 @@ class SearchMaintenanceRecordsHttpTest extends GatewayHttpTest {
                 assertEquals("AVIONICS", record.path("template").path("attribute").asText());
             }
         }
-
         assertTrue(found, "Expected updated record in AVIONICS results");
     }
 

@@ -61,6 +61,9 @@ public class MaintenanceRecordRedis {
     public Long getRecordId() {
         return recordId;
     }
+    public void setRecordId(Long id) {
+        this.recordId = id;
+    }
 
     public String getAircraftRegistration() {
         return aircraftRegistration;
@@ -103,7 +106,7 @@ public class MaintenanceRecordRedis {
     public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
 
     public List<UsedPartRedis> getUsedParts() {
-        return usedParts;
+        return this.usedParts != null ? this.usedParts : new ArrayList<>();
     }
     public void setUsedParts(List<UsedPartRedis> usedParts) { this.usedParts = usedParts; }
 

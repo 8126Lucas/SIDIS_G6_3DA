@@ -63,7 +63,7 @@ public class MaintenanceRecordController {
     @PostMapping("/templates")
     @PreAuthorize("hasRole('MAINTENANCE_TECHNICIAN')")
     @ResponseStatus(HttpStatus.CREATED)
-    public void addTemplate(@Valid @RequestBody AddTemplateRequest request) {
+    public MaintenanceTemplateResponse addTemplate(@Valid @RequestBody AddTemplateRequest request) {
         MaintenanceTemplate template = addMaintenanceTemplateUseCase.execute(
                 request.name(),
                 request.expectedDuration(),
@@ -71,6 +71,7 @@ public class MaintenanceRecordController {
                 MaintenanceType.valueOf(request.operation()),
                 MaintenanceAttribute.valueOf(request.attribute())
         );
+        return MaintenanceTemplateResponse.from(template);
     }
 
     // US117 — obter template por id
@@ -100,18 +101,19 @@ public class MaintenanceRecordController {
     @PostMapping("/record")
     @PreAuthorize("hasRole('MAINTENANCE_TECHNICIAN')")
     @ResponseStatus(HttpStatus.CREATED)
-    public void addRecord(@Valid @RequestBody AddRecordShortRequest request) {
+    public MaintenanceRecordResponse addRecord(@Valid @RequestBody AddRecordShortRequest request) {
         AircraftClientDTO aircraftDto = aircraftClient
                 .findAircraftByRegistration(request.registrationNumber())
                 .orElseThrow(() -> new ResourceNotFoundException("Aircraft does not exist in hangar"));
 
-        addMaintenanceRecordUseCase.executeShort(
+        MaintenanceRecord record = addMaintenanceRecordUseCase.executeShort(
                 aircraftDto.aircraftRegistration(),
                 request.templateId(),
                 request.durationHours(),
                 request.description(),
                 request.startDate()
         );
+        return MaintenanceRecordResponse.from(record);
     }
 
     // US119 — obter registo por id
@@ -169,7 +171,7 @@ public class MaintenanceRecordController {
 
     // US222 — alertas de manutenção por horas de voo ou dias de calendário
     @GetMapping("/alerts")
-    @PreAuthorize("hasRole('ATCC')")
+    @PreAuthorize("hasAnyRole('ATCC', 'MAINTENANCE_SUPERVISOR')")
     public List<MaintenanceAlertResponse> maintenanceAlerts(
             @RequestParam(defaultValue = "180") int calendarDaysThreshold,
             @RequestParam(defaultValue = "500") double flightHoursThreshold) {
@@ -319,26 +321,28 @@ public class MaintenanceRecordController {
         }
     }
 
-    record MaintenanceRecordResponse(Long id,
-                                     String aircraftRegistration,
-                                     MaintenanceTemplateResponse template,
-                                     Double durationHours,
-                                     String description,
-                                     LocalDate startDate,
-                                     MaintenanceStatus status) {
+    record MaintenanceRecordResponse(Long id, String aircraftRegistration,
+                                 MaintenanceTemplateResponse template,
+                                 Double durationHours, String description,
+                                 LocalDate startDate, MaintenanceStatus status,
+                                 String notes, Map<String, Boolean> tasksDone,
+                                 LocalDate endDate) {
+        MaintenanceRecordResponse {
+            tasksDone = tasksDone == null ? Map.of() : tasksDone;
+        }
         static MaintenanceRecordResponse from(MaintenanceRecord r) {
+            DoneList done = r.getDoneList();
             return new MaintenanceRecordResponse(
-                    r.getRecordId(),
-                    r.getAircraftRegistration(),
+                    r.getRecordId(), r.getAircraftRegistration(),
                     MaintenanceTemplateResponse.from(r.getMaintenanceTemplate()),
-                    r.getDurationHours(),
-                    r.getDescription(),
-                    r.getStartDate(),
-                    r.getStatus()
-            );
+                    r.getDurationHours(), r.getDescription(), r.getStartDate(), r.getStatus(),
+                    done != null ? done.getCompletionNotes() : null,
+                    done != null ? done.getTasksDone() : null,
+                    r.getEndDate());
         }
         static MaintenanceRecordResponse from(MaintenanceRecordRedis r, MaintenanceTemplateSearchService searchService) {
             MaintenanceTemplateResponse templateResponse = MaintenanceTemplateResponse.from(r.getMaintenanceTemplateId(), searchService);
+            DoneListRedis done = r.getDoneList();
             return new MaintenanceRecordResponse(
                     r.getRecordId(),
                     r.getAircraftRegistration(),
@@ -346,8 +350,10 @@ public class MaintenanceRecordController {
                     r.getDurationHours(),
                     r.getDescription(),
                     r.getStartDate(),
-                    r.getStatus()
-            );
+                    r.getStatus(),
+                    done != null ? done.getCompletionNotes() : null,
+                    done != null ? done.getTasksDone() : null,
+                    r.getEndDate());
         }
     }
 

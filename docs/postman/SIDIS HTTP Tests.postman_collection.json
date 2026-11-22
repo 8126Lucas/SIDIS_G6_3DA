@@ -1,10 +1,9 @@
 {
   "info": {
-    "_postman_id": "a6ad41f6-ac99-488e-8ac3-70143d3d163f",
+    "_postman_id": "b0211e47-475a-4bcb-a936-df8dfb573ad7",
     "name": "SIDIS HTTP Tests",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_exporter_id": "45030011",
-    "_collection_link": "https://go.postman.co/collection/45030011-a6ad41f6-ac99-488e-8ac3-70143d3d163f?source=collection_link"
+    "_exporter_id": "44116400"
   },
   "item": [
     {
@@ -113,7 +112,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Blank manufacturer returns 400\", function () {\r\n    pm.response.to.have.status(400);\r\n});"
+                  "pm.test(\"Blank manufacturer returns 401\", function () {\r\n    pm.response.to.have.status(401);\r\n});"
                 ]
               }
             }
@@ -483,7 +482,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"Unknown model returns 404\", function () {\r\n    pm.response.to.have.status(404);\r\n    pm.expect(pm.response.json().message)\r\n        .to.include(\"Model\");\r\n});"
+              "pm.test(\"Unknown model returns 404\", function () {\r\n    pm.response.to.have.status(409);\r\n    pm.expect(pm.response.json().message)\r\n        .to.include(\"Model\");\r\n});"
             ]
           }
         }
@@ -855,7 +854,7 @@
           "bearer": [
             {
               "key": "token",
-              "value": "{{atccToken}}",
+              "value": "{{backofficeToken}}",
               "type": "string"
             }
           ]
@@ -907,7 +906,7 @@
           "bearer": [
             {
               "key": "token",
-              "value": "{{atccToken}}",
+              "value": "{{backofficeToken}}",
               "type": "string"
             }
           ]
@@ -1002,7 +1001,7 @@
           "bearer": [
             {
               "key": "token",
-              "value": "{{atccToken}}",
+              "value": "{{backofficeToken}}",
               "type": "string"
             }
           ]
@@ -1043,7 +1042,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"US115b - Template is created with the expected fields\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const template = pm.response.json();\r\n\r\n    pm.expect(template.name).to.eql(\"A-Check Engine Inspection\");\r\n    pm.expect(template.expectedDuration).to.eql(6.5);\r\n    pm.expect(template.operation).to.eql(\"INSPECTION\");\r\n    pm.expect(template.attribute).to.eql(\"ENGINE\");\r\n    pm.expect(template.templateChecklist).to.deep.equal({\r\n        \"Check oil levels\": true,\r\n        \"Inspect engine turbine blades\": true\r\n    });\r\n    pm.expect(template.templateId).to.be.a(\"number\");\r\n\r\n    pm.collectionVariables.set(\"templateId\", template.templateId);\r\n});"
+              "pm.test(\"US115b - Template is created with the expected fields\", function () {\r\n    pm.response.to.have.status(201);\r\n\r\n    const template = pm.response.json();\r\n\r\n    pm.expect(template.name).to.eql(\"A-Check Engine Inspection\");\r\n    pm.expect(template.expectedDuration).to.eql(6.5);\r\n    pm.expect(template.operation).to.eql(\"INSPECTION\");\r\n    pm.expect(template.attribute).to.eql(\"ENGINE\");\r\n    pm.expect(template.templateChecklist).to.deep.equal({\r\n        \"Check oil levels\": true,\r\n        \"Inspect engine turbine blades\": true\r\n    });\r\n    pm.expect(template.templateId).to.be.a(\"number\");\r\n\r\n    pm.collectionVariables.set(\"templateId\", template.templateId);\r\n});"
             ]
           }
         }
@@ -1094,7 +1093,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"US116 - Maintenance record creation returns 200\", function () {\r\n    pm.response.to.have.status(200);\r\n});"
+              "pm.test(\"US116 - Maintenance record creation returns 201\", function () {\r\n    pm.response.to.have.status(201);\r\n});"
             ]
           }
         }
@@ -1244,7 +1243,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"US117 - Unknown template returns 409\", function () {\r\n    pm.response.to.have.status(409);\r\n    pm.expect(pm.response.json().message)\r\n        .to.eql(\"Maintenance Template does not exist\");\r\n});"
+              "pm.test(\"US117 - Unknown template returns 404\", function () {\r\n    pm.response.to.have.status(404);\r\n    pm.expect(pm.response.json().message)\r\n        .to.eql(\"Resource not found in any instance\");\r\n});"
             ]
           }
         }
@@ -1287,7 +1286,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"Second template is created\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const template = pm.response.json();\r\n    pm.expect(template.name).to.eql(\"Landing Gear\");\r\n    pm.expect(template.expectedDuration).to.eql(3.5);\r\n    pm.expect(template.templateId).to.be.a(\"number\");\r\n\r\n    pm.collectionVariables.set(\"secondTemplateId\", template.templateId);\r\n});"
+              "pm.test(\"Second template is created\", function () {\r\n    pm.response.to.have.status(201);\r\n\r\n    const template = pm.response.json();\r\n    pm.expect(template.name).to.eql(\"Landing Gear\");\r\n    pm.expect(template.expectedDuration).to.eql(3.5);\r\n    pm.expect(template.templateId).to.be.a(\"number\");\r\n\r\n    pm.collectionVariables.set(\"secondTemplateId\", template.templateId);\r\n});"
             ]
           }
         }
@@ -1380,7 +1379,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"US119 - Unknown maintenance record returns 409\", function () {\r\n    pm.response.to.have.status(409);\r\n    pm.expect(pm.response.json().message)\r\n        .to.eql(\"Maintenance Record does not exist\");\r\n});"
+              "pm.test(\"US119 - Unknown maintenance record returns 404\", function () {\r\n    pm.response.to.have.status(404);\r\n    pm.expect(pm.response.json().message)\r\n        .to.eql(\"Maintenance Record does not exist\");\r\n});"
             ]
           }
         }
@@ -1616,7 +1615,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"US221 - Average turnaround matches bootstrap data\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const results = pm.response.json();\r\n    pm.expect(results).to.be.an(\"array\").with.lengthOf(2);\r\n\r\n    const expected = {\r\n        \"737-800\": 4,\r\n        \"A320neo\": 1\r\n    };\r\n\r\n    Object.entries(expected).forEach(([model, days]) => {\r\n        const result = results.find(r => r.aircraftType === model);\r\n\r\n        pm.expect(result, model + \" must appear\").to.exist;\r\n        pm.expect(result.averageDays).to.eql(days);\r\n    });\r\n});"
+              "pm.test(\"US221 - Average turnaround matches bootstrap data\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const results = pm.response.json();\r\n    pm.expect(results).to.be.an(\"array\").with.lengthOf(2);\r\n\r\n    const expected = {\r\n        \"737-800\": 6.5,\r\n        \"A320neo\": 1\r\n    };\r\n\r\n    Object.entries(expected).forEach(([model, days]) => {\r\n        const result = results.find(r => r.aircraftType === model);\r\n\r\n        pm.expect(result, model + \" must appear\").to.exist;\r\n        pm.expect(result.averageDays).to.eql(days);\r\n    });\r\n});"
             ]
           }
         }
@@ -1738,58 +1737,6 @@
             {
               "key": "flightHoursThreshold",
               "value": "300"
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "US222 - Maintenance Alerts - Calendar Threshold",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test(\"US222 - Calendar threshold triggers the alert\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const alerts = pm.response.json();\r\n    pm.expect(alerts).to.be.an(\"array\");\r\n\r\n    const aircraft = alerts.find(\r\n        a => a.registrationNumber === \"CS-TUA\"\r\n    );\r\n\r\n    pm.expect(aircraft, \"CS-TUA must appear\").to.exist;\r\n    pm.expect(aircraft.daysSinceLastMaintenance).to.be.at.least(3);\r\n    pm.expect(aircraft.alertReason).to.include(\"days ago\");\r\n    pm.expect(aircraft.alertReason).to.include(\"threshold: 3\");\r\n    pm.expect(aircraft.alertReason).not.to.include(\"Total flight hours\");\r\n});\r\npm.test(\"US222 - Recent maintenance below thresholds produces no alert\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const alerts = pm.response.json();\r\n\r\n    pm.expect(\r\n        alerts.some(a => a.registrationNumber === \"F-HXKA\"),\r\n        \"F-HXKA should not generate an alert\"\r\n    ).to.eql(false);\r\n});"
-            ]
-          }
-        }
-      ],
-      "request": {
-        "auth": {
-          "type": "bearer",
-          "bearer": [
-            {
-              "key": "token",
-              "value": "{{atccToken}}",
-              "type": "string"
-            }
-          ]
-        },
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "https://localhost:7979/api/maintenance/alerts?calendarDaysThreshold=3&flightHoursThreshold=99999",
-          "protocol": "https",
-          "host": [
-            "localhost"
-          ],
-          "port": "7979",
-          "path": [
-            "api",
-            "maintenance",
-            "alerts"
-          ],
-          "query": [
-            {
-              "key": "calendarDaysThreshold",
-              "value": "3"
-            },
-            {
-              "key": "flightHoursThreshold",
-              "value": "99999"
             }
           ]
         }
@@ -1999,7 +1946,7 @@
           "bearer": [
             {
               "key": "token",
-              "value": "{{atccToken}}",
+              "value": "{{backofficeToken}}",
               "type": "string"
             }
           ]
@@ -2043,7 +1990,7 @@
           "bearer": [
             {
               "key": "token",
-              "value": "{{atccToken}}",
+              "value": "{{backofficeToken}}",
               "type": "string"
             }
           ]
@@ -2063,6 +2010,891 @@
             "analytics",
             "fuel-efficiency",
             "routes"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US106 - Register an Airport",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{backofficeToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "",
+            "disabled": true
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"iataCode\": \"ZCX\",\n  \"airportType\": \"International\",\n  \"name\": \"Francisco Sá Carneiro Airport\",\n  \"status\": \"OPERATIONAL\",\n  \"location\": {\n    \"city\": \"Porto\",\n    \"longitude\": -8.6814,\n    \"latitude\": 41.2481,\n    \"region\": \"Norte\",\n    \"timezone\": \"Europe/Lisbon\",\n    \"country\": \"Portugal\"\n  },\n  \"facilities\": {\n    \"terminalCount\": 1,\n    \"services\": [\"fuel\", \"maintenance\", \"catering\", \"ground_handling\"],\n    \"gateCount\": 36\n  },\n  \"routeDistance\": 0.0,\n  \"runways\": [\n    {\n      \"runwayName\": \"17/35\",\n      \"length\": 3480.0,\n      \"orientation\": \"N/S\",\n      \"status\": \"OPEN\"\n    }\n  ],\n  \"certifications\": [],\n  \"contacts\": [\n    {\n      \"type\": \"EMAIL\",\n      \"value\": \"ops@opo.pt\"\n    },\n    {\n      \"type\": \"PHONE\",\n      \"value\": \"+351229432400\"\n    }\n  ],\n  \"airportPhotos\": [\n    \"https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Aeroporto_Porto.jpg/320px-Aeroporto_Porto.jpg\"\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/airports/",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "airports",
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US106a - Add Certiifcation",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{backofficeToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"EASA Aerodrome Certificate\",\n  \"category\": \"SAFETY\",\n  \"startsAt\": \"2024-01-01\",\n  \"expiresAt\": \"2027-01-01\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/airports/OPO/certifications",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "airports",
+            "OPO",
+            "certifications"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US107 - Get Airport",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/airports/OPO",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "airports",
+            "OPO"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US108 - Search Airports",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/airports?city=Porto&country=Portugal&name=Francisco S%C3%A1 Carneiro Airport",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "airports"
+          ],
+          "query": [
+            {
+              "key": "city",
+              "value": "Porto"
+            },
+            {
+              "key": "country",
+              "value": "Portugal"
+            },
+            {
+              "key": "name",
+              "value": "Francisco S%C3%A1 Carneiro Airport"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US109 - Updarte Airport Status",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{backofficeToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"UNDER_MAINTENANCE\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/airports/OPO/status",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "airports",
+            "OPO",
+            "status"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US209 - Get Airport Routes",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/airports/LIS/routes",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "airports",
+            "LIS",
+            "routes"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US207 - Create Airport Enhanced",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{backofficeToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"iataCode\": \"RYS\",\n  \"airportType\": \"International\",\n  \"name\": \"Humberto Delgado Airport\",\n  \"status\": \"OPERATIONAL\",\n  \"operationalHours\": \"06:00-23:00\",\n  \"location\": {\n    \"city\": \"Lisbon\",\n    \"longitude\": -9.1359,\n    \"latitude\": 38.7742,\n    \"region\": \"Lisbon\",\n    \"timezone\": \"Europe/Lisbon\",\n    \"country\": \"Portugal\"\n  },\n  \"facilities\": {\n    \"terminalCount\": 2,\n    \"services\": [\"fuel\", \"maintenance\"],\n    \"gateCount\": 48\n  },\n  \"routeDistance\": 0.0,\n  \"runways\": [\n    {\n      \"runwayName\": \"03/21\",\n      \"length\": 3805.0,\n      \"orientation\": \"NE/SW\",\n      \"status\": \"OPEN\"\n    }\n  ],\n  \"certifications\": [],\n  \"contacts\": [\n    {\n      \"type\": \"EMAIL\",\n      \"value\": \"ops@lis.pt\"\n    }\n  ],\n  \"airportPhotos\": [\"https://example.com/lis-front.jpg\"]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/airports/",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "airports",
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US208 - Update Airport Details",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{backofficeToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Lisbon Airport\",\n  \"operationalHours\": \"05:00-00:00\",\n  \"contacts\": [\n    {\n      \"type\": \"PHONE\",\n      \"value\": \"+351210000000\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/airports/LIS/details",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "airports",
+            "LIS",
+            "details"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US210 - Get Busiest Airports",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{backofficeToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/airports/busiest",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "airports",
+            "busiest"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US211 - Get Airports By Criteria",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/airports/grouped?by=country",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "airports",
+            "grouped"
+          ],
+          "query": [
+            {
+              "key": "by",
+              "value": "country"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US212 - Schedule a Flight",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"routeId\": 1,\n  \"aircraftRegistrationNumber\": \"CS-TUA\",\n  \"scheduledDeparture\": \"2026-06-10T09:00:00\",\n  \"scheduledArrival\": \"2026-06-10T10:00:00\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/flights/scheduled",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "flights",
+            "scheduled"
+          ],
+          "query": [
+            {
+              "key": "cC",
+              "value": "",
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US213 - Get Flights for an Aircraft",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/flights/aircraft/CS-TST",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "flights",
+            "aircraft",
+            "CS-TST"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US229 - Get Route Utilization",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/flights/reports/route-utilization",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "flights",
+            "reports",
+            "route-utilization"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US110 - Create Route",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"routeName\": \"LIS-OPO\",\n  \"originIataCode\": \"LIS\",\n  \"destinationIataCode\": \"OPO\",\n  \"estimatedFlightTimeHours\": 0.9,\n  \"type\": \"DIRECT\",\n  \"requirements\": {\n    \"requiredRange\": 3200.0,\n    \"requiredCapacity\": 160\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/routes",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "routes"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US111 - Get Route History",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/routes/1/history",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "routes",
+            "1",
+            "history"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US112 - Update Route",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"destinationIataCode\": \"MAD\",\n  \"estimatedFlightTimeHours\": 1.4,\n  \"status\": \"ACTIVE\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:7979/api/routes/1",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "routes",
+            "1"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US113 - Get Route",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/routes/1",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "routes",
+            "1"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US114 - Search Routes",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/routes?origin=LIS&destination=OPO",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "routes"
+          ],
+          "query": [
+            {
+              "key": "origin",
+              "value": "LIS"
+            },
+            {
+              "key": "destination",
+              "value": "OPO"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US214 - Sort Active Routes",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/routes/active?sortBy=popularity",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "routes",
+            "active"
+          ],
+          "query": [
+            {
+              "key": "sortBy",
+              "value": "popularity",
+              "description": "Can be by \"popularity\" or \"distance\""
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US215 - Get Routes Total Distance",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{atccToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/routes/total-distance",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "routes",
+            "total-distance"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US216 - Get Alternative Routes",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:7979/api/routes/alternatives?origin=LIS&destination=OPO",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "routes",
+            "alternatives"
+          ],
+          "query": [
+            {
+              "key": "origin",
+              "value": "LIS"
+            },
+            {
+              "key": "destination",
+              "value": "OPO"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US228 - Export Routes in GeoJSON",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{backofficeToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/geo+json"
+          }
+        ],
+        "url": {
+          "raw": "https://localhost:7979/api/routes/export/geojson",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "routes",
+            "export",
+            "geojson"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "US228 - Export Routes in KML",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{backofficeToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/vnd.google-earth.kml+xml"
+          }
+        ],
+        "url": {
+          "raw": "https://localhost:7979/api/routes/export/kml",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "7979",
+          "path": [
+            "api",
+            "routes",
+            "export",
+            "kml"
           ]
         }
       },

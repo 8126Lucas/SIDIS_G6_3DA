@@ -69,7 +69,7 @@ public class AircraftSearchService {
     }
 
     public long countByAvailability(AircraftAvailability availability) {
-        return aircraftQueryRepository.countByStatus(availability);
+        return findAll().stream().filter(a -> a.getStatus() == availability).count();
     }
 
     public List<AircraftRedis> findAircraftsByAvailability(List<AircraftRedis> aircrafts, AircraftAvailability status) {

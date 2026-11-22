@@ -6,6 +6,8 @@ import com.sidis.maintenanceservice.infrastructure.MaintenanceTemplateCommandRep
 import com.sidis.maintenanceservice.infrastructure.messaging.MaintenanceRecordSyncEvent;
 import com.sidis.maintenanceservice.infrastructure.messaging.MaintenanceTemplateSyncEvent;
 import com.sidis.maintenanceservice.infrastructure.messaging.RabbitMQConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -18,6 +20,7 @@ import java.util.*;
 @Component
 //@Profile("dev")
 public class Bootstrap implements ApplicationRunner {
+    private static final Logger log = LoggerFactory.getLogger(Bootstrap.class);
     private final MaintenanceRecordCommandRepository maintenanceRecordRepository;
     private final MaintenanceTemplateCommandRepository maintenanceTemplateRepository;
     private final RabbitTemplate rabbitTemplate;
@@ -36,6 +39,65 @@ public class Bootstrap implements ApplicationRunner {
         if (maintenanceRecordRepository.count() == 0 && maintenanceTemplateRepository.count() == 0) {
             seedMaintenance();
         }
+        republishTemplates();
+        republishRecords();
+    }
+
+    private void republishTemplates() {
+        List<MaintenanceTemplate> templates = maintenanceTemplateRepository.findAll();
+        for (MaintenanceTemplate template : templates) {
+            MaintenanceTemplateSyncEvent event = new MaintenanceTemplateSyncEvent(
+                    template.getTemplateId(),
+                    template.getName(),
+                    template.getExpectedDuration(),
+                    template.getTemplateChecklist(),
+                    template.getOperation(),
+                    template.getAttribute()
+            );
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.TEMPLATE_EXCHANGE_NAME,
+                    "maintenancetemplate.event.created",
+                    event
+            );
+        }
+        log.info("Republished {} templates", templates.size());
+    }
+    
+    private void republishRecords() {
+        List<MaintenanceRecord> records = maintenanceRecordRepository.findAll();
+        for (MaintenanceRecord record : records) {
+            List<UsedPartRedis> parts = new ArrayList<>();
+            for(UsedPart part : record.getUsedParts()) {
+                parts.add(new UsedPartRedis(part.getPartSerialNumber(),
+                        part.getQuantity(),
+                        part.getPrice()));
+            }
+
+            DoneListRedis doneListRedis = record.getDoneList() != null
+                    ? new DoneListRedis(record.getDoneList().getCompletionNotes(), record.getDoneList().getTasksDone())
+                    : null;
+
+            MaintenanceRecordSyncEvent event = new MaintenanceRecordSyncEvent(
+                    record.getRecordId(),
+                    record.getAircraftRegistration(),
+                    record.getMaintenanceTemplate().getTemplateId(),
+                    record.getDescription(),
+                    record.getTechniciansUsername(),
+                    record.getSupervisorUsername(),
+                    record.getStartDate(),
+                    record.getEndDate(),
+                    parts,
+                    record.getDurationHours(),
+                    doneListRedis,
+                    record.getStatus()
+            );
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.MAINTENANCE_EXCHANGE_NAME,
+                    "maintenance.event.created",
+                    event
+            );
+        }
+        log.info("Republished {} maintenance records", records.size());
     }
 
     private void seedMaintenance() {
@@ -209,8 +271,9 @@ public class Bootstrap implements ApplicationRunner {
                         part.getPrice()));
             }
 
-            DoneListRedis doneListRedis = new DoneListRedis(record.getDoneList().getCompletionNotes(),
-                    record.getDoneList().getTasksDone());
+            DoneListRedis doneListRedis = record.getDoneList() != null
+                    ? new DoneListRedis(record.getDoneList().getCompletionNotes(), record.getDoneList().getTasksDone())
+                    : null;
 
             MaintenanceRecordSyncEvent event = new MaintenanceRecordSyncEvent(
                     record.getRecordId(),

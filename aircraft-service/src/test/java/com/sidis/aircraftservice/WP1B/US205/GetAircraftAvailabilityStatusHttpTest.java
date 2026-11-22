@@ -18,6 +18,7 @@ class GetAircraftAvailabilityStatusHttpTest extends OperationalHttpTest {
     @Test
     void shouldReturn404WhenAircraftDoesntExist() throws Exception {
         String aircraftRegistration=unique();
+        authenticate("atcc", "atcc123");
         String pathHangar="/api/hangar/aircraft/"+aircraftRegistration+"/status";
         var response=request("GET", pathHangar, null);
         assertEquals(404,response.statusCode());
@@ -25,6 +26,7 @@ class GetAircraftAvailabilityStatusHttpTest extends OperationalHttpTest {
 
     @Test
     void shouldReturnTheAircraftsAvailability() throws Exception {
+        authenticate("atcc", "atcc123");
         var response=get("/api/hangar/analytics/aircraft-availability");
         assertNotNull(response);
         assertFalse(response.isEmpty());
@@ -32,6 +34,7 @@ class GetAircraftAvailabilityStatusHttpTest extends OperationalHttpTest {
 
     @Test
     void shouldReturnTheAircraftsStatusSummary() throws Exception {
+        authenticate("atcc", "atcc123");
         var response=get("/api/hangar/analytics/status-summary");
         assertNotNull(response);
         assertFalse(response.isEmpty());

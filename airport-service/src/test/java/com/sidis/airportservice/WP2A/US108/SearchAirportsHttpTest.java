@@ -14,6 +14,7 @@ class SearchAirportsHttpTest extends OperationalHttpTest {
     @ParameterizedTest @ValueSource(strings = {"city", "country", "name"})
     void shouldFilterAirports(String filter) throws Exception {
         String code = createAirport();
+        Thread.sleep(1000);
         var airport = get("/api/airports/" + code);
         String value = filter.equals("name") ? airport.path("name").asText()
                 : airport.path("location").path(filter).asText();

@@ -13,6 +13,7 @@ class AirportDetailsHttpTest extends OperationalHttpTest {
 
     @Test void shouldReadAirportByIataAsAtcc() throws Exception {
         String code = createAirport();
+        Thread.sleep(1000);
         authenticateAs("atcc");
         var airport = get("/api/airports/" + code);
         assertEquals(code, airport.path("iataCode").asText());

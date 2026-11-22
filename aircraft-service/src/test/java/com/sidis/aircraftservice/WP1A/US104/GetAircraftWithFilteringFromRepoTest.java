@@ -10,7 +10,10 @@ import static org.junit.jupiter.api.Assertions.*;
 class GetAircraftWithFilteringFromRepoTest extends GatewayHttpTest {
 
     @Test void shouldReturnFilteredAircrafts() throws Exception {
+        authenticate("backoffice","backoffice123");
         String model = createModel();
+
+        authenticate("atcc","atcc123");
         String registration = createAircraft(model);
         var rows = get("/api/hangar/aircraft?model=" + model
                 + "&status=AVAILABLE&manufacturingDate=2020-01-01");

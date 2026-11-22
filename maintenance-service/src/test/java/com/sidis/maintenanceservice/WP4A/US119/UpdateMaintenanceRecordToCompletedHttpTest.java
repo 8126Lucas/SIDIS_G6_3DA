@@ -3,6 +3,7 @@ package com.sidis.maintenanceservice.WP4A.US119;
 import com.sidis.maintenanceservice.support.GatewayHttpTest;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import java.lang.Thread;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -10,13 +11,20 @@ class UpdateMaintenanceRecordToCompletedHttpTest extends GatewayHttpTest {
     @Test
     void shouldUpdateToCompletedARecord() throws Exception {
         var created = createRecord();
+        Thread.sleep(1500);
         long recordId = created.path("id").asLong();
         var body = completeRecordBody();
+
+        authenticate("technician","technician123");
         var response = request("PATCH", "/api/maintenance/records/" + recordId + "/complete", body);
         assertEquals(200, response.statusCode(), response.body());
         var patchResponse = JSON.readTree(response.body());
         assertEquals(recordId, patchResponse.path("id").asLong());
         assertEquals("COMPLETED", patchResponse.path("status").asText());
+
+        Thread.sleep(1500);
+
+        authenticate("technician","technician123");
         var updated = get("/api/maintenance/records/" + recordId);
         assertEquals(recordId, updated.path("id").asLong());
         assertEquals("COMPLETED", updated.path("status").asText());

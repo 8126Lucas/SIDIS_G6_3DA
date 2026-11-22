@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class TurnaroundAverageUseCaseTest extends GatewayHttpTest {
 
     @Test void shouldReturnTurnaroundReportThroughHttp() throws Exception {
+        authenticate("supervisor","supervisor123");
         var rows = get("/api/maintenance/turnaround-average");
         assertTrue(rows.isArray());
         assertFalse(rows.isEmpty(), "Bootstrap contains completed records; an empty report does not test averages");

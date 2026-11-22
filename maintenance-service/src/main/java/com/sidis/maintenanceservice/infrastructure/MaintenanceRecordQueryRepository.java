@@ -21,7 +21,6 @@ public interface MaintenanceRecordQueryRepository extends CrudRepository<Mainten
 //    List<MaintenanceRecord> findByAircraft_RegistrationNumber(String registrationNumber);
     List<MaintenanceRecordRedis> findByStatus(MaintenanceStatus status);
     List<MaintenanceRecordRedis> findAll();
-    Page<MaintenanceRecordRedis> findAll(Specification<MaintenanceRecordRedis> spec, Pageable pageable);
 
     @Query("SELECT new com.sidis.maintenanceservice.domain.MaintenanceHoursReport(m.aircraftRegistration, SUM(m.durationHours)) " +
             "FROM MaintenanceRecord m " +

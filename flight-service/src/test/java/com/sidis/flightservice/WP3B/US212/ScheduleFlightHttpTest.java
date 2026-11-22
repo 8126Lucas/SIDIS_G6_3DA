@@ -32,6 +32,7 @@ class ScheduleFlightHttpTest extends OperationalHttpTest {
         LocalDateTime departure = departure();
         var body = flightBody(id, registration, departure);
         body.put("scheduledArrival", departure.minusHours(1).toString());
+        authenticateAs("atcc");
         assertRejectedFor(request("POST", "/api/flights/scheduled", body), "arrival");
         assertTrue(get("/api/flights/aircraft/" + registration).isEmpty());
     }
@@ -44,17 +45,25 @@ class ScheduleFlightHttpTest extends OperationalHttpTest {
         expect(400, request("POST", "/api/flights/scheduled", body));
     }
 
-    @ParameterizedTest @ValueSource(strings = {"MAINTENANCE", "INACTIVE"})
+    @ParameterizedTest
+    @ValueSource(strings = {"MAINTENANCE", "INACTIVE"})
     void shouldRejectUnavailableAircraft(String status) throws Exception {
         long id = createRoute().path("routeId").asLong();
         String registration = createAircraft();
+        authenticateAs("backoffice");
         expect(200, request("PATCH", "/api/hangar/aircraft/" + registration,
-                Map.of("registrationNumber", registration, "availability", status)));
+                Map.of(
+                        "registrationNumber", registration,
+                        "availability", status
+                )));
+
+        authenticateAs("atcc");
+
         assertRejectedFor(request("POST", "/api/flights/scheduled",
                 flightBody(id, registration, departure())), "not available");
+
         assertTrue(get("/api/flights/aircraft/" + registration).isEmpty());
     }
-
     @Test void shouldRejectInactiveRoute() throws Exception {
         long id = createRoute().path("routeId").asLong();
         String registration = createAircraft();

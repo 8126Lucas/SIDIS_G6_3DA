@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -43,6 +44,7 @@ public class FlightController {
 
     @PostMapping("/scheduled")
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('ATCC')")//US212
     public FlightResponse scheduleFlight(@Valid @RequestBody ScheduleFlightRequest request) {
         AircraftClientDTO aircraft = aircraftSearchService
                 .spotAircraftInHangar(request.aircraftRegistrationNumber())
@@ -53,6 +55,7 @@ public class FlightController {
     }
 
     @GetMapping("/aircraft/{registrationNumber}")
+    @PreAuthorize("hasRole('ATCC')")//US213
     public List<FlightResponse> getScheduledFlightsForAircraft(@PathVariable String registrationNumber) {
         return flightQueryService.getScheduledFlightsForAircraft(registrationNumber)
                 .stream()
@@ -61,6 +64,7 @@ public class FlightController {
     }
 
     @GetMapping("/reports/route-utilization")
+    @PreAuthorize("hasRole('BACKOFFICE')")//US229
     public List<RouteUtilizationReportResponse> getRouteUtilizationReport() {
         return flightQueryService.getRouteUtilizationReport()
                 .stream()

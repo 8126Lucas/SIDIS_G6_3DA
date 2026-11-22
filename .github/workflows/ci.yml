@@ -2,7 +2,7 @@ name: SIDIS Monorepo CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "1241008" ]
   pull_request:
     branches: [ "main" ]
 
@@ -53,11 +53,63 @@ jobs:
         image: rabbitmq:3.12-management-alpine
         ports:
           - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
-      redis:
+      redis-aircraft:
         image: redis:7-alpine
         ports:
           - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      redis-maintenance:
+        image: redis:7-alpine
+        ports:
+          - 6382:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      redis-flight:
+        image: redis:7-alpine
+        ports:
+          - 6388:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      redis-route:
+        image: redis:7-alpine
+        ports:
+          - 6391:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      redis-airport:
+        image: redis:7-alpine
+        ports:
+          - 6385:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
@@ -80,104 +132,153 @@ jobs:
       - name: Dar permissões de execução
         run: chmod +x mvnw
 
-      - name: Iniciar Eureka e Gateway
+      - name: Iniciar Eureka e Gateway em modo test
         run: |
-          ./mvnw clean package -DskipTests
-          nohup java -Xmx256m -Dspring.profiles.active=node1 -jar discovery-service/target/*.jar > eureka.log 2>&1 &
+          (cd discovery-service && SPRING_PROFILES_ACTIVE=test ./mvnw spring-boot:run -Dspring-boot.run.profiles=node1) > eureka.log 2>&1 &
           sleep 15
-          nohup java -Xmx256m -jar APIgateway/target/*.jar > gateway.log 2>&1 &
+          (cd APIgateway && SPRING_PROFILES_ACTIVE=test ./mvnw spring-boot:run) > gateway.log 2>&1 &
 
-      - name: Executar Microsserviços
+      - name: Executar Microsserviços em modo test
         run: |
-          nohup java -Xmx256m -jar auth-service/target/*.jar > auth.log 2>&1 &
-          nohup java -Xmx256m -jar aircraft-service/target/*.jar > aircraft.log 2>&1 &
-          nohup java -Xmx256m -jar maintenance-service/target/*.jar > maintenance.log 2>&1 &
-          nohup java -Xmx256m -jar flight-service/target/*.jar > flight.log 2>&1 &
-          nohup java -Xmx256m -jar route-service/target/*.jar > route.log 2>&1 &
-          nohup java -Xmx256m -jar airport-service/target/*.jar > airport.log 2>&1 &
+          (cd auth-service && SPRING_PROFILES_ACTIVE=test ./mvnw spring-boot:run) > auth.log 2>&1 &
+          (cd aircraft-service && SPRING_PROFILES_ACTIVE=test ./mvnw spring-boot:run) > aircraft.log 2>&1 &
+          (cd maintenance-service && SPRING_PROFILES_ACTIVE=test ./mvnw spring-boot:run) > maintenance.log 2>&1 &
+          (cd flight-service && SPRING_PROFILES_ACTIVE=test ./mvnw spring-boot:run) > flight.log 2>&1 &
+          (cd route-service && SPRING_PROFILES_ACTIVE=test ./mvnw spring-boot:run) > route.log 2>&1 &
+          (cd airport-service && SPRING_PROFILES_ACTIVE=test ./mvnw spring-boot:run) > airport.log 2>&1 &
 
       - name: Esperar pelo registo no Eureka
         run: |
-          echo "A aguardar 150 segundos para o Eureka registar todos os nós..."
-          sleep 150
+          echo "A aguardar 120 segundos para o Eureka registar todos os nós..."
+          sleep 120
 
       - name: Validar Todos os Módulos (Testes Java E2E)
         run: ./mvnw verify
 
+      - name: Mostrar logs em caso de falha
+        if: failure()
+        run: |
+          tail -n 100 eureka.log gateway.log auth.log aircraft.log maintenance.log flight.log route.log airport.log || true
+
   # 3. TESTES POSTMAN
-  #postman-tests:
-  #  name: Testes de Integração Postman
-  #  needs: compile
-  #  runs-on: ubuntu-latest
-  #  services:
-  #    postgres:
-  #      image: postgres:15-alpine
-  #      env:
-  #        POSTGRES_USER: sidis
-  #        POSTGRES_PASSWORD: sidis
-  #        POSTGRES_DB: sidis
-  #      ports:
-  #        - 5432:5432
-  #      options: >-
-  #        --health-cmd pg_isready
-  #        --health-interval 10s
-  #        --health-timeout 5s
-  #        --health-retries 5
-#
-  #    rabbitmq:
-  #      image: rabbitmq:3.12-management-alpine
-  #      ports:
-  #        - 5672:5672
-#
-  #    redis:
-  #      image: redis:7-alpine
-  #      ports:
-  #        - 6379:6379
-  #  steps:
-  #    - name: Checkout do código
-  #      uses: actions/checkout@v4
-      #
-      #- name: Configurar Bases de Dados PostgreSQL
-      #  run: |
-      #    PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE aircraft_db;"
-      #    PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE maintenance_db;"
-      #    PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE airport_db;"
-      #    PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE flight_db;"
-      #    PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE route_db;"
-#
-  #    - name: Configurar JDK 21
-  #      uses: actions/setup-java@v4
-  #      with:
-  #        java-version: '21'
-  #        distribution: 'temurin'
-  #        cache: 'maven'
-#
-  #    - name: Dar permissões de execução
-  #      run: chmod +x mvnw
-#
-  #    - name: Iniciar Eureka e Gateway
-  #      run: |
-  #        ./mvnw clean package -DskipTests
-  #        nohup java -Xmx256m -Dspring.profiles.active=node1 -jar discovery-service/target/*.jar > eureka.log 2>&1 &
-  #        sleep 15
-  #        nohup java -Xmx256m -jar APIgateway/target/*.jar > gateway.log 2>&1 &
-#
-  #    - name: Executar Microsserviços
-  #      run: |
-  #        nohup java -Xmx256m -jar auth-service/target/*.jar > auth.log 2>&1 &
-  #        nohup java -Xmx256m -jar aircraft-service/target/*.jar > aircraft.log 2>&1 &
-  #        nohup java -Xmx256m -jar maintenance-service/target/*.jar > maintenance.log 2>&1 &
-  #        nohup java -Xmx256m -jar flight-service/target/*.jar > flight.log 2>&1 &
-  #        nohup java -Xmx256m -jar route-service/target/*.jar > route.log 2>&1 &
-  #        nohup java -Xmx256m -jar airport-service/target/*.jar > airport.log 2>&1 &
-#
-  #    - name: Esperar pelo registo no Eureka
-  #      run: |
-  #        echo "A aguardar 150 segundos para o Eureka registar todos os nós..."
-  #        sleep 150
-#
-  #    - name: Instalar Newman
-  #      run: npm install -g newman
-#
-  #    - name: Executar Testes API
-  #      run: newman run "./docs/postman/SIDIS HTTP Tests.postman_collection.json"
+  postman-tests:
+    name: Testes de Integração Postman
+    needs: compile
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: sidis
+          POSTGRES_PASSWORD: sidis
+          POSTGRES_DB: sidis
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+  
+      rabbitmq:
+        image: rabbitmq:3.12-management-alpine
+        ports:
+          - 5672:5672
+
+      redis-aircraft:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      redis-maintenance:
+        image: redis:7-alpine
+        ports:
+          - 6382:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      redis-flight:
+        image: redis:7-alpine
+        ports:
+          - 6388:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      redis-route:
+        image: redis:7-alpine
+        ports:
+          - 6391:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      redis-airport:
+        image: redis:7-alpine
+        ports:
+          - 6385:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+  
+      - name: Configurar Bases de Dados PostgreSQL
+        run: |
+          PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE aircraft_db;"
+          PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE maintenance_db;"
+          PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE airport_db;"
+          PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE flight_db;"
+          PGPASSWORD=sidis psql -h localhost -U sidis -d sidis -c "CREATE DATABASE route_db;"
+  
+      - name: Configurar JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+  
+      - name: Dar permissões de execução
+        run: chmod +x mvnw
+
+      - name: Iniciar Eureka e Gateway
+        run: |
+          ./mvnw clean package -DskipTests
+          nohup java -Xmx256m -Dspring.profiles.active=test,node1 -jar discovery-service/target/*.jar > eureka.log 2>&1 &
+          sleep 15
+          nohup java -Xmx256m -Dspring.profiles.active=test -jar APIgateway/target/*.jar > gateway.log 2>&1 &
+
+      - name: Executar Microsserviços
+        run: |
+          nohup java -Xmx256m -Dspring.profiles.active=test -jar auth-service/target/*.jar > auth.log 2>&1 &
+          nohup java -Xmx256m -Dspring.profiles.active=test -jar aircraft-service/target/*.jar > aircraft.log 2>&1 &
+          nohup java -Xmx256m -Dspring.profiles.active=test -jar maintenance-service/target/*.jar > maintenance.log 2>&1 &
+          nohup java -Xmx256m -Dspring.profiles.active=test -jar flight-service/target/*.jar > flight.log 2>&1 &
+          nohup java -Xmx256m -Dspring.profiles.active=test -jar route-service/target/*.jar > route.log 2>&1 &
+          nohup java -Xmx256m -Dspring.profiles.active=test -jar airport-service/target/*.jar > airport.log 2>&1 &
+  
+      - name: Esperar pelo registo no Eureka
+        run: |
+          echo "A aguardar 120 segundos para o Eureka registar todos os nós..."
+          sleep 120
+  
+      - name: Instalar Newman
+        run: npm install -g newman
+  
+      - name: Executar Testes API
+        run: newman run "./docs/postman/SIDIS HTTP Tests.postman_collection.json" --insecure

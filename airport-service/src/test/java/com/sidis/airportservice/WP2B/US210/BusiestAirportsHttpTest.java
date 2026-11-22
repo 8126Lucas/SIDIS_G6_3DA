@@ -15,6 +15,7 @@ class BusiestAirportsHttpTest extends OperationalHttpTest {
         String hub = createAirport();
         createRoute(hub, createAirport());
         createRoute(createAirport(), hub);
+        Thread.sleep(1000);
         authenticateAs("backoffice");
         var rows = get("/api/airports/busiest");
         assertEquals(2, find(rows, "iataCode", hub).path("numberOfRoutes").asLong());

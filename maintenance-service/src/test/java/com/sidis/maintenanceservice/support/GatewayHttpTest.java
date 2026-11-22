@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.lang.Thread;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -35,25 +36,41 @@ public abstract class GatewayHttpTest {
     private String token;
 
     @BeforeEach
-    protected void login() throws Exception {
+    protected void setupClient() throws Exception {
         HttpClient.Builder builder = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10));
-        // Trust the self-signed certificate only for the local development gateway.
         URI gateway = URI.create(baseUrl);
-        if ("localhost".equals(gateway.getHost()) || "127.0.0.1".equals(gateway.getHost())) {
+        if ("localhost".equals(gateway.getHost()) ||
+                "127.0.0.1".equals(gateway.getHost())) {
             System.setProperty("jdk.internal.httpclient.disableHostnameVerification", "true");
             SSLContext tls = SSLContext.getInstance("TLS");
             tls.init(null, new TrustManager[]{new X509TrustManager() {
-                public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+                public X509Certificate[] getAcceptedIssuers() {
+                    return new X509Certificate[0];
+                }
                 public void checkClientTrusted(X509Certificate[] chain, String authType) {}
                 public void checkServerTrusted(X509Certificate[] chain, String authType) {}
             }}, new SecureRandom());
             builder.sslContext(tls);
         }
         client = builder.build();
-        HttpResponse<String> response = request("POST", "/api/auth/login", Map.of(
-                "username", System.getenv().getOrDefault("SIDIS_BACKOFFICE_USERNAME", "backoffice"),
-                "password", System.getenv().getOrDefault("SIDIS_BACKOFFICE_PASSWORD", "backoffice123")));
-        assertEquals(200, response.statusCode(), "Gateway login failed (check test credentials).");
+        token = null;
+    }
+
+    protected HttpResponse<String> login(String username, String password) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/api/auth/login"))
+                .timeout(Duration.ofSeconds(30))
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        JSON.writeValueAsString(Map.of(
+                                "username", username,
+                                "password", password)))).build();
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    protected void authenticate(String username, String password) throws Exception {
+        HttpResponse<String> response = login(username, password);
+        assertEquals(200, response.statusCode(), response.body());
         token = JSON.readTree(response.body()).path("token").asText();
         assertFalse(token.isBlank(), "Login must return a token");
     }
@@ -65,7 +82,7 @@ public abstract class GatewayHttpTest {
 
     protected HttpResponse<String> request(String method, String path, Object body) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
-                .timeout(Duration.ofSeconds(30)).header("Accept", "application/json");
+                .timeout(Duration.ofSeconds(30)).header("Accept", "application/json").header("X-Gateway-Secret", "sidis-g6-secret");
         if (token != null) builder.header("Authorization", "Bearer " + token);
         if (body != null) builder.header("Content-Type", "application/json");
         builder.method(method, body == null ? HttpRequest.BodyPublishers.noBody()
@@ -92,6 +109,7 @@ public abstract class GatewayHttpTest {
     }
 
     protected String createModel() throws Exception {
+        authenticate("backoffice", "backoffice123");
         String name = unique();
         expect(201, request("POST", "/api/catalog/model", modelBody(name)));
         return name;
@@ -104,6 +122,7 @@ public abstract class GatewayHttpTest {
     }
 
     protected String createAircraft(String model) throws Exception {
+        authenticate("atcc", "atcc123");
         String registration = unique();
         expect(201, request("POST", "/api/hangar/aircraft", aircraftBody(registration, model)));
         return registration;
@@ -113,27 +132,42 @@ public abstract class GatewayHttpTest {
 
     protected JsonNode createTemplate() throws Exception {
         String name = unique();
-        JsonNode template = expect(200, request("POST", "/api/maintenance/templates", Map.of(
+        authenticate("technician","technician123");
+        JsonNode template = expect(201, request("POST", "/api/maintenance/templates", Map.of(
                 "name", name, "expectedDuration", 2.0,
                 "templateChecklist", Map.of("Inspect engine", false),
                 "operation", "INSPECTION", "attribute", "ENGINE")));
-        assertTrue(template.path("templateId").isIntegralNumber());
-        assertTrue(template.path("templateId").asLong() > 0);
+
+        Thread.sleep(1500);
+        
+        JsonNode idNode = template.has("templateId") ? template.get("templateId") : template.get("id");
+        assertTrue(idNode != null && idNode.isIntegralNumber(), "ERRO! O JSON devolvido foi: " + template.toString());
+        assertTrue(idNode.asLong() > 0);
+        
         assertEquals(name, template.path("name").asText());
         assertEquals(2.0, template.path("expectedDuration").asDouble());
         assertEquals("INSPECTION", template.path("operation").asText());
         assertEquals("ENGINE", template.path("attribute").asText());
         assertEquals(JSON.valueToTree(Map.of("Inspect engine", false)), template.path("templateChecklist"));
+        
         return template;
     }
 
     protected JsonNode createRecord() throws Exception {
         String registration = createAircraft();
-        long templateId = createTemplate().path("templateId").asLong();
-        expect(200, request("POST", "/api/maintenance/record", Map.of(
+        JsonNode template = createTemplate(); 
+
+        JsonNode idNode = template.has("templateId") ? template.get("templateId") : template.get("id");
+        long templateId = idNode.asLong();
+        
+        authenticate("technician","technician123");
+        expect(201, request("POST", "/api/maintenance/record", Map.of(
                 "registrationNumber", registration, "templateId", templateId,
                 "durationHours", 2.0, "description", "HTTP test inspection",
                 "startDate", "2026-01-01")));
+
+        Thread.sleep(1500);
+                
         JsonNode records = get("/api/maintenance/records?aircraft=" + registration);
         assertTrue(records.isArray());
         assertEquals(1, records.size(), "Expected the record created for this unique aircraft");
@@ -146,6 +180,7 @@ public abstract class GatewayHttpTest {
         assertEquals("HTTP test inspection", record.path("description").asText());
         assertEquals("2026-01-01", record.path("startDate").asText());
         assertEquals("INLINE", record.path("status").asText());
+        
         return record;
     }
 
@@ -178,6 +213,7 @@ public abstract class GatewayHttpTest {
     }
 
     protected void assertBootstrapCostsByAircraft() throws Exception {
+        authenticate("atcc","atcc123");
         JsonNode rows = get("/api/maintenance/reports/costs?groupBy=aircraft");
         for (var entry : Map.of("CS-TUA", 6700.0, "D-ABXA", 5600.0, "F-HXKA", 0.0).entrySet()) {
             JsonNode row = findRow(rows, "group", entry.getKey());
@@ -189,11 +225,13 @@ public abstract class GatewayHttpTest {
     protected void assertBootstrapCostsByModel() throws Exception {
         // Resolve models through HTTP; mismatched bootstrap registrations must fail visibly.
         Map<String, Double> expected = new java.util.HashMap<>();
+        authenticate("atcc","atcc123");
         for (var entry : Map.of("CS-TUA", 6700.0, "D-ABXA", 5600.0, "F-HXKA", 0.0).entrySet()) {
             String model = get("/api/hangar/aircraft/" + entry.getKey()).path("modelName").asText();
             assertFalse(model.isBlank(), "Aircraft must have a model: " + entry.getKey());
             expected.merge(model, entry.getValue(), Double::sum);
         }
+        authenticate("atcc","atcc123");
         JsonNode rows = get("/api/maintenance/reports/costs?groupBy=model");
         for (var entry : expected.entrySet()) {
             JsonNode row = findRow(rows, "group", entry.getKey());

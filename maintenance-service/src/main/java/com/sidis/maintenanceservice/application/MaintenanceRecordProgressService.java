@@ -2,6 +2,7 @@ package com.sidis.maintenanceservice.application;
 
 import com.sidis.maintenanceservice.domain.*;
 import com.sidis.maintenanceservice.infrastructure.MaintenanceRecordCommandRepository;
+import com.sidis.maintenanceservice.infrastructure.MaintenanceTemplateCommandRepository;
 import com.sidis.maintenanceservice.UseCase;
 import com.sidis.maintenanceservice.exceptions.DomainException;
 import com.sidis.maintenanceservice.infrastructure.messaging.MaintenanceRecordSyncEvent;
@@ -20,11 +21,14 @@ import java.util.Optional;
 @Transactional
 public class MaintenanceRecordProgressService {
     private final MaintenanceRecordCommandRepository maintenanceRecordRepository;
+    private final MaintenanceTemplateCommandRepository maintenanceTemplateCommandRepository;
     private final RabbitTemplate rabbitTemplate;
 
     public MaintenanceRecordProgressService(MaintenanceRecordCommandRepository maintenanceRecordRepository,
+                                            MaintenanceTemplateCommandRepository maintenanceTemplateCommandRepository,
                                             RabbitTemplate rabbitTemplate) {
         this.maintenanceRecordRepository = maintenanceRecordRepository;
+        this.maintenanceTemplateCommandRepository = maintenanceTemplateCommandRepository;
         this.rabbitTemplate = rabbitTemplate;
     }
 
@@ -77,7 +81,25 @@ public class MaintenanceRecordProgressService {
     }
 
     public void changeRecordAttribute(MaintenanceRecord record, MaintenanceAttribute attribute) {
-        record.getMaintenanceTemplate().changeAttribute(attribute);
+        MaintenanceTemplate template = record.getMaintenanceTemplate();
+        template.changeAttribute(attribute);
+        maintenanceTemplateCommandRepository.save(template);
+
+        MaintenanceTemplateSyncEvent event = new MaintenanceTemplateSyncEvent(
+                template.getTemplateId(),
+                template.getName(),
+                template.getExpectedDuration(),
+                template.getTemplateChecklist(),
+                template.getOperation(),
+                template.getAttribute()
+        );
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.TEMPLATE_EXCHANGE_NAME,
+                "maintenancetemplate.event.updated",
+                event
+        );
+        
+        sendRabbitMqUpdate(record);
     }
 
     private MaintenanceRecord findRecord(Long recordId) {
@@ -93,8 +115,9 @@ public class MaintenanceRecordProgressService {
                     part.getPrice()));
         }
 
-        DoneListRedis doneListRedis = new DoneListRedis(record.getDoneList().getCompletionNotes(),
-                record.getDoneList().getTasksDone());
+        DoneListRedis doneListRedis = record.getDoneList() != null
+                    ? new DoneListRedis(record.getDoneList().getCompletionNotes(), record.getDoneList().getTasksDone())
+                    : null;
 
         MaintenanceRecordSyncEvent event = new MaintenanceRecordSyncEvent(
                 record.getRecordId(),

@@ -333,6 +333,7 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC2}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC2}:auth-service:8101
+      - SPRING_PROFILES_ACTIVE=docker
     deploy:
       resources:
         limits:
@@ -352,6 +353,7 @@ services:
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_IP_ADDRESS=${IP_PC3}
       - EUREKA_INSTANCE_INSTANCE_ID=${IP_PC3}:auth-service:8102
+      - SPRING_PROFILES_ACTIVE=docker
     deploy:
       resources:
         limits:
@@ -375,6 +377,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/aircraft_db
       - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
       - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6379,${IP_PC2}:6380,${IP_PC3}:6381
+      - SPRING_PROFILES_ACTIVE=docker
     deploy:
       resources:
         limits:
@@ -397,6 +400,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/aircraft_db
       - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
       - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6379,${IP_PC2}:6380,${IP_PC3}:6381
+      - SPRING_PROFILES_ACTIVE=docker
     deploy:
       resources:
         limits:
@@ -420,6 +424,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/airport_db
       - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
       - SPRING_REDIS_CLUSTER_NODES=${IP_PC4}:6385,${IP_PC5}:6386,${IP_PC5}:6387
+      - SPRING_PROFILES_ACTIVE=docker
     deploy:
       resources:
         limits:
@@ -442,6 +447,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/airport_db
       - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
       - SPRING_REDIS_CLUSTER_NODES=${IP_PC4}:6385,${IP_PC5}:6386,${IP_PC5}:6387
+      - SPRING_PROFILES_ACTIVE=docker
     deploy:
       resources:
         limits:
@@ -465,6 +471,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/flight_db
       - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
       - SPRING_REDIS_CLUSTER_NODES=${IP_PC4}:6388,${IP_PC5}:6389,${IP_PC5}:6390
+      - SPRING_PROFILES_ACTIVE=docker
     deploy:
       resources:
         limits:
@@ -487,6 +494,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/flight_db
       - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
       - SPRING_REDIS_CLUSTER_NODES=${IP_PC4}:6388,${IP_PC5}:6389,${IP_PC5}:6390
+      - SPRING_PROFILES_ACTIVE=docker
     deploy:
       resources:
         limits:
@@ -510,6 +518,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/maintenance_db
       - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
       - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6382,${IP_PC2}:6383,${IP_PC3}:6384
+      - SPRING_PROFILES_ACTIVE=docker
     deploy:
       resources:
         limits:
@@ -532,6 +541,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/maintenance_db
       - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
       - SPRING_REDIS_CLUSTER_NODES=${IP_PC1}:6382,${IP_PC2}:6383,${IP_PC3}:6384
+      - SPRING_PROFILES_ACTIVE=docker
     deploy:
       resources:
         limits:
@@ -555,6 +565,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/route_db
       - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
       - SPRING_REDIS_CLUSTER_NODES=${IP_PC4}:6391,${IP_PC5}:6392,${IP_PC5}:6393
+      - SPRING_PROFILES_ACTIVE=docker
     deploy:
       resources:
         limits:
@@ -577,6 +588,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://${IP_PC5}:5432/route_db
       - SPRING_RABBITMQ_ADDRESSES=${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674
       - SPRING_REDIS_CLUSTER_NODES=${IP_PC4}:6391,${IP_PC5}:6392,${IP_PC5}:6393
+      - SPRING_PROFILES_ACTIVE=docker
     deploy:
       resources:
         limits:

@@ -76,11 +76,14 @@ public abstract class OperationalHttpTest extends GatewayHttpTest {
 
     protected String createAircraft(Double flightHours) throws Exception {
         String model = unique();
+        authenticate("backoffice", "backoffice123");
         expect(201, request("POST", "/api/catalog/model", Map.of(
                 "modelName", model, "manufacturer", "Airbus",
                 "modelImage", List.of("https://example.com/aircraft.jpg"),
                 "specs", Map.of("fuelCapacityLiters", 24210.0, "maximumRangeKm", 6150.0,
                         "cruisingSpeedKph", 828.0, "standardSeatingCapacity", 180))));
+
+        authenticate("atcc", "atcc123");
         String registration = unique();
         expect(201, request("POST", "/api/hangar/aircraft", Map.of(
                 "registrationNumber", registration, "modelName", model,

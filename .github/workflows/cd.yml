@@ -6,6 +6,10 @@ on:
     types:
       - completed
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build-services:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
@@ -23,8 +27,10 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Build com Maven (Todos os Microsserviços)
-        run: mvn clean package -DskipTests
+      - name: Dar permissões e Build com Maven Wrapper
+        run: |
+          chmod +x mvnw
+          ./mvnw clean package -DskipTests
 
       - name: Colocar o username em minúsculas
         id: set-owner

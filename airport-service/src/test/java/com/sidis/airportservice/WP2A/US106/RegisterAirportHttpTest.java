@@ -14,7 +14,9 @@ class RegisterAirportHttpTest extends OperationalHttpTest {
     @Test void shouldRegisterAirportWithLocationAndRunway() throws Exception {
         String code = unusedIata();
         var body = airportBody(code);
+        authenticateAs("backoffice");
         expect(201, request("POST", "/api/airports", body));
+        Thread.sleep(1000);
         var airport = get("/api/airports/" + code);
         assertEquals(code, airport.path("iataCode").asText());
         assertEquals(body.get("name"), airport.path("name").asText());
@@ -24,6 +26,7 @@ class RegisterAirportHttpTest extends OperationalHttpTest {
 
     @Test void shouldRejectDuplicateIataWithoutOverwritingAirport() throws Exception {
         String code = createAirport();
+        authenticateAs("backoffice");
         var original = get("/api/airports/" + code);
         assertRejected(request("POST", "/api/airports", airportBody(code)), "Duplicate IATA");
         assertEquals(original, get("/api/airports/" + code));
@@ -31,6 +34,7 @@ class RegisterAirportHttpTest extends OperationalHttpTest {
 
     @ParameterizedTest @ValueSource(strings = {"AB", "ABCD", "aBc", "123"})
     void shouldRejectInvalidIata(String code) throws Exception {
+        authenticateAs("backoffice");
         assertRejected(request("POST", "/api/airports", airportBody(code)), "Invalid IATA " + code);
     }
 

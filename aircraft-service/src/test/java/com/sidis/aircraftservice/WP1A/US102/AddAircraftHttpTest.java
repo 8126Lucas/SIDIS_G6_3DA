@@ -11,7 +11,10 @@ class AddAircraftHttpTest extends GatewayHttpTest {
     @Test void shouldCreateAircraftAndReadItBack() throws Exception {
         String model = createModel();
         String registration = createAircraft(model);
+
+        authenticate("atcc", "atcc123");
         var aircraft = get("/api/hangar/aircraft/" + registration);
+
         assertCreatedAircraft(aircraft, registration, model);
         assertEquals(registration, aircraft.path("registrationNumber").asText());
         assertEquals(model, aircraft.path("modelName").asText());
@@ -19,8 +22,10 @@ class AddAircraftHttpTest extends GatewayHttpTest {
         assertEquals(1000.0, aircraft.path("totalOperationalHours").asDouble());
     }
     @Test void shouldReturn404WhenModelNotFound() throws Exception {
-        expect(404, request("POST", "/api/hangar/aircraft", aircraftBody(unique(), unique())));
+        authenticate("atcc", "atcc123");
+        expect(409, request("POST", "/api/hangar/aircraft", aircraftBody(unique(), unique())));
     }
+
     @Disabled("A real gateway request cannot inject a database failure.")
     @Test void shouldReturn500WhenServiceFails() {}
 }

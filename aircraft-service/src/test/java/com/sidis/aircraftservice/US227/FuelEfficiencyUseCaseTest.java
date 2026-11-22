@@ -11,6 +11,7 @@ class FuelEfficiencyUseCaseTest extends GatewayHttpTest {
 
     @Test void shouldCalculateFuelConsumptionRatePerAircraft() throws Exception {
         String registration = createAircraft();
+        authenticate("backoffice", "backoffice123");
         var rows = get("/api/hangar/analytics/fuel-efficiency/aircraft");
         var row = java.util.stream.StreamSupport.stream(rows.spliterator(), false)
                 .filter(r -> registration.equals(r.path("registrationNumber").asText()))
@@ -25,8 +26,10 @@ class FuelEfficiencyUseCaseTest extends GatewayHttpTest {
         var body = new java.util.HashMap<String, Object>(modelBody(economicalModel));
         body.put("specs", Map.of("fuelCapacityLiters", 10000.0, "maximumRangeKm", 5000.0,
                 "cruisingSpeedKph", 800.0, "standardSeatingCapacity", 150));
+        authenticate("backoffice", "backoffice123");
         expect(201, request("POST", "/api/catalog/model", body));
         String economical = createAircraft(economicalModel);
+        authenticate("backoffice", "backoffice123");
         var rows = get("/api/hangar/analytics/fuel-efficiency/aircraft");
         assertTrue(rows.isArray());
         int regularIndex = -1;
