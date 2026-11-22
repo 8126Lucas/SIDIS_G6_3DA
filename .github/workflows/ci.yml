@@ -236,4 +236,4 @@ jobs:
         run: npm install -g newman
   
       - name: Executar Testes API
-        run: newman run "./docs/postman/SIDIS HTTP Tests.postman_collection.json"
+        run: newman run "./docs/postman/SIDIS HTTP Tests.postman_collection.json" --insecure

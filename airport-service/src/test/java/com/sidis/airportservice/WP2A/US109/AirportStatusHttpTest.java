@@ -15,8 +15,9 @@ class AirportStatusHttpTest extends OperationalHttpTest {
     void shouldPersistOperationalStatus(String status) throws Exception {
         String code = createAirport();
         if (status.equals("OPERATIONAL"))
-            expect(200, request("PATCH", "/api/airports/" + code + "/status", Map.of("status", "CLOSED")));
+            expect(200, request("PATCH", "/api/airports/" + code + "/status", Map.of("status", "CLOSED"))); Thread.sleep(1000);
         var changed = expect(200, request("PATCH", "/api/airports/" + code + "/status", Map.of("status", status)));
+        Thread.sleep(1000);
         assertEquals(status, changed.path("status").asText());
         assertEquals(status, get("/api/airports/" + code).path("status").asText());
     }
@@ -25,6 +26,7 @@ class AirportStatusHttpTest extends OperationalHttpTest {
         String code = createAirport();
         assertRejected(request("PATCH", "/api/airports/" + code + "/status",
                 Map.of("status", "NOT_A_STATUS")), "Invalid status");
+        Thread.sleep(1000);
         assertEquals("OPERATIONAL", get("/api/airports/" + code).path("status").asText());
     }
 

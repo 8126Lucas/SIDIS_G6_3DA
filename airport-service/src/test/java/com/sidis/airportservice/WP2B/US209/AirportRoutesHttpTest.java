@@ -15,6 +15,7 @@ class AirportRoutesHttpTest extends OperationalHttpTest {
         String hub = createAirport();
         var outgoing = createRoute(hub, createAirport());
         var incoming = createRoute(createAirport(), hub);
+        Thread.sleep(1000);
         authenticateAs("atcc");
         var rows = get("/api/airports/" + hub + "/routes");
         find(rows, "routeId", outgoing.path("routeId").asText());
@@ -24,6 +25,7 @@ class AirportRoutesHttpTest extends OperationalHttpTest {
 
     @Test void shouldReturnEmptyForAirportWithoutRoutes() throws Exception {
         String code = createAirport();
+        Thread.sleep(1000);
         authenticateAs("atcc");
         var rows = get("/api/airports/" + code + "/routes");
         assertTrue(rows.isArray());

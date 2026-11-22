@@ -2899,8 +2899,8 @@
           }
         ],
         "url": {
-          "raw": "htpps://localhost:7979/api/routes/export/geojson",
-          "protocol": "htpps",
+          "raw": "https://localhost:7979/api/routes/export/geojson",
+          "protocol": "https",
           "host": [
             "localhost"
           ],
