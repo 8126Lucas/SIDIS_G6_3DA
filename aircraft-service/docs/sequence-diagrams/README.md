@@ -42,7 +42,8 @@ In every flow the API Gateway first validates the JWT and forwards the request w
 
 1. Client requests the summary.
 2. For each `AircraftAvailability`, the controller calls `countByAvailability(...)`.
-3. `AircraftQueryRepository.countByStatus(...)` is a derived query on a field without `@Indexed`, so Redis has no index to answer it; the request currently ends in `500` instead of returning the map.
+3. `countByAvailability(...)` reads every `AircraftRedis` and counts those with that status in memory (the Redis `countByStatus` query is no longer used).
+4. The controller returns the map as `200 OK`.
 
 #### Flow D — Rejected Requests
 
@@ -65,10 +66,11 @@ Scenario 2 describes the write flows in `POST /api/hangar/aircraft` (US102) and 
 ### Key Steps
 
 1. Client sends `POST /api/hangar/aircraft` with model name, registration, dates, hours, and availability.
-2. The controller first calls `AircraftLifeCycleUpdaterService.changeAvailability(...)`, which looks the aircraft up in PostgreSQL. The aircraft does not exist yet, so the request ends with `404 Aircraft not found in database` (current behaviour).
-3. The creation it would run next is `AddAircraftUseCase`: load the model from PostgreSQL (`409` if missing), save the aircraft, publish `aircraft.event.created`, answer `201 Created`.
-4. `AircraftRedisProjector` (on whichever instance takes the message from `aircraft.sync.queue`) writes `Aircraft:<registration>` to Redis.
-5. `PATCH` validates path/body match (`409`), loads the aircraft from PostgreSQL (`404`), applies the new availability, saves, publishes `aircraft.event.updated`, and returns `200 OK`; the projector then replaces the Redis hash.
+2. `@PreAuthorize` requires the `ATCC` role (`403` otherwise). The controller parses `availability` (`400` if invalid).
+3. `AddAircraftUseCase` loads the model from PostgreSQL (`409` if missing), saves the aircraft as `INACTIVE` and publishes `aircraft.event.created`.
+4. `AircraftLifeCycleUpdaterService.changeAvailability(...)` applies the requested availability, saves and publishes `aircraft.event.updated`; the controller answers `201 Created`.
+5. `AircraftRedisProjector` (on whichever instance takes the message from `aircraft.sync.queue`) writes `Aircraft:<registration>` to Redis.
+6. `PATCH` requires `BACKOFFICE` (`403` otherwise), validates path/body match (`409`), loads the aircraft from PostgreSQL (`404`), applies the new availability, saves, publishes `aircraft.event.updated`, and returns `200 OK`; the projector then replaces the Redis hash.
 
 ---
 

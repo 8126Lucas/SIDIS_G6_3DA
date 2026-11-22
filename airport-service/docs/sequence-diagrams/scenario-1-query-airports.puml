@@ -12,9 +12,9 @@ autonumber
 actor "Client / Postman" as client
 participant "API Gateway\n<<Gateway>>" as gateway
 participant "AirportController\n<<REST Controller>>" as controller
-participant "AirportService\n<<UseCase>>" as airport_uc
-participant "AirportRepository\n<<JPA Repository>>" as repo
-database "H2 Database\n<<In-Memory DB>>" as db
+participant "AirportQueryService\n<<Query Service>>" as airport_uc
+participant "AirportReadRepository\n<<Spring Data Redis>>" as repo
+database "Redis cluster\n<<read model>>" as db
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 
 box "Airport Service [Container]" #LightBlue
@@ -33,24 +33,24 @@ activate controller
 
 controller -> airport_uc : getAirportByIata(iataCode)
 activate airport_uc
-airport_uc -> repo : findByIataCode(iataCode)
+airport_uc -> repo : findById(iataCode)
 activate repo
-repo -> db : SELECT * FROM company_registered_airports WHERE iata_code = ?
+repo -> db : read Airport:<iataCode>
 activate db
-db --> repo : Airport row
+db --> repo : AirportReadModel or nothing
 deactivate db
-repo --> airport_uc : Optional<Airport>
+repo --> airport_uc : Optional<AirportReadModel>
 deactivate repo
-airport_uc --> controller : Optional<Airport>
+airport_uc --> controller : Optional<AirportReadModel>
 deactivate airport_uc
 
 alt Airport found
     controller --> gateway : 200 OK (AirportResponse JSON)
     gateway --> client : 200 OK Response
 else Airport not found
-    controller -[#red]> exception_handler : throw DomainException("Airport does not exist")
+    controller -[#red]> exception_handler : throw ResourceNotFoundException("Airport does not exist")
     activate exception_handler
-    exception_handler --> client : 409 Conflict (ErrorDetails JSON)
+    exception_handler --> client : 404 Not Found (ErrorDetails JSON)
     deactivate exception_handler
 end
 deactivate controller
@@ -65,16 +65,16 @@ activate controller
 
 controller -> airport_uc : searchAirports(city, country, name)
 activate airport_uc
-airport_uc -> airport_uc : Build JPA Specification (exact match, AND)
-airport_uc -> repo : findAll(spec)
+airport_uc -> repo : findByLocation_City(city) if city,\nelse findByLocation_Country(country) if country,\nelse findAll()
 activate repo
-repo -> db : SELECT ... WHERE <filters>
+repo -> db : read Airport hashes (city / country index)
 activate db
-db --> repo : Airport rows
+db --> repo : AirportReadModel(s)
 deactivate db
-repo --> airport_uc : List<Airport>
+repo --> airport_uc : candidates
 deactivate repo
-airport_uc --> controller : List<Airport>
+airport_uc -> airport_uc : filter in memory by city, country, name\n(exact match, AND)
+airport_uc --> controller : List<AirportReadModel>
 deactivate airport_uc
 
 controller --> gateway : 200 OK (List<AirportResponse>)
@@ -93,14 +93,14 @@ controller -> airport_uc : groupAirportsBy(by)
 activate airport_uc
 airport_uc -> repo : findAll()
 activate repo
-repo -> db : SELECT * FROM company_registered_airports
-db --> repo : Airport rows
-repo --> airport_uc : List<Airport>
+repo -> db : read Airport hashes (indexed fields)
+db --> repo : AirportReadModel(s)
+repo --> airport_uc : List<AirportReadModel>
 deactivate repo
 
 alt by is country, city or region
     airport_uc -> airport_uc : groupingBy(country | city | region)
-    airport_uc --> controller : Map<String, List<Airport>>
+    airport_uc --> controller : Map<String, List<AirportReadModel>>
     deactivate airport_uc
     controller --> gateway : 200 OK (Map<String, List<AirportResponse>>)
     gateway --> client : 200 OK Response

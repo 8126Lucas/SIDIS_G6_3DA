@@ -19,7 +19,7 @@ This document reflects the current implementation in `AirportController`, `Airpo
 | `X-Gateway-Secret: sidis-g6-secret` | `AirportSecurityConfig.gatewaySecretFilter` | `403 Forbidden`, body `Unauthorized Access! Please use the API Gateway!` |
 
 * The gateway adds `X-Gateway-Secret` and `X-User-Name` after validating the JWT, so clients only send `Authorization`.
-* The service itself does not validate the JWT and does not read `X-User-Name`; all requests that pass the secret filter are `permitAll()`.
+* The service itself does not validate the JWT and does not read `X-User-Name`; all requests that pass the secret filter are `permitAll()`. The `@PreAuthorize` roles on the controller (see `README.md`, section 2.1) are therefore not evaluated.
 * Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` skip the secret filter.
 
 ---
@@ -30,10 +30,10 @@ All endpoints additionally return `403` when `X-Gateway-Secret` is missing (and 
 
 | Method | Endpoint Path | Description | Status Codes |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/api/airports` | Register a new airport | `201`, `400`, `409`, `500` |
+| `POST` | `/api/airports` | Register a new airport | `201`, `400`, `409` |
 | `POST` | `/api/airports/import` | Import airports from a CSV file | `200`, `400`, `409`, `500` |
 | `POST` | `/api/airports/{iataCode}/certifications` | Add a certification to an airport | `201`, `400`, `409` |
-| `GET` | `/api/airports/{iataCode}` | Get one airport | `200`, `409` |
+| `GET` | `/api/airports/{iataCode}` | Get one airport | `200`, `404` |
 | `GET` | `/api/airports` | List airports with optional filters | `200` |
 | `PATCH` | `/api/airports/{iataCode}/status` | Change airport status | `200`, `400`, `409`, `500` |
 | `PATCH` | `/api/airports/{iataCode}/details` | Update name, operational hours and contacts | `200`, `400`, `409` |
@@ -49,7 +49,12 @@ All endpoints additionally return `403` when `X-Gateway-Secret` is missing (and 
 
 * **Endpoint:** `POST /api/airports`
 * **Consumes:** `application/json`
-* **Validation annotations on request:** none (`@Valid` is present, but `AddAirportRequest` has no constraints).
+* **Validation annotations on request** (`@Valid`, violations → `400` with `validationErrors`):
+  * `iataCode`, `airportType`, `name`, `status`: `@NotBlank`
+  * `location`: `@NotNull @Valid`; `city`, `region`, `timezone`, `country`: `@NotBlank`; `longitude`, `latitude`: `@NotNull`
+  * `facilities`: `@NotNull @Valid`; `terminalCount`, `services`, `gateCount`: `@NotNull`
+  * `routeDistance`, `runways`: `@NotNull` (the runway entries themselves have no constraints)
+  * `certifications`, `contacts`, `airportPhotos`: optional
 
 #### Request Example
 
@@ -98,9 +103,8 @@ Validations (in execution order):
 
 Notes:
 
-* `location`, `facilities`, `runways`, and `status` are dereferenced without null checks; omitting any of them ends in `500`.
-* `certifications`, `contacts`, and `airportPhotos` are optional (an empty list is used).
-* All `location` fields and `facilities.terminalCount` / `facilities.gateCount` are `nullable = false` columns; missing values fail at persistence (`500`).
+* Missing `location`, `facilities`, `runways` or `status` now fail Bean Validation (`400`) instead of ending in `500`.
+* `certifications`, `contacts`, and `airportPhotos` are optional (an empty list is used; `airportPhotos: null` is turned into `[]`).
 * In the seeded data, runway `orientation` holds the surface material (`"Asphalt"`, `"Concrete"`).
 
 ---
@@ -108,7 +112,7 @@ Notes:
 ### 3.2. Import Airports from CSV
 
 * **Endpoint:** `POST /api/airports/import`
-* **Consumes:** `multipart/form-data`, part name `file`.
+* **Consumes:** `multipart/form-data`, part name `file`. A missing or empty file → `400` (`IllegalArgumentException`, `"CSV file is required"`).
 * **Description:** Parses the CSV through `AirportCsvService` and registers every airport through `AirportService.execute(...)`.
 
 #### Expected CSV Layout
@@ -226,7 +230,8 @@ Notes:
 
 Notes:
 
-* A missing airport returns `409` (`"Airport does not exist"`), not `404`.
+* A missing airport returns `404` (`ResourceNotFoundException`, `"Airport does not exist"`).
+* Runways, certifications, contacts and photos that are `null` in the read model are returned as `[]`.
 * `operationalHours` defaults to `"07:00-22:00"` for every airport until it is changed with `PATCH /details`.
 * This endpoint is also consumed by `flight-service` and `route-service`.
 
@@ -246,7 +251,7 @@ A JSON array of `AirportResponse` (same shape as 3.4).
 
 Notes:
 
-* Filtering uses a JPA `Specification` combining the given filters with `AND`.
+* `AirportQueryService` reads the candidates from Redis (by city, else by country, else all airports) and filters them in memory with `AND`.
 * Comparisons are exact and case-sensitive (`city=porto` does not match `Porto`).
 * There is no paging; all matching airports are returned.
 

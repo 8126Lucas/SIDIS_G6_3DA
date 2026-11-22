@@ -12,9 +12,9 @@ autonumber
 actor "Client / Postman" as client
 participant "API Gateway\n<<Gateway>>" as gateway
 participant "AirportController\n<<REST Controller>>" as controller
-participant "AirportService\n<<UseCase>>" as airport_uc
+participant "AirportQueryService\n<<Query Service>>" as airport_uc
 participant "RouteRestClientService\n<<RestClient Adapter>>" as route_client
-participant "AirportRepository\n<<JPA Repository>>" as repo
+participant "AirportReadRepository\n<<Spring Data Redis>>" as repo
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 participant "Route Service\n<<External Microservice>>" as route_api
 
@@ -35,9 +35,9 @@ activate controller
 
 controller -> airport_uc : findRoutesByAirport(iataCode)
 activate airport_uc
-airport_uc -> repo : findByIataCode(iataCode)
+airport_uc -> repo : findById(iataCode)
 activate repo
-repo --> airport_uc : Optional<Airport>
+repo --> airport_uc : Optional<AirportReadModel>
 deactivate repo
 
 alt airport not found
@@ -83,15 +83,10 @@ deactivate route_api
 route_client --> airport_uc : List<RouteResponse>
 deactivate route_client
 
-loop for each route
-    airport_uc -> repo : findByIataCode(originAirportIata)
-    repo --> airport_uc : Optional<Airport>
-    airport_uc -> repo : findByIataCode(destinationAirportIata)
-    repo --> airport_uc : Optional<Airport>
-    airport_uc -> airport_uc : counts.merge(airport, 1)
-end
-
-airport_uc -> airport_uc : sort by numberOfRoutes desc
+airport_uc -> airport_uc : count routes per IATA code\n(origin +1, destination +1)
+airport_uc -> repo : findAll()
+repo --> airport_uc : every AirportReadModel
+airport_uc -> airport_uc : attach the count to each airport,\ndrop airports with 0 routes,\nsort by numberOfRoutes desc
 airport_uc --> controller : List<AirportRouteStatistic>
 deactivate airport_uc
 controller --> gateway : 200 OK (iataCode, name, numberOfRoutes)

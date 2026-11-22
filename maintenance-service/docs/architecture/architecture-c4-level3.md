@@ -20,10 +20,10 @@ The `maintenance-service` currently exposes two controllers and the following ma
 * **Command side** (writes to PostgreSQL, then publishes an event):
    * **`AddMaintenanceTemplateUseCase`**: saves a template (`maintenancetemplate.event.created`).
    * **`AddMaintenanceRecordUseCase`**: loads the template from PostgreSQL and saves a record (`maintenance.event.created`).
-   * **`MaintenanceRecordProgressService`**: `ONGOING` and `COMPLETED` transitions, template attribute change (`maintenance.event.updated`; also contains the unexposed `updateProgress`).
+   * **`MaintenanceRecordProgressService`**: `ONGOING` and `COMPLETED` transitions, template attribute change (saves the template and publishes `maintenancetemplate.event.updated` and `maintenance.event.updated`); also contains the unexposed `updateProgress`.
 * **Query side** (reads only from Redis):
    * **`MaintenanceTemplateSearchService`**: template lookup by id and listing; also used to embed the template in every record response.
-   * **`MaintenanceRecordSearchService`**: record search (`findAll(Specification, Pageable)` on the Redis repository).
+   * **`MaintenanceRecordSearchService`**: record search (loads every record from Redis, filters and pages in memory; uses `MaintenanceTemplateSearchService` for the attribute filter).
 * **`MaintenanceReportService`**
    * Ongoing records, costs per aircraft/model, turnaround average per model.
 * **`MaintenanceAlertService`**
@@ -43,7 +43,7 @@ The `maintenance-service` currently exposes two controllers and the following ma
 * **`UseCaseLoggingAdvice`**
    * AOP logging of `@UseCase` classes (`@within` pointcut).
 * **`Bootstrap`**
-   * Seeds 4 templates and 4 records in PostgreSQL only (no events, so they are not in Redis).
+   * Seeds 4 templates and 4 records in PostgreSQL when it is empty, then republishes every template and record on every start, so Redis is rebuilt from PostgreSQL.
 
 External integration clients:
 

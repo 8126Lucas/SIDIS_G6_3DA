@@ -15,16 +15,18 @@ The `flight-service` currently exposes one controller and the following main com
    * `POST /scheduled` (US212)
    * `GET /aircraft/{registrationNumber}` (US213)
    * `GET /reports/route-utilization` (US229)
-* **`RouteService`** (`@UseCase`)
-   * Scheduling orchestration and business-rule validation; route and airport lookups; route usage update; local overlap check; flights by aircraft.
+* **`FlightService`** (`@UseCase`, renamed from `RouteService` in iteration 2) — command side
+   * Scheduling orchestration and business-rule validation; route and airport lookups; route usage update; local overlap check; saves the `Flight` in PostgreSQL and raises a `FlightChangedEvent`.
 * **`AircraftSearchService`**
    * Aircraft and model lookup in `aircraft-service`.
-* **`FlightSearchService`**
-   * All flights.
-* **`FlightUtilizationReportService`**
-   * Flights per route.
-* **`FlightRepository`**
-   * Spring Data JPA persistence for `Flight`.
+* **`FlightQueryService`** — query side (replaces `FlightSearchService` and `FlightUtilizationReportService`)
+   * All flights, flights of an aircraft, flights of an aircraft in a time window, route utilization report (US229), all read from Redis.
+* **`FlightRepository`** / **`FlightReadRepository`**
+   * Spring Data JPA over PostgreSQL (`flight_db`) / Spring Data Redis over the flight Redis cluster (`Flight:<flightId>`, `aircraftRegistrationNumber` indexed).
+* **`FlightReadModelMapper`** / **`FlightReadModel`**
+   * Read model built from the entity, carrying the JPA `@Version`.
+* **`FlightEventPublisher`** / **`FlightRedisProjector`** / **`RabbitMQConfig`**
+   * After the transaction commits, the publisher sends the event to `flight.exchange` (`flight.event.updated`); the projector (`flight.sync.queue`, concurrency 1) stores it in Redis unless Redis already holds the same or a newer version.
 * **`GlobalExceptionHandler`**
    * Cross-cutting HTTP error normalization (`ErrorDetails`).
 * **`UseCaseLoggingAdvice`**
@@ -53,8 +55,8 @@ PlantUML source file:
 ## 3. Data Flow and Dependencies
 
 1. Inbound requests arrive through the API Gateway for `/api/flights/**`; the gateway validates the JWT and adds `X-Gateway-Secret`, which `gatewaySecretFilter` checks (`403` when missing).
-2. Scheduling first resolves the aircraft and its model through `AircraftSearchService`, then delegates to `RouteService`.
-3. `RouteService` calls `route-service` and `airport-service`, validates the business rules, patches the route usage in `route-service`, and persists the `Flight`.
-4. Read flows use `FlightSearchService` / `RouteService` over `FlightRepository`; the utilization report uses `FlightUtilizationReportService`.
+2. Scheduling first resolves the aircraft and its model through `AircraftSearchService`, then delegates to `FlightService`. The model specs (range, capacity) come from `aircraft-service`'s catalog (`GET /api/catalog/{modelName}`).
+3. `FlightService` calls `route-service` and `airport-service`, validates the business rules, patches the route usage in `route-service`, saves the `Flight` in PostgreSQL, and publishes the change after commit; `FlightRedisProjector` writes it to Redis.
+4. Read flows and the utilization report use `FlightQueryService` over `FlightReadRepository` (Redis). On every start, `Bootstrap` republishes every flight so Redis matches PostgreSQL.
 5. `aircraft-service` calls `GET /api/flights` and `GET /api/flights/aircraft/{registration}`.
 6. Exceptions are transformed by `GlobalExceptionHandler` into `ErrorDetails` payloads.

@@ -1,14 +1,16 @@
 @startuml
 skinparam linetype polyline
-skinparam nodesep 60
-skinparam ranksep 70
+skinparam nodesep 40
+skinparam ranksep 60
 skinparam shadowing false
 skinparam componentStyle uml2
 
-title Component Diagram (C4 - Level 3) - Airport Service (As Implemented)
+title Component Diagram (C4 - Level 3) - Airport Service (As Implemented, CQRS)
 
 component "API Gateway\n<<Spring Cloud Gateway>>" as api_gateway
-database "H2 Database\n<<In-Memory>>" as airport_db
+database "PostgreSQL\nairport_db\n<<Write model>>" as airport_pg
+database "Redis Cluster\nAirport:<iataCode>\n<<Read model>>" as airport_redis
+queue "RabbitMQ\nairport.exchange" as rabbit
 component "Route Service\n<<Microservice>>" as route_service
 component "Flight Service\n<<Microservice>>" as flight_service
 
@@ -16,53 +18,54 @@ package "Airport Service [Container]" {
     component "AirportSecurityConfig\n<<SecurityFilterChain + gatewaySecretFilter>>" as security_filter
     component "AirportController\n<<Spring REST Controller>>" as airport_controller
 
-    component "AirportService\n<<UseCase>>" as airport_uc
-    component "AirportCsvService\n<<Spring Service>>" as csv_svc
+    package "Command side" {
+        component "AirportService\n<<UseCase>>" as airport_uc
+        component "AirportCsvService\n<<Spring Service>>" as csv_svc
+        component "AirportRepository\n<<Spring Data JPA>>" as airport_repo
+    }
+
+    package "Query side" {
+        component "AirportQueryService\n<<Spring Service>>" as query_svc
+        component "AirportReadRepository\n<<Spring Data Redis>>" as read_repo
+    }
+
+    package "Synchronisation" {
+        component "AirportReadModelMapper" as mapper
+        component "AirportEventPublisher\n<<@TransactionalEventListener\nAFTER_COMMIT>>" as publisher
+        component "AirportRedisProjector\n<<@RabbitListener>>\n(version check)" as projector
+    }
 
     component "RouteRestClientService\n<<RestClient Adapter>>\n@Retryable (inactive)" as route_client
-    component "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>\n(shared builder, 2 s timeouts)" as jwt_interceptor
-
+    component "JwtTokenInterceptor\n<<ClientHttpRequestInterceptor>>" as jwt_interceptor
     component "Bootstrap\n<<ApplicationRunner>>" as bootstrapper
-
-    component "AirportRepository\n<<Spring Data JPA Repository>>" as airport_repo
-
-    component "Airport\n<<JPA Aggregate Root>>" as airport_entity
-    component "AirportLocation\n<<Embeddable Value Object>>" as location_vo
-    component "Facilities\n<<Embeddable Value Object>>" as facilities_vo
-    component "Contact\n<<Embeddable Value Object>>" as contact_vo
-    component "Runway\n<<JPA Entity>>" as runway_entity
-    component "Certification\n<<JPA Entity>>" as cert_entity
-    component "AirportStatus\n<<Enum>>" as status_enum
-
-    component "GlobalExceptionHandler\n<<@RestControllerAdvice>>" as exception_handler
-    component "ErrorDetails\n<<DTO Payload>>" as error_details
 }
 
-api_gateway --> security_filter : "Routes /api/airports/**\n(JWT validated, X-Gateway-Secret added)\n[HTTP/JSON]"
-flight_service --> security_filter : "GET /api/airports/{iataCode}\n(X-Gateway-Secret)"
-route_service --> security_filter : "GET /api/airports/{iataCode}\n(X-Gateway-Secret)"
+api_gateway --> security_filter : "Routes /api/airports/~**\n(JWT validated, X-Gateway-Secret added)"
+flight_service --> security_filter : "GET /api/airports/{iataCode}"
+route_service --> security_filter : "GET /api/airports/{iataCode}"
 security_filter --> airport_controller : "secret OK"
 
-airport_controller --> airport_uc : "register, queries, updates,\ncertifications, analytics"
+' --- commands ---
+airport_controller --> airport_uc : "register, updates,\ncertifications"
 airport_controller --> csv_svc : "POST /import (parse)"
 airport_controller ..> airport_uc : "execute(airport) per CSV row"
+airport_uc --> airport_repo : "save"
+airport_uc --> mapper : "AirportChangedEvent\n(Spring event)"
+mapper ..> publisher
+publisher --> rabbit : "airport.event.updated\n(after commit)"
+rabbit --> projector : "airport.sync.queue"
+projector --> read_repo : "save if newer version"
 
-airport_uc --> airport_repo : "findByIataCode / Specification / save"
-airport_uc --> route_client : "all routes"
-bootstrapper --> airport_repo : "Seeds airports"
+' --- queries ---
+airport_controller --> query_svc : "by IATA, search, grouped,\nbusiest, routes per airport"
+query_svc --> read_repo : "findById / indexed fields"
+query_svc --> route_client : "all routes"
 
-airport_repo --> airport_entity : "Manages persistence"
-
-airport_entity *-- location_vo : "Embeds"
-airport_entity *-- facilities_vo : "Embeds"
-airport_entity *-- contact_vo : "ElementCollection"
-airport_entity *-- runway_entity : "OneToMany"
-airport_entity *-- cert_entity : "OneToMany"
-airport_entity --> status_enum : "Uses"
-
-airport_repo <--> airport_db : "company_registered_airports\n[JDBC/JPA]"
-
-exception_handler --> error_details : "Constructs and returns"
+' --- stores ---
+airport_repo --> airport_pg : "company_registered_airports\n[JDBC/JPA]"
+read_repo --> airport_redis
+bootstrapper --> airport_repo : "seeds if empty"
+bootstrapper --> publisher : "republishes every\nairport on start"
 
 route_client --> jwt_interceptor : "outgoing request"
 jwt_interceptor --> route_service : "HTTP RestClient\n(X-Gateway-Secret, Authorization)"

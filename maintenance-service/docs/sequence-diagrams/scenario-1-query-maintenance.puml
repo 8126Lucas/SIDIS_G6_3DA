@@ -45,8 +45,8 @@ activate controller
 
 controller -> template_search : findByTemplateId(id)
 activate template_search
-template_search -> redis : findByTemplateId(id)\n(derived query, no @Indexed)
-redis --> template_search : nothing found\n(although MaintenanceTemplate:<id> exists)
+template_search -> redis : findByTemplateId(id)
+redis --> template_search : MaintenanceTemplate:<id> (or none)
 template_search --> controller : Optional<MaintenanceTemplateRedis>
 deactivate template_search
 
@@ -109,25 +109,17 @@ end
 
 controller -> record_search : findRecordsMatchingFilter(aircraft, attribute, dates, pageable)
 activate record_search
-alt aircraft == null
-    record_search -[#red]> exception_handler : aircraftRegistration.isEmpty() -> NullPointerException
-    activate exception_handler
-    exception_handler --> client : 500 Internal Server Error (ErrorDetails JSON)
-    deactivate exception_handler
-else aircraft present
-    record_search -> record_query_repo : findAll(spec on aircraftRegistration,\nattribute, startDate range, pageable)
-    activate record_query_repo
-    record_query_repo -> redis : read MaintenanceRecord hashes
-    record_query_repo --> record_search : Page<MaintenanceRecordRedis>
-    deactivate record_query_repo
-    record_search --> controller : Page<MaintenanceRecordRedis>
-    controller -> template_search : findByTemplateId(templateId) per record
-    template_search --> controller : empty -> 404 when the page is not empty
-    controller --> gateway : 200 OK (MaintenanceRecordResponse[]) only for an empty page
-    gateway --> client : 200 OK Response
-end
+record_search -> record_query_repo : findAll()
+activate record_query_repo
+record_query_repo --> record_search : every MaintenanceRecordRedis
+deactivate record_query_repo
+record_search -> record_search : filter in memory: registration,\nattribute (via template read model),\nstartDate in [initialDate, finalDate]
+record_search -> record_search : sort by id (newest first),\ncut the requested page
+record_search --> controller : Page<MaintenanceRecordRedis>
 deactivate record_search
+controller --> gateway : 200 OK (MaintenanceRecordResponse[])
 deactivate controller
+gateway --> client : 200 OK Response
 deactivate gateway
 
 == Flow D: Rejected Requests (Gateway JWT / Secret Filter) ==

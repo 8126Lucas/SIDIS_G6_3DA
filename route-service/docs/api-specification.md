@@ -1,6 +1,6 @@
 # Route Service — REST API Specification (As Implemented)
 
-This document reflects the current implementation in `RouteController`, `RouteService`, `RouteExportService`, and related classes.
+This document reflects the current implementation in `RouteController`, `RouteService` (commands), `RouteQueryService` (queries), `RouteExportService`, and related classes.
 
 ---
 
@@ -19,7 +19,7 @@ This document reflects the current implementation in `RouteController`, `RouteSe
 | `X-Gateway-Secret: sidis-g6-secret` | `RouteSecurityConfig.gatewaySecretFilter` | `403 Forbidden`, body `Unauthorized Access! Please use the API Gateway!` |
 
 * The gateway adds `X-Gateway-Secret` and `X-User-Name` after validating the JWT, so clients only send `Authorization`.
-* The service itself does not validate the JWT and does not read `X-User-Name`; all requests that pass the secret filter are `permitAll()`.
+* The service itself does not validate the JWT and does not read `X-User-Name`; all requests that pass the secret filter are `permitAll()`. The `@PreAuthorize` roles on the controller (see `README.md`, section 2.1) are therefore not evaluated.
 * Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` skip the secret filter.
 
 ---
@@ -30,19 +30,19 @@ All endpoints additionally return `403` when `X-Gateway-Secret` is missing (and 
 
 | Method | Endpoint Path | Description | User Story | Status Codes |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/api/routes` | Create a route | — | `201`, `400`, `409`, `500` |
-| `PATCH` | `/api/routes/{routeId}` | Update destination, flight time, status, history | — | `200`, `400`, `409`, `500` |
-| `GET` | `/api/routes/{routeId}` | Get one route | — | `200`, `409` |
-| `GET` | `/api/routes/{routeId}/history` | Get the route history | — | `200`, `409` |
-| `GET` | `/api/routes` | List routes with optional origin/destination filters | — | `200`, `409` |
-| `GET` | `/api/routes/from/{airportIataCode}` | Routes departing from an airport | — | `200`, `409` |
-| `GET` | `/api/routes/active` | Active routes sorted by popularity or distance | — | `200` |
-| `GET` | `/api/routes/alternatives` | Active routes for the same origin/destination pair | — | `200`, `500` |
-| `GET` | `/api/routes/total-distance` | Sum of `distanceKm` of all routes | — | `200` |
+| `POST` | `/api/routes` | Create a route | US110 | `201`, `400`, `409`, `500` |
+| `PATCH` | `/api/routes/{routeId}` | Update destination, flight time, status, history | US112 | `200`, `400`, `409`, `500` |
+| `GET` | `/api/routes/{routeId}` | Get one route | US113 | `200`, `409` |
+| `GET` | `/api/routes/{routeId}/history` | Get the route history | US111 | `200`, `409` |
+| `GET` | `/api/routes` | List routes with optional origin/destination filters | US114 | `200`, `409` |
+| `GET` | `/api/routes/from/{airportIataCode}` | Routes departing from an airport | US113 | `200`, `409` |
+| `GET` | `/api/routes/active` | Active routes sorted by popularity or distance | US214 | `200` |
+| `GET` | `/api/routes/alternatives` | Active routes for the same origin/destination pair | US216 | `200`, `500` |
+| `GET` | `/api/routes/total-distance` | Sum of `distanceKm` of all routes | US215 | `200` |
 | `GET` | `/api/routes/export/geojson` | Route network as GeoJSON | US228 | `200`, `409` |
 | `GET` | `/api/routes/export/kml` | Route network as KML | US228 | `200`, `500` |
 
-User stories are only referenced in the code for the export endpoints (comments in `RouteController`).
+User stories are taken from the comments next to each `@PreAuthorize` in `RouteController`.
 
 ---
 
@@ -117,6 +117,7 @@ The updated `RouteResponse`.
 
 Validations:
 
+0. The body must contain at least one of the four fields; an empty body (or all fields `null`) → `400` (`IllegalArgumentException`, `"At least one field must be provided for update"`).
 1. Route must exist → otherwise `409` (`"Route does not exist"`).
 2. New destination: IATA format and different from origin (`409`), loaded from `airport-service` (`409` if missing) and must be `OPERATIONAL` (`409`).
 3. `estimatedFlightTimeHours <= 0` → `400` (`IllegalArgumentException`).
@@ -197,7 +198,7 @@ A JSON array of `RouteResponse` (same shape as 3.3).
 
 Notes:
 
-* Filtering uses a JPA `Specification` combining the given filters with `AND`; without parameters, all routes are returned.
+* `RouteQueryService` reads the candidates from Redis (by origin, else by destination, else all routes) and filters them in memory with `AND`; without parameters, all routes are returned.
 * A filter that is not 3 uppercase letters returns `409`.
 * There is no paging.
 * This endpoint is consumed by `aircraft-service`, `airport-service`, and `flight-service`.

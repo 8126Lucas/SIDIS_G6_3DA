@@ -42,7 +42,7 @@ Scenario 2 shows how the token issued by `auth-service` is used on another route
 2. `JwtAuthenticationGatewayFilterFactory` rejects a missing header, a non-Bearer header, a bad signature or an expired token with `401` (empty body).
 3. On success, the gateway adds `X-User-Name` (the UUID subject) and `X-Gateway-Secret` and routes the request through Eureka.
 4. In the downstream service, `gatewaySecretFilter` checks the secret (`403` if missing); all five business services have this filter.
-5. The controller handles the request; roles are not checked anywhere.
+5. `aircraft-service` checks the role in the token (`@PreAuthorize`, `403` on a wrong role); in the other services the roles are declared but not checked, and the controller handles the request.
 
 ---
 

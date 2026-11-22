@@ -18,8 +18,9 @@ Current implemented responsibilities:
 
 Important implementation notes:
 
-* With the current `application.properties` the gateway fails at startup: the `route-service` route uses the old key `spring.cloud.gateway.routes[4].id` (see `routing-and-security.md`, section 1).
-* The gateway only checks that the token is signed with the shared secret and not expired. It does not read the `roles` claim, so every logged-in collaborator can call every route.
+* A `test` profile for CI repeats the routes with Eureka on `localhost` (see `routing-and-security.md`, section 1).
+* The gateway only checks that the token is signed with the shared secret and not expired. It does not read the `roles` claim; roles are checked only inside `aircraft-service` (see `../../docs/global-network-and-ports.md`, section 7.2).
+* The gateway's end-to-end tests (`support/GatewayHttpTest`) now log in as `atcc` / `atcc123` by default.
 * Every rejection by the JWT filter is `401 Unauthorized` with an empty body.
 * There is no rate limiting, CORS configuration, retry or circuit breaker configured in the gateway.
 * `/api/welcome` (`auth-service`) and the H2 / Swagger paths of the services are not routed.

@@ -13,8 +13,8 @@ actor "Client / Postman" as client
 participant "API Gateway\n<<Gateway>>" as gateway
 participant "RouteController\n<<REST Controller>>" as controller
 participant "RouteService\n<<UseCase>>" as route_uc
-participant "RouteRepository\n<<JPA Repository>>" as repo
-database "H2 Database\n<<In-Memory DB>>" as db
+participant "RouteReadRepository\n<<Spring Data Redis>>" as repo
+database "Redis cluster\n<<read model>>" as db
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 
 box "Route Service [Container]" #LightBlue
@@ -35,9 +35,9 @@ controller -> route_uc : getRouteDetails(routeId)
 activate route_uc
 route_uc -> repo : findByRouteId(routeId)
 activate repo
-repo -> db : SELECT * FROM company_routes WHERE route_id = ?
+repo -> db : read Route hashes (indexed fields)
 activate db
-db --> repo : Route row
+db --> repo : RouteReadModel(s)
 deactivate db
 repo --> route_uc : Optional<Route>
 deactivate repo
@@ -72,16 +72,16 @@ alt filter is not [A-Z]{3}
     exception_handler --> client : 409 Conflict (ErrorDetails JSON)
     deactivate exception_handler
 else valid filters
-    route_uc -> route_uc : Build JPA Specification (origin AND destination)
-    route_uc -> repo : findAll(spec)
+    route_uc -> repo : findByOriginAirport_IataCode(origin) if origin,\nelse findByDestinationAirport_IataCode(destination) if destination,\nelse findAll()
     activate repo
-    repo -> db : SELECT ... WHERE origin_airport_iata = ? AND destination_airport_iata = ?
+    repo -> db : read Route hashes
     activate db
-    db --> repo : Route rows
+    db --> repo : RouteReadModel(s)
     deactivate db
-    repo --> route_uc : List<Route>
+    repo --> route_uc : candidates
     deactivate repo
-    route_uc --> controller : List<Route>
+    route_uc -> route_uc : filter in memory (origin AND destination)
+    route_uc --> controller : List<RouteReadModel>
     deactivate route_uc
     controller --> gateway : 200 OK (List<RouteResponse>)
     gateway --> client : 200 OK Response
@@ -101,8 +101,8 @@ activate route_uc
 route_uc -> route_uc : Sort = distanceKm ASC\nor routeHistory.routeUsage DESC
 route_uc -> repo : findByStatus(ACTIVE, sort)
 activate repo
-repo -> db : SELECT ... WHERE status = 'ACTIVE' ORDER BY ...
-db --> repo : Route rows
+repo -> db : read Route hashes (indexed fields)
+db --> repo : RouteReadModel(s)
 repo --> route_uc : List<Route>
 deactivate repo
 route_uc --> controller : List<Route>

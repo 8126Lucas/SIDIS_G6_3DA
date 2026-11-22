@@ -25,19 +25,19 @@ In every flow the API Gateway first validates the JWT and forwards the request w
 
 #### Flow A — Flights by Aircraft
 
-1. Controller delegates to `RouteService.getScheduledFlightsForAircraft(...)`.
+1. Controller delegates to `FlightQueryService.getScheduledFlightsForAircraft(...)`, which reads Redis.
 2. `FlightRepository` reads the flights with that registration (any status).
 3. Controller maps them to `FlightResponse` and returns `200 OK` (`[]` for an unknown registration).
 
 #### Flow B — Route Utilization
 
-1. Controller delegates to `FlightUtilizationReportService.getRouteUtilizationReport()`.
+1. Controller delegates to `FlightQueryService.getRouteUtilizationReport()`, which reads Redis.
 2. The service loads all flights, groups them by `RouteReference`, and counts them.
 3. Results are sorted by `flightCount` descending, then `routeName` ascending; controller returns `200 OK`.
 
 #### Flow C — All Flights
 
-1. Controller calls `FlightSearchService.findAll()` and returns every flight as `FlightResponse[]`.
+1. Controller calls `FlightQueryService.findAll()` (Redis) and returns every flight as `FlightResponse[]`.
 
 ---
 
@@ -54,9 +54,9 @@ Scenario 2 describes `POST /api/flights/scheduled` (US212), which checks `aircra
 ### Key Steps
 
 1. Controller loads the aircraft (`GET /api/hangar/aircraft/{registration}`) and its model (`GET /api/catalog/{modelName}`) from `aircraft-service`; either missing → `409`.
-2. `RouteService` loads the route from `route-service` (`409` if missing) and both airports from `airport-service` (`409` if missing).
+2. `FlightService` loads the route from `route-service` (`409` if missing) and both airports from `airport-service` (`409` if missing).
 3. Rules: arrival after departure, route `ACTIVE`, airports `OPERATIONAL`, aircraft `AVAILABLE`, range, capacity, no overlapping flight of the same aircraft. Any failure → `DomainException` → `409`.
-4. `RouteService` sends `PATCH /api/routes/{routeId}` with the route history and `routeUsage + 1`.
+4. `FlightService` sends `PATCH /api/routes/{routeId}` with the route history and `routeUsage + 1` (a `4xx` answer becomes `DomainException` → `409`).
 5. The new `Flight` is saved as `SCHEDULED` and `201 Created` is returned.
 
 Notes:

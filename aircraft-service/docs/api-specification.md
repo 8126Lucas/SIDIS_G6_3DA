@@ -32,7 +32,7 @@ All endpoints additionally return `403` when `X-Gateway-Secret` is missing (and 
 
 | Method | Endpoint Path | Description | User Story | Status Codes |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/api/catalog/model` | Add an aircraft model to the catalog | US101, US202 | `201`, `400`, `500` |
+| `POST` | `/api/catalog/model` | Add an aircraft model to the catalog | US101, US202 | `201`, `400`, `409`, `500` |
 | `PATCH` | `/api/catalog/model/{modelName}` | Update an aircraft model | US201 | `200`, `404`, `409`, `500` |
 | `GET` | `/api/catalog/rankings?mode=` | Top 5 models by assignments or flight hours | US204 | `200`, `500` |
 | `GET` | `/api/catalog/{modelName}` | Get one aircraft model | — | `200`, `404` |
@@ -87,7 +87,7 @@ Empty body.
 
 Notes:
 
-* `modelName` is the assigned `@Id` and `AircraftModel` has no `@Version`, so `save(...)` performs a merge: posting an existing `modelName` overwrites that model instead of being rejected.
+* `AddModelUseCase` looks the `modelName` up in PostgreSQL first: an existing model → `409` (`DomainException`, `"Aircraft Model already exists!"`), and the stored model is not changed.
 * If `specs` is omitted, the controller throws `IllegalArgumentException` (`"Object 'specs' is mandatory in the request body."`) → `400`.
 * `fuelCapacityLiters`, `maximumRangeKm`, and `cruisingSpeedKph` are `nullable = false` columns; missing values fail at persistence (`500`).
 
@@ -210,9 +210,10 @@ Empty body.
 Execution steps:
 
 1. Look up model by `modelName` in the catalog → `404` if missing.
-2. Build a new `Aircraft` (initial status `INACTIVE`, `meanRange = 0.0`).
-3. Apply `availability` through `AircraftLifeCycleUpdaterService`.
-4. Persist through `AddAircraftUseCase`.
+2. Build a new `Aircraft` (initial status `INACTIVE`, `meanRange = 0.0`) and persist it through `AddAircraftUseCase` (`aircraft.event.created`).
+3. Apply `availability` through `AircraftLifeCycleUpdaterService` (`aircraft.event.updated`).
+
+`availability` is parsed before step 1, so an invalid value fails before anything is saved. The two steps are separate transactions: if step 3 fails (for example an availability transition that is not allowed), the aircraft stays saved as `INACTIVE`.
 
 Notes:
 
@@ -274,7 +275,7 @@ This endpoint is also consumed by `flight-service` (flight scheduling), `route-s
 
 Notes:
 
-* Filtering uses a JPA `Specification`.
+* `AircraftSearchService` loads every `AircraftRedis` and filters in memory (model name, status, manufacturing date), then cuts the requested page.
 * The response is the page content only (a JSON array), without paging metadata.
 * An unknown `status` value raises `IllegalArgumentException` → `400`.
 
@@ -331,7 +332,7 @@ Notes:
 
 * Capacity comes from the aircraft `SeatingPack`, or falls back to the model `standardSeatingCapacity`.
 * Route capacity is read from `routeRequirements.requiredCapacity` (`RouteClientDTO.capacity()`), which now matches `route-service`'s response.
-* In `RouteSearchService`, the fallback to model `maximumRange` is overwritten by `meanRange`; since `meanRange` starts at `0.0`, only zero-distance routes match unless `meanRange` was updated.
+* Range is the aircraft's `meanRange` when it is greater than `0`, otherwise the model's `maximumRange` (so new aircraft, with `meanRange = 0.0`, use the model range).
 * `originAirportIata` and `destinationAirportIata` are always `null`, because `route-service` returns `originIataCode` and `destinationIataCode`.
 
 ---
@@ -369,6 +370,7 @@ The timestamp is `Instant.now()` truncated to minutes.
 ```
 
 * **Endpoint:** `GET /api/hangar/analytics/status-summary`
+* **Description:** Reads every aircraft from Redis and counts them per availability (every status appears, `0` when none).
 
 #### Response Example (`200 OK`)
 

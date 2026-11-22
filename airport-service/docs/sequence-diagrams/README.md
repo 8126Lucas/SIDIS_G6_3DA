@@ -25,17 +25,17 @@ In every flow the API Gateway first validates the JWT and forwards the request w
 #### Flow A — Airport by IATA Code
 
 1. Client requests one airport.
-2. Controller delegates to `AirportService.getAirportByIata(...)`.
-3. Service calls `AirportRepository.findByIataCode(...)`.
-4. Missing airport throws `DomainException` → `409`.
-5. Controller maps to `AirportResponse` and returns `200 OK`.
+2. Controller delegates to `AirportQueryService.getAirportByIata(...)`.
+3. The query service reads the `Airport` read model from Redis.
+4. Missing airport throws `ResourceNotFoundException` → `404`.
+5. Controller maps to `AirportResponse` (missing lists become `[]`) and returns `200 OK`.
 
 #### Flow B — Filtered Search
 
 1. Client sends optional filters.
-2. Controller delegates to `AirportService.searchAirports(...)`.
-3. Service composes a JPA `Specification` (city, country, name; exact match).
-4. Repository executes the query; controller returns the list as `200 OK`.
+2. Controller delegates to `AirportQueryService.searchAirports(...)`.
+3. The query service reads candidates from Redis (by the `city` index if given, else by `country`, else all airports).
+4. It filters them in memory (city, country, name; exact match) and the controller returns the list as `200 OK`.
 
 #### Flow C — Grouped Airports
 
@@ -61,13 +61,13 @@ Scenario 2 describes the write flows in `POST /api/airports`, `POST /api/airport
 #### Flow A — Register Airport
 
 1. Client sends `POST /api/airports` with IATA code, location, facilities, runways, certifications, contacts, and photos.
-2. Controller builds the `Airport` aggregate; unknown enum names fail with `IllegalArgumentException` → `400`.
+2. Bean Validation checks the required fields (`400` with `validationErrors` if any is missing); the controller then builds the `Airport` aggregate, and unknown enum names fail with `IllegalArgumentException` → `400`.
 3. `AirportService.execute(...)` validates the IATA format (`409`) and uniqueness (`409`).
 4. Repository persists the airport and its child rows; `201 Created` is returned.
 
 #### Flow B — Import CSV
 
-1. Client uploads a CSV file (`multipart/form-data`, part `file`).
+1. Client uploads a CSV file (`multipart/form-data`, part `file`); a missing or empty file → `400`.
 2. `AirportCsvService` skips the header and rows with fewer than 15 columns, and builds one `Airport` per row.
 3. Controller calls `AirportService.execute(...)` for each airport, each in its own transaction.
 4. A failing row stops the import (`409` / `500`); previously saved airports remain. Otherwise `200 OK` is returned.
@@ -98,7 +98,7 @@ Scenario 3 describes flows that depend on `route-service`:
 
 #### Flow A — Airport Routes
 
-1. Service checks that the airport exists locally (`409` if missing).
+1. `AirportQueryService` checks that the airport exists in Redis (`409` if missing).
 2. `RouteRestClientService` calls `GET /api/routes` on `route-service` (`JwtTokenInterceptor` adds `X-Gateway-Secret` and copies `Authorization`).
 3. Each `RouteClientDTO` is mapped to `RouteResponse`, and only routes whose origin or destination is the airport are kept.
 4. Controller returns `200 OK` (departing and arriving routes).
@@ -106,8 +106,8 @@ Scenario 3 describes flows that depend on `route-service`:
 #### Flow B — Busiest Airports
 
 1. `RouteRestClientService` calls `GET /api/routes` on `route-service`.
-2. For each route, the origin and destination airports are looked up locally.
-3. Each airport found is counted once per route.
+2. Each route adds one to its origin and one to its destination IATA code.
+3. Every airport is read from Redis and given its count; airports with no routes are left out.
 4. Results are sorted by number of routes (descending); controller returns `200 OK`.
 
 Note:
@@ -120,8 +120,8 @@ Note:
 
 | Exception Type | Current Mapping |
 | :--- | :--- |
-| `ResourceNotFoundException` | `404 Not Found` (not thrown by the service's own lookups) |
-| `MethodArgumentNotValidException` | `400 Bad Request` (only the certification date check) |
+| `ResourceNotFoundException` | `404 Not Found` (`GET /api/airports/{iataCode}`) |
+| `MethodArgumentNotValidException` | `400 Bad Request` (airport registration fields, certification dates) |
 | `HttpMessageNotReadableException` | `400 Bad Request` |
 | `IllegalArgumentException` | `400 Bad Request` |
 | `DomainException` | `409 Conflict` |

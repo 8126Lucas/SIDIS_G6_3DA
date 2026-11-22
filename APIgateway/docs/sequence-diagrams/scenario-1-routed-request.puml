@@ -72,6 +72,6 @@ end
 deactivate jwt_filter
 deactivate routes
 
-note over jwt_filter : The roles claim is not read:\nany valid token can call any protected route.
+note over jwt_filter : The gateway does not read the roles claim;\nroles are checked only inside aircraft-service.
 
 @enduml

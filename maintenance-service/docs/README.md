@@ -23,12 +23,19 @@ Current implemented responsibilities:
 Important implementation notes:
 
 * **CQRS (iteration 2).** Commands write to PostgreSQL (`maintenance_db`) and publish an event to RabbitMQ; a listener in the service projects it into the Redis cluster. Template reads, record searches, reports and alerts read from Redis; `GET /records/{id}` still reads PostgreSQL. Details: [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md).
-* **Known gaps of the CQRS version:** template lookups by id and the records listed by `GET /records` (each embeds its template) fail with `404`, and status-based reports return empty lists, because the Redis derived queries have no `@Indexed` field; seeded templates and records are only in PostgreSQL.
-* Creating a template or a record now answers `201 Created` with an empty body.
+* The read models have `@Indexed` fields, so template lookups by id and status-based reports work on Redis.
+* `Bootstrap` seeds PostgreSQL when it is empty and then, on **every** start, republishes every template and record, so Redis is rebuilt from PostgreSQL.
+* **Known gaps (checked by running commit `5240749`):**
+  * **Roles are not enforced.** The controller has `@PreAuthorize` on every endpoint, but `MaintenanceSecurityConfig` lacks `@EnableMethodSecurity` (the controller tests enable it themselves, so they pass). For example, an `ATCC` token creates templates.
+  * **Alerts are empty for everyone except `ATCC`.** `GET /alerts` loads the fleet with `GET /api/hangar/aircraft`, which needs `ATCC`; with any other token (including the supervisor, who is allowed on `/alerts`) `aircraft-service` answers `403` and the client returns an empty list.
+  * **`ADMIN` cannot create records.** `aircraft-service` refuses the forwarded `ADMIN` token (`403`), which becomes `500` here.
+  * **No protection against failing projections.** The listeners have no error handling or dead-letter queue, so an event that cannot be projected is redelivered forever (see `../../docs/data-architecture-cqrs.md`, section 7). `PATCH /records/{id}` now rejects a null attribute (`400`), which was the known way to cause this.
+* Creating a template or a record answers `201 Created` with the created template or record in the body.
+* With the Spring profile `test` active, `gatewaySecretFilter` does not check `X-Gateway-Secret` (used by CI).
+* `GET /api/maintenance/reports/hours` (iteration 2, `ATCC`) returns the total maintenance hours per aircraft, from the `MaintenanceHoursReport` read model.
 * There is optimistic locking on `MaintenanceRecord` via `@Version` (not on `MaintenanceTemplate`); conflicts map to `409`.
 * Records are completed through `PATCH /api/maintenance/records/{id}/complete`; `updateProgress(...)` (duration and used parts) is still not exposed.
 * `DomainException` now maps to `404 Not Found`, so every business-rule rejection (for example an invalid status transition) is also reported as `404`.
-* `GET /api/maintenance/records` (US218) only works when the `aircraft` filter is given; without it the search service dereferences `null` and returns `500` (see `api-specification.md`, section 3.10).
 * Outgoing calls have 2-second timeouts and up to 3 attempts (`@Retryable`, enabled with `@EnableRetry`).
 * A template that is not found locally is looked up in other instances through `PeerForwarder`, but the service id passed is `aircraft-service` (see `domain-and-resilience.md`, section 6).
 
@@ -42,7 +49,8 @@ Important implementation notes:
 | API Prefix | `/api/maintenance` | Base mapping in `MaintenanceRecordController` |
 | Write database | PostgreSQL `jdbc:postgresql://${IP_PC5}:5432/maintenance_db` | User `sidis` |
 | Schema Strategy | `update` | `spring.jpa.hibernate.ddl-auto` |
-| Read database | Redis cluster `${SPRING_REDIS_CLUSTER_NODES}` | Default `localhost:6379,6380,6381`; in the lab `redis-maintenance-1..3` (`6382 - 6384`); hashes `MaintenanceRecord`, `MaintenanceTemplate` |
+| Read database | Redis cluster `${SPRING_REDIS_CLUSTER_NODES}` (profile `docker`) | Default `localhost:6382,6383,6384`; in the lab `redis-maintenance-1..3`; hashes `MaintenanceRecord`, `MaintenanceTemplate`. Without the `docker` profile: standalone Redis on `localhost:6379` (`6382` with the `test` profile) |
+| Profiles | `docker` (set in `docker-compose.yml`), `test` (CI) | `application-docker.properties`: Redis cluster. `application-test.properties`: PostgreSQL, Eureka, RabbitMQ and Redis on `localhost` |
 | Message broker | RabbitMQ `${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674` | Exchanges `maintenance.exchange`, `maintenancetemplate.exchange` |
 | Metrics | `/actuator/prometheus`, `/actuator/health` | Scraped by Prometheus; exempt from the gateway secret filter |
 | OpenAPI Docs | `/api/docs` | springdoc API docs path |
@@ -50,6 +58,18 @@ Important implementation notes:
 | Service Registry | `${EUREKA_URL_1},${EUREKA_URL_2}` | Both discovery nodes; registers with `${IP_PC<n>}` as its address |
 | Outgoing Call Timeouts | `2000` ms connect / `2000` ms read | `GlobalRestClientConfig` |
 | Gateway Secret | `sidis-g6-secret` | Hardcoded in `MaintenanceSecurityConfig` and `JwtTokenInterceptor` |
+
+### 2.1. Roles per Endpoint (declared, not enforced)
+
+| Endpoint | `@PreAuthorize` role |
+| :--- | :--- |
+| `POST /templates`, `GET /templates/{id}`, `POST /record`, `GET /records/{id}`, `PATCH /records/{id}/status`, `PATCH /records/{id}`, `PATCH /records/{id}/complete` | `MAINTENANCE_TECHNICIAN` |
+| `GET /ongoing`, `GET /turnaround-average`, `GET /parts/inventory`, `GET /parts/low-stock` | `MAINTENANCE_SUPERVISOR` |
+| `GET /reports/costs`, `GET /reports/hours` | `ATCC` |
+| `GET /alerts` | `ATCC` or `MAINTENANCE_SUPERVISOR` |
+| `GET /templates`, `GET /records` | any authenticated user |
+
+Without `@EnableMethodSecurity` these annotations have no effect at runtime (see section 1).
 
 External client base URLs configured in code (resolved through Eureka via `@LoadBalanced` `RestClient.Builder`):
 

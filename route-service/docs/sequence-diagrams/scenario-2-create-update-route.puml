@@ -15,7 +15,7 @@ participant "RouteController\n<<REST Controller>>" as controller
 participant "RouteService\n<<UseCase>>" as route_uc
 participant "AirportRestClientService\n<<RestClient Adapter>>" as airport_client
 participant "RouteRepository\n<<JPA Repository>>" as repo
-database "H2 Database\n<<In-Memory DB>>" as db
+database "PostgreSQL\n<<write model>>" as db
 participant "GlobalExceptionHandler\n<<ControllerAdvice>>" as exception_handler
 participant "Airport Service\n<<External Microservice>>" as airport_api
 
@@ -59,7 +59,7 @@ else requirements present
             activate airport_client
             airport_client -> airport_api : GET /api/airports/{iataCode}\n(+ X-Gateway-Secret, Authorization via JwtTokenInterceptor)
             activate airport_api
-            airport_api --> airport_client : AirportResponse (status, location, ...)\nor 409 if missing
+            airport_api --> airport_client : AirportResponse (status, location, ...)\nor 404 if missing (-> DomainException, 409)
             deactivate airport_api
             airport_client --> route_uc : AirportClientDTO (location mapped to airportLocation)
             deactivate airport_client
@@ -97,6 +97,11 @@ client -> gateway : PATCH /api/routes/{routeId}\n(destinationIataCode?, estimate
 activate gateway
 gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
+
+opt all four fields missing
+    controller -[#red]> exception_handler : throw IllegalArgumentException\n("At least one field must be provided for update")
+    exception_handler --> client : 400 Bad Request
+end
 
 controller -> route_uc : updateRoute(routeId, destination, flightTime, status, history)
 activate route_uc
@@ -139,5 +144,12 @@ else route found
 end
 deactivate controller
 deactivate gateway
+
+
+note over repo, db
+  After the transaction commits, RouteEventPublisher sends a
+  RouteChangedEvent to RabbitMQ and RouteRedisProjector updates Redis
+  (ignored when Redis already holds the same or a newer version).
+end note
 
 @enduml

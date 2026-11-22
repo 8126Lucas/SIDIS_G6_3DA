@@ -23,9 +23,13 @@ Current implemented responsibilities:
 Important implementation notes:
 
 * **CQRS (iteration 2).** Commands write to PostgreSQL (`aircraft_db`) and publish an event to RabbitMQ; a listener in the service projects it into the Redis cluster, and every read and analytics endpoint reads from Redis. Details: [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md).
-* **Known gaps of the CQRS version:** `POST /api/hangar/aircraft` always answers `404` (the availability is changed before the aircraft is created); `GET /api/catalog/{modelName}` and the status summary find nothing in Redis (derived queries without `@Indexed`); seeded data is only in PostgreSQL, so it is not visible on read endpoints.
+* `Bootstrap` seeds PostgreSQL when the tables are empty and then, on **every** start, republishes one event per model and aircraft, so Redis is rebuilt from PostgreSQL. The read models have `@Indexed` fields (`modelName`, `status`, ...), so lookups such as `GET /api/catalog/{modelName}` work.
+* **Known gaps (checked by running commit `5240749`):**
+  * `GET /api/hangar/analytics/fuel-efficiency` answers `500` once flights exist (`NullPointerException` on a `Double` from `FlightClientDTO`, because `flight-service` does not return `range`/`flightHours`).
+  * Only `ATCC` can list the fleet (`GET /api/hangar/aircraft`), and `maintenance-service` uses that list for its alerts, so alerts are empty for every other role. `ADMIN` is refused (`403`) on every endpoint that has a role.
+* **Roles (RBAC).** `JwtAuthenticationFilter` reads the `roles` claim of the token (a list or a single string; a `ROLE_` prefix is not added twice) and `@PreAuthorize` checks it on each endpoint (`@EnableMethodSecurity` is on). See section 2.1. A token that cannot be parsed is logged to `System.err` with its stack trace and the request continues unauthenticated.
 * There is optimistic locking on `Aircraft` via `@Version` (not on `AircraftModel`); conflicts now map to `409`.
-* Every request (except Actuator and Swagger UI paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403`. JWT validation happens only in the API Gateway (see `domain-and-resilience.md`, section 7).
+* Every request (except Actuator and Swagger UI paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403`. With the Spring profile `test` active the check is skipped. `/error` is open, so errors keep their real status.
 * The utilization view (`/api/hangar/view/utilization`) now has a placeholder `utilization.html` template that does not render the computed data.
 * Some calls to other services target endpoints or fields that are not exposed by those services (see `domain-and-resilience.md`, section 4).
 * Outgoing calls have 2-second timeouts and up to 3 attempts (`@Retryable`, enabled with `@EnableRetry`).
@@ -40,7 +44,8 @@ Important implementation notes:
 | Service Port | `8081` (instance 1, PC2), `8082` (instance 2, PC5) | `server.port`, overridden by `SERVER_PORT` in `docker-compose.yml` |
 | API Prefixes | `/api/hangar`, `/api/catalog` | Base mappings in `HangarController` and `ModelCatalogController` |
 | Write database | PostgreSQL `jdbc:postgresql://${IP_PC5}:5432/aircraft_db` | User `sidis`; tables created by Hibernate (`ddl-auto=update`) |
-| Read database | Redis cluster `${SPRING_REDIS_CLUSTER_NODES}` | Default `localhost:6379,6380,6381`; hashes `Aircraft` and `AircraftModel` |
+| Read database | Redis cluster `${SPRING_REDIS_CLUSTER_NODES}` (profile `docker`) | Default `localhost:6379,6380,6381`; hashes `Aircraft` and `AircraftModel`. Without the `docker` profile: standalone Redis on `localhost:6379` |
+| Profiles | `docker` (set in `docker-compose.yml`), `test` (CI) | `application-docker.properties`: Redis cluster. `application-test.properties`: PostgreSQL, Eureka, RabbitMQ and Redis on `localhost` |
 | Message broker | RabbitMQ `${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674` | Exchanges `aircraft.exchange`, `aircraftmodel.exchange` |
 | Metrics | `/actuator/prometheus`, `/actuator/health` | Scraped by Prometheus; exempt from the gateway secret filter |
 | OpenAPI Docs | `/api/docs` | springdoc API docs path |
@@ -48,6 +53,21 @@ Important implementation notes:
 | Service Registry | `${EUREKA_URL_1},${EUREKA_URL_2}` | Both discovery nodes; registers with `${IP_PC<n>}` as its address |
 | Outgoing Call Timeouts | `2000` ms connect / `2000` ms read | `GlobalRestClientConfig` |
 | Gateway Secret | `sidis-g6-secret` | Hardcoded in `AircraftSecurityConfig` and `JwtTokenInterceptor` |
+
+### 2.1. Roles per Endpoint
+
+| Endpoint | Role |
+| :--- | :--- |
+| `POST /api/catalog/model`, `PATCH /api/catalog/model/{modelName}` | `BACKOFFICE` |
+| `GET /api/catalog/{modelName}`, `GET /api/catalog/rankings` | any authenticated user |
+| `POST /api/hangar/aircraft`, `GET /api/hangar/aircraft`, `GET /api/hangar/aircraft/{reg}/compatible-routes` | `ATCC` |
+| `GET /api/hangar/aircraft/{reg}` | `ATCC`, `BACKOFFICE`, `MAINTENANCE_SUPERVISOR` or `MAINTENANCE_TECHNICIAN` |
+| `GET /api/hangar/aircraft/{reg}/status` | any authenticated user |
+| `PATCH /api/hangar/aircraft/{reg}` | `BACKOFFICE` |
+| `GET /api/hangar/analytics/aircraft-availability`, `/analytics/status-summary` | `ATCC` |
+| `GET /api/hangar/analytics/fuel-efficiency`, `/fuel-efficiency/aircraft`, `/fuel-efficiency/routes`, `/operational-hours`, `GET /api/hangar/aircraft-features`, `GET /api/hangar/view/utilization` | `BACKOFFICE` |
+
+A wrong role gets `403 Access Denied`. Other services that call these endpoints forward the original user's token, so the same rules apply to them: `maintenance-service` can look up one aircraft with a technician's or supervisor's token, but its aircraft list call (`GET /api/hangar/aircraft`, alerts) still gets `403` for them (see `../../docs/global-network-and-ports.md`, section 7.3).
 
 External client base URLs configured in code (resolved through Eureka via `@LoadBalanced` `RestClient.Builder`):
 

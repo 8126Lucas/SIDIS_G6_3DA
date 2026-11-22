@@ -52,7 +52,7 @@ There is no transition guard (for example, any status can move to any other allo
 
 | Use Case / Service | Responsibility | User Story |
 | :--- | :--- | :--- |
-| `AddModelUseCase` (`@UseCase`) | Persist a new `AircraftModel` | US101, US202 |
+| `AddModelUseCase` (`@UseCase`) | Persist a new `AircraftModel` (rejects an existing `modelName` with `409`) | US101, US202 |
 | `AircraftModelUpdater` | Patch images, manufacturer, and specs | US201 |
 | `AddAircraftUseCase` (`@UseCase`) | Persist a new `Aircraft` | US102 |
 | `AircraftSearchService` | Lookup, filtered search, counts, features | US103, US104, US205, US206 |
@@ -93,9 +93,9 @@ Inbound consumers of this service (all over `http://aircraft-service` with their
 
 ## 5. Analytics
 
-* **Availability:** registrations grouped per `AircraftAvailability` (`EnumMap`), and counts via `countByStatus`.
+* **Availability:** registrations grouped per `AircraftAvailability` (`EnumMap`), and counts per status computed in memory from all aircraft in Redis (`AircraftQueryRepository.countByStatus` still exists but is no longer called).
 * **Operational hours:** paged query sorted by `totalOperationalHours` descending, returned as an ordered map.
-* **Fuel per aircraft:** `fuelCapacityLiters / maximumRangeKm`, rounded to 2 decimals, sorted ascending.
+* **Fuel per aircraft:** `fuelCapacityLiters / maximumRangeKm`, rounded to 2 decimals, sorted ascending. In the per-route calculation, an aircraft whose model or specs are missing in Redis counts as `0.0`.
 * **Fuel per route:** average L/km of aircraft that flew the route × route `distanceKm`, sorted by `routeId`.
 * **Model rankings (US204):** top 5 models by number of flights (`assignments`) or by summed `totalFlightHours` (`flight-hours`).
 * **Monthly utilization:** for each aircraft and each of the last 12 months, `sum(flightHours in month) / hours in month × 100`, rounded to 2 decimals.
@@ -105,7 +105,7 @@ Inbound consumers of this service (all over `http://aircraft-service` with their
 Optimistic locking:
 
 * Implemented with `@Version` on `Aircraft.version`.
-* `AircraftModel` has no version field; concurrent patches are last-write-wins, and `POST` with an existing `modelName` overwrites it (merge).
+* `AircraftModel` has no version field; concurrent patches are last-write-wins. Creating a model with an existing `modelName` is rejected (`409`) by a lookup before the save, so two simultaneous `POST`s of the same new name can still both pass the check and the second merges over the first.
 
 Exception handling:
 
@@ -136,15 +136,15 @@ Current gaps:
 `AircraftSecurityConfig` defines a stateless `SecurityFilterChain`:
 
 * CSRF, form login and HTTP Basic are disabled; sessions are `STATELESS`.
-* All requests are `permitAll()`; there is no authentication or role check inside the service.
-* `gatewaySecretFilter` (`OncePerRequestFilter`, registered before `UsernamePasswordAuthenticationFilter`) requires `X-Gateway-Secret: sidis-g6-secret`. Otherwise it writes `403` with the plain-text body `Unauthorized Access! Please use the API Gateway!`.
+* `/actuator/**`, `/h2-console/**`, `/swagger-ui/**`, `/v3/api-docs/**` and `/error` are `permitAll()`; every other request must be authenticated. Opening `/error` lets an exception keep its status (for example `404`) instead of turning into `403`.
+* `JwtAuthenticationFilter` (iteration 2) verifies the `Authorization: Bearer` token with `security.jwt.secret` (the same secret as `auth-service` and the gateway) and turns the `roles` claim into `ROLE_<role>` authorities. The claim can be a list or a single string, and a role that already starts with `ROLE_` is kept as is. Parsing errors are printed to `System.err` with the stack trace. `@EnableMethodSecurity` is on, so the `@PreAuthorize` rules on the controllers are enforced (roles per endpoint: `README.md`, section 2.1). A missing or invalid token leaves the request unauthenticated (`403`).
+* `gatewaySecretFilter` (`OncePerRequestFilter`, registered before `UsernamePasswordAuthenticationFilter`) requires `X-Gateway-Secret: sidis-g6-secret`. Otherwise it writes `403` with the plain-text body `Unauthorized Access! Please use the API Gateway!`. When the Spring profile `test` is active the header is not checked (used by CI).
 * Paths containing `/actuator`, `/h2-console`, `/swagger-ui` or `/api-docs` skip the check. The OpenAPI document is served at `/api/docs`, which does not match, so Swagger UI cannot load the spec.
 
 Responsibilities split with the API Gateway:
 
-* The gateway's `JwtAuthentication` filter validates the JWT signature (same secret as `auth-service`), returns `401` when it is missing or invalid, and adds `X-User-Name` and `X-Gateway-Secret` to the forwarded request.
-* `aircraft-service` trusts the secret header only; it does not validate the JWT and does not use `X-User-Name`.
-* The `jjwt` dependency and `security.jwt.*` properties were removed from this service.
+* The gateway's `JwtAuthentication` filter validates the JWT signature, returns `401` when it is missing or invalid, and adds `X-User-Name` and `X-Gateway-Secret` to the forwarded request.
+* `aircraft-service` checks the secret header and validates the JWT again to read the roles; it does not use `X-User-Name`.
 
 Known weaknesses:
 
@@ -153,7 +153,7 @@ Known weaknesses:
 
 ## 8. Bootstrap
 
-`Bootstrap` (`ApplicationRunner`) seeds data in PostgreSQL when the tables are empty. It publishes no RabbitMQ events, so this data is not projected into Redis and the read endpoints do not see it:
+`Bootstrap` (`ApplicationRunner`) seeds data in PostgreSQL when the tables are empty. Then, on every start, it reads every model and aircraft from PostgreSQL and publishes one `aircraftmodel.event.created` / `aircraft.event.created` per row (`republishModels`, `republishAircrafts`, logged as `Republished N ...`), so Redis is rebuilt from the write side. Seed data:
 
 * 13 aircraft models (Boeing, Airbus, Embraer, Bombardier, ATR).
 * 9 aircraft: `CS-TUA` (`INACTIVE`), `D-ABXA` (`AVAILABLE`), `F-HXKA` (`MAINTENANCE`), `G-X321`, `N789DL` (`INACTIVE`), `PR-EMJ` (`IN_FLIGHT`), and `TEST-001`, `TEST-002`, `TEST-003` (`INACTIVE`), with seating packs, features, certifications, and installed components.

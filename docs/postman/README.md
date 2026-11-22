@@ -7,7 +7,11 @@ Integration tests for the whole AISafe system, sent through the API Gateway.
 | `AISafe-Global-System.postman_collection.json` | The collection |
 | `AISafe-Lab.postman_environment.json` | URLs of the system spread over the 5 PCs (entry through HAProxy) |
 | `AISafe-Local.postman_environment.json` | URLs of a system running on one machine (gateway on `7979`) |
-| `SIDIS HTTP Tests.postman_collection.json` | Previous collection. Its scenarios were migrated to the global one |
+| `SIDIS HTTP Tests.postman_collection.json` | Older collection, kept up to date by the team and run by CI (see below) |
+
+## Collection run by CI
+
+The `postman-tests` job in `ci.yml` runs `SIDIS HTTP Tests.postman_collection.json` (not the global one) with `newman run ... --insecure`. It has 65 requests (aircraft, maintenance, security and validation), calls `https://localhost:7979` directly (no environment file), and logs in once per role at the start (`Setup - Login - Backoffice/Technician/Supervisor/ATCC`), saving `backofficeToken`, `technicianToken`, `supervisorToken` and `atccToken` in collection variables so each request uses the role it needs.
 
 ## Environments
 
@@ -65,7 +69,7 @@ Request names follow `Action - expected status [user story]`, for example `Creat
 * The same script generates unique values for each run (`modelName`, `aircraftReg`, `airportIata`, ...). In the app these values persist between runs, so run `00 - Setup` before repeating the collection. Newman starts fresh every time.
 * Each folder runs on its own, but the requests inside a service folder depend on each other. Run them in order.
 * Some tests check the seeded data, such as the costs of CS-TUA. If they fail after manual changes, restart the services to reset their in-memory databases.
-* All tokens reach all endpoints, because the gateway only validates the JWT and no service has rules per role. The role tokens saved by `01 - Auth Service` are there to try a call as another user.
+* Since iteration 2, `aircraft-service` checks roles (`@PreAuthorize`), so some requests need a token of another role than `backoffice`. The role tokens saved by `01 - Auth Service` can be used for that. `maintenance-service`, `airport-service`, `flight-service` and `route-service` declare roles with `@PreAuthorize` but do not enforce them (see [`../global-network-and-ports.md`](../global-network-and-ports.md), section 7.2).
 
 ## Expected statuses
 
@@ -77,25 +81,29 @@ Each test in `09 - Known Issues` pins a wrong behaviour, so a run stays green an
 
 | Issue | Current | Should be |
 | --- | --- | --- |
-| Duplicate model overwrites the existing one | `201` | `409` |
 | `GET /api/hangar/analytics/fuel-efficiency` when flights exist | `500` | `200` |
-| `GET /api/hangar/aircraft/{reg}/compatible-routes` | Always empty while `meanRange` is 0 | The routes the aircraft can fly |
 | Reactivating a suspended route | `409` | `200` |
-| `GET /api/maintenance/records` without `aircraft` | `500` | `200` |
 | `GET /api/routes/alternatives` without a required parameter | `500` | `400` |
 
-## Status after iteration 2
+All three were reproduced by hand against commit `5240749`. Three requests of the folder no longer describe a bug and should be moved to their service folders with the new expectation: `Compatible routes of D-ABXA` (the endpoint returns routes; it now fails only because the collection sends `backoffice` and the endpoint needs `ATCC`), `Filter records by attribute only - 500` (now `200`) and the duplicate model request (now `409` instead of `201`).
 
-The expectations describe the API of iteration 1. Against commit `230065c` (CQRS in aircraft and maintenance), 81 of 323 assertions fail. Most failures come from the gaps listed in [`../data-architecture-cqrs.md`](../data-architecture-cqrs.md), section 7, and spread to the requests that depend on them:
+## Status at commit `8fbc480`
 
-| Area | Behaviour now | Cause |
-| --- | --- | --- |
-| `POST /api/hangar/aircraft` | Always `404 Aircraft not found in database` | The controller changes the availability before creating the aircraft |
-| `GET /api/catalog/{model}` right after creating the model | `404` | Catalog lookup uses `findByModelName` on Redis without an index |
-| Seeded aircraft (`CS-TUA`, `D-ABXA`, ...) | `404` on read endpoints | Seed data is saved only in PostgreSQL |
-| `GET /api/hangar/analytics/status-summary` | `500` | `countByStatus` on Redis without an index |
-| `POST /api/maintenance/templates` | `201` with no body, so the template id is not stored | Response changed from `200` with the template |
-| `POST /api/maintenance/record` | `400 Malformed JSON` | The template id was not stored (row above), so the body is sent with `"templateId": ,` |
-| Scheduling flights, maintenance records, both journeys | Fail in chain | No aircraft can be created or read |
+Run locally with the `test` profile (see [`../ci-cd-pipelines.md`](../ci-cd-pipelines.md), section 1.5).
 
-When the code is fixed, re-run the collection and update the expectations that changed on purpose (for example the template `201`).
+**`SIDIS HTTP Tests` (CI):** 65 requests, 42 assertions, 0 failures on a fresh database. It is not repeatable on the same database: a second run fails 5 assertions (the fixed registration `CS-TST` already exists, and the maintenance costs and turnaround checks change after the records the first run created). It also leaves `OPO` in `UNDER_MAINTENANCE` (US109) without restoring it.
+
+**`AISafe-Global-System`:** 86 of 323 assertions fail, the same 86 in two runs in a row (run after `SIDIS HTTP Tests`). None of them is a new API bug:
+
+| Cause | Failed assertions |
+| --- | --- |
+| A request needs an id or resource that an earlier, failed request should have created | 43 |
+| Role checks in `aircraft-service`: the endpoint needs `ATCC`, the collection sends `backoffice` | 23 |
+| `OPO` left in `UNDER_MAINTENANCE` by `SIDIS HTTP Tests`, so routes and flights from `OPO` are refused (`Airport is not operational`, `Route is not active`) | 10 |
+| Expectation out of date: templates and records now answer `201` (was `200`) | 4 |
+| Alerts are empty because the aircraft list needs `ATCC` (real gap, see `maintenance-service/docs/README.md`) | 3 |
+| Expectation out of date: unknown airport now answers `404` (was `409`) | 1 |
+| `test` profile: `aircraft-service` skips the secret filter, so the direct call gets Spring's `403` body, not `Unauthorized Access!` | 1 |
+| Known issue that is no longer a bug (records by attribute only) | 1 |
+
+To make the collection green again it has to log in with the role each request needs (the collection script supports per-role tokens, see `01 - Auth Service`), accept `201`/`404` where the API changed, and not depend on the state of the seeded `OPO`.

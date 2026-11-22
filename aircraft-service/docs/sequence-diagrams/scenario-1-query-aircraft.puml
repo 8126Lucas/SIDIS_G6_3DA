@@ -97,12 +97,13 @@ activate controller
 loop for each AircraftAvailability
     controller -> search_svc : countByAvailability(status)
     activate search_svc
-    search_svc -> repo : countByStatus(status)
+    search_svc -> repo : findAll()
     activate repo
-    repo -> db : derived query on status\n(no @Indexed: no secondary index exists)
-    db --> repo : nothing found
-    repo --> search_svc : no value (request ends in 500)
+    repo -> db : read every Aircraft hash
+    db --> repo : all aircraft
+    repo --> search_svc : List<AircraftRedis>
     deactivate repo
+    search_svc -> search_svc : count where status == requested status
     search_svc --> controller : long
     deactivate search_svc
 end

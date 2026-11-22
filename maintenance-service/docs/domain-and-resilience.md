@@ -59,7 +59,7 @@ New records start as `INLINE`.
 | `AddMaintenanceRecordUseCase` (`@UseCase`) | Check aircraft in `aircraft-service`, persist a new record | US116 |
 | `MaintenanceTemplateSearchService` | Template lookup and listing | US117 |
 | `MaintenanceRecordProgressService` (`@UseCase`) | Record lookup, `ONGOING` and `COMPLETED` transitions, attribute change | US119, US217 |
-| `MaintenanceRecordSearchService` | `Specification`-based record search | US218 |
+| `MaintenanceRecordSearchService` | Record search: loads every record from Redis, filters and pages in memory | US218 |
 | `MaintenanceReportService` (`@UseCase`) | Ongoing list, costs, turnaround average | US219, US220, US221 |
 | `MaintenanceAlertService` (`@UseCase`) | Alerts by days since last maintenance and flight hours | US222 |
 | `PartsInventoryService` (`@UseCase`) | Used parts summary and low-stock alerts | US226 |
@@ -132,14 +132,17 @@ Current gaps:
 `MaintenanceSecurityConfig` defines a stateless `SecurityFilterChain`:
 
 * CSRF, form login and HTTP Basic are disabled; sessions are `STATELESS`.
-* All requests are `permitAll()`; there is no authentication or role check inside the service.
-* `gatewaySecretFilter` (`OncePerRequestFilter`, registered before `UsernamePasswordAuthenticationFilter`) requires `X-Gateway-Secret: sidis-g6-secret`. Otherwise it writes `403` with the plain-text body `Unauthorized Access! Please use the API Gateway!`.
+* `/actuator/**`, `/h2-console/**`, `/swagger-ui/**` and `/v3/api-docs/**` are `permitAll()`; every other request must be authenticated.
+* `JwtAuthenticationFilter` (iteration 2) verifies the `Authorization: Bearer` token with `security.jwt.secret` and turns the `roles` claim (a list or a single string) into `ROLE_<role>` authorities, without adding the prefix twice.
+* The controller declares `@PreAuthorize` roles (see `README.md`, section 2.1), but the class has `@EnableWebSecurity` and not `@EnableMethodSecurity`, so they are not evaluated: any valid token reaches every endpoint.
+* `gatewaySecretFilter` (`OncePerRequestFilter`, registered before `UsernamePasswordAuthenticationFilter`) requires `X-Gateway-Secret: sidis-g6-secret`. Otherwise it writes `403` with the plain-text body `Unauthorized Access! Please use the API Gateway!`. When the Spring profile `test` is active the header is not checked (used by CI).
 * Paths containing `/actuator`, `/h2-console`, `/swagger-ui` or `/api-docs` skip the check. The OpenAPI document is served at `/api/docs`, which does not match, so Swagger UI cannot load the spec.
 
 Responsibilities split with the API Gateway:
 
 * The gateway's `JwtAuthentication` filter validates the JWT signature (same secret as `auth-service`), returns `401` when it is missing or invalid, and adds `X-User-Name` and `X-Gateway-Secret` to the forwarded request.
-* `maintenance-service` trusts the secret header only; it does not validate the JWT, does not use `X-User-Name`, and has no `jjwt` dependency.
+* `maintenance-service` checks the secret header and validates the JWT again; it does not use `X-User-Name`.
+* Calls to `aircraft-service` forward the caller's token, so they inherit the caller's role. `GET /api/hangar/aircraft/{reg}` accepts technicians and supervisors; `GET /api/hangar/aircraft` (alerts) only accepts `ATCC`.
 
 Known weaknesses:
 
@@ -148,7 +151,7 @@ Known weaknesses:
 
 ## 8. Bootstrap
 
-`Bootstrap` (`ApplicationRunner`) seeds data in PostgreSQL when there are no records. It publishes no RabbitMQ events, so the seeded templates and records are not in Redis and only `GET /records/{id}` (which reads PostgreSQL) sees them:
+`Bootstrap` (`ApplicationRunner`, `@Transactional`) seeds data in PostgreSQL when there are no records and no templates, and publishes one event per seeded template and record. Then, on every start, it reads every template and record from PostgreSQL and publishes them again (`republishTemplates`, `republishRecords`, logged as `Republished N ...`), so Redis is rebuilt from the write side. On an empty database each seeded row is therefore published twice; the projectors overwrite the same key. Records without a `DoneList` are sent with `doneList: null`. Seed data:
 
 | Template (id) | Operation / Attribute | Record | Aircraft | Status | Used Parts |
 | :--- | :--- | :--- | :--- | :--- | :--- |

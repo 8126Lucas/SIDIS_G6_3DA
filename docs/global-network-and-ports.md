@@ -8,7 +8,7 @@ This document describes the network topology, port allocation, distribution over
 
 Clients call the system only through **HAProxy** on PC1 (`https://192.168.137.1`, port `443`). HAProxy forwards each TLS connection, without decrypting it, to one of the two **API Gateway** instances (`7979` on PC1, `7980` on PC4). The gateway validates the JWT and routes the request by path prefix to a business service, resolved through the **Eureka Discovery Service** (two peer nodes). Every service runs two instances on different PCs; they register in Eureka with their PC's IP, so any gateway or service can reach any instance.
 
-Business services call each other over HTTP, also through Eureka, and each one rejects requests that do not carry the gateway secret header. `aircraft-service` and `maintenance-service` also use PostgreSQL, RabbitMQ and a Redis cluster (see [`data-architecture-cqrs.md`](data-architecture-cqrs.md)).
+Business services call each other over HTTP, also through Eureka, and each one rejects requests that do not carry the gateway secret header. The five business services with data of their own use PostgreSQL, RabbitMQ and a Redis cluster (see [`data-architecture-cqrs.md`](data-architecture-cqrs.md)).
 
 ---
 
@@ -41,7 +41,7 @@ The stats page in `haproxy.cfg` has no `stats auth` line, so it does not ask for
 | **PC4** | `api-gateway-2`, `airport-service-2`, `flight-service-1`, `route-service-1` | `redis-airport-1`, `redis-flight-1`, `redis-route-1` |
 | **PC5** | `aircraft-service-2`, `flight-service-2`, `route-service-2` | `postgresql-1`, `rabbitmq-1`, `rabbitmq-2`, `redis-airport-2/3`, `redis-flight-2/3`, `redis-route-2/3` |
 
-The table in the root `README.md` ("PC Workload Distribution") predates the last changes to `docker-compose.yml` and differs from it (for example, it places `api-gateway-2` on PC3); the compose profiles above are what runs.
+The table in the root `README.md` ("PC Workload Distribution") follows these profiles.
 
 ### 3.1. Variables each PC must define
 
@@ -51,6 +51,8 @@ The table in the root `README.md` ("PC Workload Distribution") predates the last
 | :--- | :--- |
 | `IP_PC1` … `IP_PC5` | LAN IP of each PC. Used as `EUREKA_INSTANCE_IP_ADDRESS`, in the instance ids, and in the PostgreSQL, RabbitMQ and Redis addresses. |
 | `EUREKA_URL_1`, `EUREKA_URL_2` | URLs of the two Eureka nodes (`http://<IP_PC1>:8761/eureka/`, `http://<IP_PC3>:8762/eureka/`). |
+
+Every business and auth container also sets `SPRING_PROFILES_ACTIVE=docker`. In the five business services that profile holds the Redis cluster nodes (`application-docker.properties`; `auth-service` has no such file, so the profile changes nothing there); without it the services use a single Redis on `localhost:6379` (see `data-architecture-cqrs.md`, section 5).
 
 ---
 
@@ -100,7 +102,7 @@ The services' ports are published on their PC, so they can also be reached direc
 | `/api/maintenance/**` | `lb://maintenance-service` | Yes |
 | `/api/routes/**` | `lb://route-service` | Yes |
 
-At commit `230065c` the `route-service` route sets its id with the old key `spring.cloud.gateway.routes[4].id`, which stops the gateway from starting; the fix is to use `spring.cloud.gateway.server.webflux.routes[4].id` like the other routes.
+All six routes use the `spring.cloud.gateway.server.webflux.routes[n]` keys. The `test` profile (`application-test.properties`) repeats the same routes with Eureka on `http://localhost:8761/eureka/`, for CI.
 
 Details: [`APIgateway/docs/routing-and-security.md`](../APIgateway/docs/routing-and-security.md).
 
@@ -130,9 +132,41 @@ Both gateways and both `auth-service` instances share the same secret, so a toke
 
 ### 7.2. Roles
 
-`auth-service` seeds one collaborator per role (`ADMIN`, `ATCC`, `BACKOFFICE`, `MAINTENANCE_TECHNICIAN`, `MAINTENANCE_SUPERVISOR`) and puts the roles in the token, but neither the gateway nor any service checks them: every authenticated collaborator can call every endpoint.
+`auth-service` seeds one collaborator per role and puts the roles in the token:
+
+| Username / password | Role |
+| :--- | :--- |
+| `admin` / `admin123` | `ADMIN` |
+| `atcc` / `atcc123` | `ATCC` |
+| `backoffice` / `backoffice123` | `BACKOFFICE` |
+| `technician` / `technician123` | `MAINTENANCE_TECHNICIAN` |
+| `supervisor` / `supervisor123` | `MAINTENANCE_SUPERVISOR` |
+
+The gateway still only validates the token. Every business controller now declares its roles with `@PreAuthorize`, but a role is only checked where the service also has a `JwtAuthenticationFilter` (reads the `roles` claim, accepts a list or a single string, and maps it to `ROLE_<role>`) **and** `@EnableMethodSecurity`:
+
+| Service | Role checks |
+| :--- | :--- |
+| `aircraft-service` | **Enforced** (`@EnableMethodSecurity`). For example `POST /api/hangar/aircraft`, `GET /api/hangar/aircraft` and the availability analytics need `ATCC`; model changes, availability changes, fuel and operational-hours analytics need `BACKOFFICE`; `GET /api/hangar/aircraft/{reg}` accepts `ATCC`, `BACKOFFICE`, `MAINTENANCE_SUPERVISOR` and `MAINTENANCE_TECHNICIAN`. A wrong role gets `403 Access Denied`. |
+| `maintenance-service` | **Declared but not enforced.** The controller has `@PreAuthorize` on every endpoint (templates, records and status changes: `MAINTENANCE_TECHNICIAN`; ongoing, turnaround and parts: `MAINTENANCE_SUPERVISOR`; costs and hours: `ATCC`; alerts: `ATCC` or `MAINTENANCE_SUPERVISOR`), and it has a `JwtAuthenticationFilter`, but `MaintenanceSecurityConfig` has no `@EnableMethodSecurity`, so any authenticated collaborator passes. |
+| `airport-service`, `flight-service`, `route-service` | **Declared but not enforced.** `@PreAuthorize` was added to every endpoint (with the US number in a comment), but these services have neither a `JwtAuthenticationFilter` nor `@EnableMethodSecurity`, and their chain is `permitAll()`. The roles are listed in each service's `README.md`. |
+
+The controller tests (`MockMvc`) enable method security in their own test configuration, so they pass even where the running service does not check roles.
 
 Details: [`auth-service/docs/security-and-authorization.md`](../auth-service/docs/security-and-authorization.md).
+
+### 7.3. Roles in calls between services
+
+A service that calls another one forwards the caller's `Authorization` header (`JwtTokenInterceptor`), so the second service checks the **original user's** role. `maintenance-service` calls `aircraft-service` in two ways:
+
+* `GET /api/hangar/aircraft/{reg}` (record creation, model names in the turnaround and cost reports) now also accepts `MAINTENANCE_TECHNICIAN` and `MAINTENANCE_SUPERVISOR`, so a technician can create a record.
+* `GET /api/hangar/aircraft?size=1000` (maintenance alerts) still needs `ATCC`. With any other token (the supervisor included) `aircraft-service` answers `403`; `AircraftRestClientService.findAll` catches it and returns an empty list, so the alert list is empty instead of an error (checked by running the system).
+* `ADMIN` is not accepted by any `@PreAuthorize` in `aircraft-service`, so an `ADMIN` creating a maintenance record gets `500` (from the forwarded `403`).
+
+### 7.4. Test profile
+
+`aircraft-service` and `maintenance-service` skip the gateway secret check when the Spring profile `test` is active (their `gatewaySecretFilter` reads the active profiles; CI starts every service with this profile). Started with `test`, they accept direct calls without `X-Gateway-Secret`. `airport-service`, `flight-service` and `route-service` still require the header in every profile.
+
+In `aircraft-service`, `/error` is also open (`permitAll`), so an exception inside a protected request returns its real status instead of `403`.
 
 ---
 
@@ -140,7 +174,7 @@ Details: [`auth-service/docs/security-and-authorization.md`](../auth-service/doc
 
 ### 8.1. Synchronous (HTTP)
 
-All calls go through a shared `@LoadBalanced` `RestClient` (2-second connect and read timeouts). `JwtTokenInterceptor` adds `X-Gateway-Secret` and copies the caller's `Authorization` header.
+All calls go through a shared `@LoadBalanced` `RestClient` (2-second connect and read timeouts). `JwtTokenInterceptor` adds `X-Gateway-Secret` and copies the caller's `Authorization` header. In `flight-service` the builder also sets `X-Gateway-Secret` as a default header (property `gateway.secret`, default `sidis-g6-secret`), so the header is sent twice with the same value.
 
 | Caller | Callee | Calls | Purpose |
 | :--- | :--- | :--- | :--- |
@@ -157,10 +191,10 @@ Retries: `aircraft-service` and `maintenance-service` retry failed calls up to 3
 
 ### 8.2. Asynchronous (RabbitMQ)
 
-RabbitMQ is used only inside `aircraft-service` and `maintenance-service`, to project their writes into Redis (CQRS). No event crosses service boundaries yet. Exchanges, queues and routing keys: [`data-architecture-cqrs.md`](data-architecture-cqrs.md), section 4.
+Each of the five services with a database uses RabbitMQ inside itself, to project its writes into Redis (CQRS). No event crosses service boundaries. Exchanges, queues and routing keys: [`data-architecture-cqrs.md`](data-architecture-cqrs.md), section 4.2.
 
 ---
 
 ## 9. Monitoring
 
-`prometheus` (PC1, `9090`, `prometheus.yml`) discovers its targets in Eureka (`http://discovery-node1:8761/eureka`) and scrapes `/actuator/prometheus` every 15 seconds, using HTTPS for the gateways. Only the components with `micrometer-registry-prometheus` expose that endpoint: `aircraft-service`, `maintenance-service`, `auth-service`, `APIgateway` and `discovery-service`. `airport-service`, `flight-service` and `route-service` are discovered but have no metrics endpoint.
+`prometheus` (PC1, `9090`, `prometheus.yml`) discovers its targets in Eureka (`http://discovery-node1:8761/eureka`) and scrapes `/actuator/prometheus` every 15 seconds, using HTTPS for the gateways. All eight modules include `micrometer-registry-prometheus` and expose `/actuator/prometheus`, `/actuator/health` and `/actuator/info`; the gateway secret filter of the five business services lets `/actuator` through. `auth-service` does not exempt it: its security chain requires authentication on every path except login, so Prometheus gets `403` from it.

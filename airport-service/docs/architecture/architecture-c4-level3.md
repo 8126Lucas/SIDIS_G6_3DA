@@ -15,8 +15,14 @@ The `airport-service` currently exposes one controller and the following main ap
    * Queries (`GET /{iataCode}`, `GET /`, `GET /grouped`).
    * Updates (`PATCH /{iataCode}/status`, `PATCH /{iataCode}/details`).
    * Route analytics (`GET /{iataCode}/routes`, `GET /busiest`).
-* **`AirportService`** (`@UseCase`)
-   * Registration rules (IATA format, uniqueness), lookup, `Specification`-based search, status and detail updates, certifications, grouping, and route analytics.
+* **`AirportService`** (`@UseCase`) — command side
+   * Registration rules (IATA format, uniqueness), status and detail updates, certifications. Saves the `Airport` in PostgreSQL and raises an `AirportChangedEvent`.
+* **`AirportQueryService`** — query side (iteration 2)
+   * Lookup by IATA code, search, grouping, busiest airports and routes per airport, read from Redis (route data still comes from `route-service`).
+* **`AirportReadRepository`** / **`AirportReadModelMapper`** / **`AirportReadModel`**
+   * Spring Data Redis over the airport Redis cluster (`Airport:<iataCode>`, `status`, `city` and `country` indexed); the read model carries the JPA `@Version`.
+* **`AirportEventPublisher`** / **`AirportRedisProjector`** / **`RabbitMQConfig`**
+   * After the transaction commits, the publisher sends the event to `airport.exchange` (`airport.event.updated`); the projector (`airport.sync.queue`, concurrency 1) stores it in Redis unless Redis already holds the same or a newer version.
 * **`AirportCsvService`**
    * Parses CSV rows (OpenCSV) into `Airport` aggregates; persistence is delegated back to `AirportService`.
 * **`RouteRestClientService`**
@@ -24,7 +30,9 @@ The `airport-service` currently exposes one controller and the following main ap
 * **`PeerForwarder`**
    * Forwards a GET to other instances of a service; not used by any controller.
 * **`AirportRepository`**
-   * Spring Data JPA persistence with `JpaSpecificationExecutor`.
+   * Spring Data JPA over PostgreSQL (`airport_db`); the write model.
+* **`Bootstrap`**
+   * Seeds airports when needed, then republishes every airport on every start so Redis is rebuilt from PostgreSQL.
 * **`GlobalExceptionHandler`**
    * Cross-cutting HTTP error normalization (`ErrorDetails`).
 * **`UseCaseLoggingAdvice`**
@@ -49,7 +57,7 @@ PlantUML source file:
 ## 3. Data Flow and Dependencies
 
 1. Inbound requests arrive through the API Gateway for `/api/airports/**`; the gateway validates the JWT and adds `X-Gateway-Secret`, which `gatewaySecretFilter` checks (`403` when missing).
-2. All flows go from `AirportController` to `AirportService`, which persists through `AirportRepository`.
+2. Commands go from `AirportController` to `AirportService`, which saves through `AirportRepository` (PostgreSQL); after commit, `AirportEventPublisher` sends the change to RabbitMQ and `AirportRedisProjector` writes it to Redis. Queries go to `AirportQueryService`, which reads `AirportReadRepository` (Redis).
 3. The CSV import goes through `AirportCsvService` to build the aggregates, then calls `AirportService.execute(...)` once per airport.
 4. Airport routes and busiest airports call `route-service` through `RouteRestClientService`.
 5. `flight-service` and `route-service` call `GET /api/airports/{iataCode}` to validate airports.

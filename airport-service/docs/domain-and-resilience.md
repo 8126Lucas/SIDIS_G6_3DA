@@ -56,7 +56,7 @@ There is no transition guard, and the airport status is not checked by other ope
 | `AirportService.execute(...)` | Validate IATA code and uniqueness, persist a new `Airport` |
 | `AirportService.addCertification(...)` | Add a certification to an existing airport |
 | `AirportService.getAirportByIata(...)` | Lookup by IATA code |
-| `AirportService.searchAirports(...)` | `Specification`-based search by city, country, name |
+| `AirportQueryService.searchAirports(...)` | Search by city, country, name (Redis index lookup, then in-memory filter) |
 | `AirportService.updateStatus(...)` | Status change |
 | `AirportService.updateDetails(...)` | Replace name and contacts, change operational hours |
 | `AirportService.groupAirportsBy(...)` | Group by country, city or region |
@@ -89,7 +89,7 @@ Inbound consumers of this service (over `http://airport-service` with their own 
 * `flight-service` → `GET /api/airports/{iataCode}`.
 * `route-service` → `GET /api/airports/{iataCode}`.
 
-Both consumers receive `409 Conflict` (not `404`) when the airport does not exist and turn any `4xx` into their own `DomainException("Airport does not exist")`.
+Both consumers receive `404 Not Found` when the airport does not exist and turn any `4xx` into their own `DomainException("Airport does not exist")`.
 
 ## 5. Analytics
 
@@ -120,15 +120,15 @@ Outgoing calls:
 
 Current gaps:
 
-* Missing resources return `409` instead of `404`.
-* Most requests have no Bean Validation constraints; missing nested objects (`location`, `facilities`, `runways`) cause `NullPointerException` (`500`).
+* Only `GET /api/airports/{iataCode}` returns `404` for a missing airport; the commands (certifications, status, details, routes) still return `409`.
+* Airport registration has Bean Validation on its main fields; the runway, certification and contact entries and the update requests have none.
 * Retries are not active (missing `@EnableRetry`), and there is no circuit breaker; any `route-service` failure becomes `500`.
 * The CSV import is not atomic: each airport is saved in a separate transaction.
 * `UseCaseLoggingAdvice` uses the pointcut `within(com.sidis.airportservice.UseCase)`, which matches the `UseCase` annotation type itself rather than classes annotated with it (`@within(com.sidis.airportservice.UseCase)`), so no use case calls are logged.
 
 Security:
 
-* `AirportSecurityConfig` defines a stateless `SecurityFilterChain`: CSRF, form login and HTTP Basic disabled, all requests `permitAll()`, no role checks.
+* `AirportSecurityConfig` defines a stateless `SecurityFilterChain`: CSRF, form login and HTTP Basic disabled, all requests `permitAll()`. The controller declares `@PreAuthorize` roles (see `README.md`, section 2.1), but there is no `@EnableMethodSecurity` and no filter that turns the JWT into an authentication, so the roles are not checked.
 * `gatewaySecretFilter` (registered before `UsernamePasswordAuthenticationFilter`) requires `X-Gateway-Secret: sidis-g6-secret`; otherwise it writes `403` with the plain-text body `Unauthorized Access! Please use the API Gateway!`.
 * Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` skip the check. The OpenAPI document is served at `/api/docs`, which does not match, so Swagger UI cannot load the spec.
 * JWT validation happens only in the API Gateway; the service does not read `X-User-Name`.

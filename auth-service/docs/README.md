@@ -19,7 +19,7 @@ Important implementation notes:
 
 * Invalid credentials return `409 Conflict` (`InvalidCredentialsException` extends `DomainException`), not `401`.
 * The JWT `sub` claim is the collaborator's `collaboratorId` (UUID), not the username; the gateway forwards it as `X-User-Name`.
-* Roles are put in the token, but no service checks them (see `security-and-authorization.md`, section 4).
+* Roles are put in the token. Only `aircraft-service` enforces them; the other business services declare `@PreAuthorize` roles that are not evaluated (see `security-and-authorization.md`, section 4).
 * There are no endpoints to register, list or change collaborators.
 * `JwtAuthenticationFilter` is not added to the `SecurityFilterChain`, and the H2 console and Swagger UI are blocked by the chain (see `security-and-authorization.md`, section 2).
 
@@ -32,6 +32,7 @@ Important implementation notes:
 | Service Port | `8101` (instance 1, PC2), `8102` (instance 2, PC3) | `server.port`, overridden by `SERVER_PORT` in `docker-compose.yml` |
 | API Prefix | `/api/auth` | Base mapping in `AuthController` |
 | Database | SQLite file | `jdbc:sqlite:/data/auth.db`; each instance mounts its own folder (`./data/auth-service-1`, `./data/auth-service-2`), so each has its own copy of the seeded users |
+| Profiles | `test` (CI), `docker` (set in `docker-compose.yml`) | `application-test.properties`: SQLite file `auth.db` in the working directory and Eureka on `localhost:8761`. There is no `application-docker.properties`, so `docker` changes nothing. A generated `auth-service/auth.db` is committed in the repository |
 | Schema Strategy | `update` | `spring.jpa.hibernate.ddl-auto` |
 | OpenAPI Docs / Swagger UI | `/api/docs`, `/api/swagger-ui` | Configured, but require authentication (blocked) |
 | JWT Secret | `security.jwt.secret` | 49-byte HMAC key (signs with `HS384`) |
