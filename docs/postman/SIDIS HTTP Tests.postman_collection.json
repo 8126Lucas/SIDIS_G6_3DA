@@ -1001,7 +1001,7 @@
           "bearer": [
             {
               "key": "token",
-              "value": "{{atccToken}}",
+              "value": "{{backofficeToken}}",
               "type": "string"
             }
           ]
