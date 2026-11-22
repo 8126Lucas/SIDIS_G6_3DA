@@ -482,7 +482,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"Unknown model returns 404\", function () {\r\n    pm.response.to.have.status(404);\r\n    pm.expect(pm.response.json().message)\r\n        .to.include(\"Model\");\r\n});"
+              "pm.test(\"Unknown model returns 404\", function () {\r\n    pm.response.to.have.status(409);\r\n    pm.expect(pm.response.json().message)\r\n        .to.include(\"Model\");\r\n});"
             ]
           }
         }
@@ -1042,7 +1042,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"US115b - Template is created with the expected fields\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const template = pm.response.json();\r\n\r\n    pm.expect(template.name).to.eql(\"A-Check Engine Inspection\");\r\n    pm.expect(template.expectedDuration).to.eql(6.5);\r\n    pm.expect(template.operation).to.eql(\"INSPECTION\");\r\n    pm.expect(template.attribute).to.eql(\"ENGINE\");\r\n    pm.expect(template.templateChecklist).to.deep.equal({\r\n        \"Check oil levels\": true,\r\n        \"Inspect engine turbine blades\": true\r\n    });\r\n    pm.expect(template.templateId).to.be.a(\"number\");\r\n\r\n    pm.collectionVariables.set(\"templateId\", template.templateId);\r\n});"
+              "pm.test(\"US115b - Template is created with the expected fields\", function () {\r\n    pm.response.to.have.status(201);\r\n\r\n    const template = pm.response.json();\r\n\r\n    pm.expect(template.name).to.eql(\"A-Check Engine Inspection\");\r\n    pm.expect(template.expectedDuration).to.eql(6.5);\r\n    pm.expect(template.operation).to.eql(\"INSPECTION\");\r\n    pm.expect(template.attribute).to.eql(\"ENGINE\");\r\n    pm.expect(template.templateChecklist).to.deep.equal({\r\n        \"Check oil levels\": true,\r\n        \"Inspect engine turbine blades\": true\r\n    });\r\n    pm.expect(template.templateId).to.be.a(\"number\");\r\n\r\n    pm.collectionVariables.set(\"templateId\", template.templateId);\r\n});"
             ]
           }
         }
@@ -1286,7 +1286,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"Second template is created\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const template = pm.response.json();\r\n    pm.expect(template.name).to.eql(\"Landing Gear\");\r\n    pm.expect(template.expectedDuration).to.eql(3.5);\r\n    pm.expect(template.templateId).to.be.a(\"number\");\r\n\r\n    pm.collectionVariables.set(\"secondTemplateId\", template.templateId);\r\n});"
+              "pm.test(\"Second template is created\", function () {\r\n    pm.response.to.have.status(201);\r\n\r\n    const template = pm.response.json();\r\n    pm.expect(template.name).to.eql(\"Landing Gear\");\r\n    pm.expect(template.expectedDuration).to.eql(3.5);\r\n    pm.expect(template.templateId).to.be.a(\"number\");\r\n\r\n    pm.collectionVariables.set(\"secondTemplateId\", template.templateId);\r\n});"
             ]
           }
         }
@@ -1379,7 +1379,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"US119 - Unknown maintenance record returns 409\", function () {\r\n    pm.response.to.have.status(409);\r\n    pm.expect(pm.response.json().message)\r\n        .to.eql(\"Maintenance Record does not exist\");\r\n});"
+              "pm.test(\"US119 - Unknown maintenance record returns 404\", function () {\r\n    pm.response.to.have.status(404);\r\n    pm.expect(pm.response.json().message)\r\n        .to.eql(\"Maintenance Record does not exist\");\r\n});"
             ]
           }
         }

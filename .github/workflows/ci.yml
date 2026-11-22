@@ -184,11 +184,56 @@ jobs:
         image: rabbitmq:3.12-management-alpine
         ports:
           - 5672:5672
-  
-      redis:
+
+      redis-aircraft:
         image: redis:7-alpine
         ports:
           - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      redis-maintenance:
+        image: redis:7-alpine
+        ports:
+          - 6382:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      redis-flight:
+        image: redis:7-alpine
+        ports:
+          - 6388:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      redis-route:
+        image: redis:7-alpine
+        ports:
+          - 6391:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      redis-airport:
+        image: redis:7-alpine
+        ports:
+          - 6385:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4

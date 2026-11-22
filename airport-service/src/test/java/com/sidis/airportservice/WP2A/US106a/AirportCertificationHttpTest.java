@@ -23,7 +23,7 @@ class AirportCertificationHttpTest extends OperationalHttpTest {
 
         authenticateAs("backoffice");
         expect(201, request("POST", "/api/airports/" + code + "/certifications", body));
-
+        Thread.sleep(1000);
         var certification = find(get("/api/airports/" + code).path("certifications"), "name", model);
         assertEquals("AIRCRAFT_MODEL", certification.path("category").asText());
         assertEquals(body.get("startsAt"), certification.path("startsAt").asText());
