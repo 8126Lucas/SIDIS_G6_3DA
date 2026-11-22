@@ -81,12 +81,11 @@ Each test in `09 - Known Issues` pins a wrong behaviour, so a run stays green an
 
 | Issue | Current | Should be |
 | --- | --- | --- |
-| Duplicate model overwrites the existing one | `201` | `409` |
 | `GET /api/hangar/analytics/fuel-efficiency` when flights exist | `500` | `200` |
 | Reactivating a suspended route | `409` | `200` |
 | `GET /api/routes/alternatives` without a required parameter | `500` | `400` |
 
-All four were reproduced by hand against commit `8fbc480`. Two requests of the folder no longer describe a bug: `Compatible routes of D-ABXA` (the endpoint returns routes; it now fails only because the collection sends `backoffice` and the endpoint needs `ATCC`) and `Filter records by attribute only - 500` (now `200`). Both should be moved to their service folders.
+All three were reproduced by hand against commit `5240749`. Three requests of the folder no longer describe a bug and should be moved to their service folders with the new expectation: `Compatible routes of D-ABXA` (the endpoint returns routes; it now fails only because the collection sends `backoffice` and the endpoint needs `ATCC`), `Filter records by attribute only - 500` (now `200`) and the duplicate model request (now `409` instead of `201`).
 
 ## Status at commit `8fbc480`
 

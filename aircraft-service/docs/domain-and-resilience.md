@@ -52,7 +52,7 @@ There is no transition guard (for example, any status can move to any other allo
 
 | Use Case / Service | Responsibility | User Story |
 | :--- | :--- | :--- |
-| `AddModelUseCase` (`@UseCase`) | Persist a new `AircraftModel` | US101, US202 |
+| `AddModelUseCase` (`@UseCase`) | Persist a new `AircraftModel` (rejects an existing `modelName` with `409`) | US101, US202 |
 | `AircraftModelUpdater` | Patch images, manufacturer, and specs | US201 |
 | `AddAircraftUseCase` (`@UseCase`) | Persist a new `Aircraft` | US102 |
 | `AircraftSearchService` | Lookup, filtered search, counts, features | US103, US104, US205, US206 |
@@ -105,7 +105,7 @@ Inbound consumers of this service (all over `http://aircraft-service` with their
 Optimistic locking:
 
 * Implemented with `@Version` on `Aircraft.version`.
-* `AircraftModel` has no version field; concurrent patches are last-write-wins, and `POST` with an existing `modelName` overwrites it (merge).
+* `AircraftModel` has no version field; concurrent patches are last-write-wins. Creating a model with an existing `modelName` is rejected (`409`) by a lookup before the save, so two simultaneous `POST`s of the same new name can still both pass the check and the second merges over the first.
 
 Exception handling:
 

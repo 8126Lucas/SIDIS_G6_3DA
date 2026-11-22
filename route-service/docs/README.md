@@ -42,7 +42,7 @@ Important implementation notes:
 | Write database | PostgreSQL `jdbc:postgresql://${IP_PC5}:5432/route_db` | User `sidis`; tables created by Hibernate (`ddl-auto=update`) |
 | Read database | Redis cluster `${SPRING_REDIS_CLUSTER_NODES}` (profile `docker`) | Default `localhost:6391,localhost:6392,localhost:6393`; in the lab `redis-route-1..3`; hash `Route`. Without the `docker` profile: standalone Redis on `localhost:6379` (`6391` with the `test` profile) |
 | Message broker | RabbitMQ `${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674` | Overridden by `SPRING_RABBITMQ_ADDRESSES` in `docker-compose.yml`; user and password fixed to `guest` (no longer read from `RABBITMQ_USERNAME`/`RABBITMQ_PASSWORD`); exchange `route.exchange` |
-| Profiles | `docker` (set in `docker-compose.yml`), `test` (CI) | `application-docker.properties`: Redis cluster. `application-test.properties`: Eureka, RabbitMQ and Redis on `localhost`, but PostgreSQL `aircraft_db` instead of `route_db` |
+| Profiles | `docker` (set in `docker-compose.yml`), `test` (CI) | `application-docker.properties`: Redis cluster. `application-test.properties`: PostgreSQL (`route_db`), Eureka, RabbitMQ and Redis on `localhost` |
 | Metrics | `/actuator/prometheus`, `/actuator/health` | Scraped by Prometheus; exempt from the gateway secret filter |
 | Schema Strategy | `update` | `spring.jpa.hibernate.ddl-auto`; database user and password fixed to `sidis` (no longer read from `DB_USERNAME`/`DB_PASSWORD`) |
 | Service Registry | `${EUREKA_URL_1},${EUREKA_URL_2}` | Both discovery nodes (`prefer-ip-address=true`); registers with `${IP_PC<n>}` as its address |

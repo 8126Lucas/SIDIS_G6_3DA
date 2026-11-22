@@ -32,7 +32,7 @@ All endpoints additionally return `403` when `X-Gateway-Secret` is missing (and 
 
 | Method | Endpoint Path | Description | User Story | Status Codes |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/api/catalog/model` | Add an aircraft model to the catalog | US101, US202 | `201`, `400`, `500` |
+| `POST` | `/api/catalog/model` | Add an aircraft model to the catalog | US101, US202 | `201`, `400`, `409`, `500` |
 | `PATCH` | `/api/catalog/model/{modelName}` | Update an aircraft model | US201 | `200`, `404`, `409`, `500` |
 | `GET` | `/api/catalog/rankings?mode=` | Top 5 models by assignments or flight hours | US204 | `200`, `500` |
 | `GET` | `/api/catalog/{modelName}` | Get one aircraft model | — | `200`, `404` |
@@ -87,7 +87,7 @@ Empty body.
 
 Notes:
 
-* `modelName` is the assigned `@Id` and `AircraftModel` has no `@Version`, so `save(...)` performs a merge: posting an existing `modelName` overwrites that model instead of being rejected.
+* `AddModelUseCase` looks the `modelName` up in PostgreSQL first: an existing model → `409` (`DomainException`, `"Aircraft Model already exists!"`), and the stored model is not changed.
 * If `specs` is omitted, the controller throws `IllegalArgumentException` (`"Object 'specs' is mandatory in the request body."`) → `400`.
 * `fuelCapacityLiters`, `maximumRangeKm`, and `cruisingSpeedKph` are `nullable = false` columns; missing values fail at persistence (`500`).
 

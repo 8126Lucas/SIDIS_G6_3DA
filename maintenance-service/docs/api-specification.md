@@ -297,8 +297,8 @@ Notes:
 
 * The attribute is changed on the record's `MaintenanceTemplate`, not on the record, so every record that shares that template changes category.
 * `MaintenanceRecordProgressService.changeRecordAttribute` saves the template, publishes `MaintenanceTemplateSyncEvent` (`maintenancetemplate.event.updated`) and then the record event (`maintenance.event.updated`), so the new attribute reaches `MaintenanceTemplate:<id>` in Redis.
-* `attribute` is not validated: an empty body or `"attribute": null` sets the template attribute to `null` in PostgreSQL and still answers `200`, but the projector then fails (`MaintenanceAttribute.valueOf("null")`), Redis keeps the old attribute, and the event is redelivered endlessly (checked by running the system; see `../../docs/data-architecture-cqrs.md`, section 7). An unknown value fails JSON parsing → `400`.
-* A missing record → `404`.
+* An empty body or `"attribute": null` → `400` (`IllegalArgumentException`, `"Attribute cannot be null or empty"`); nothing is saved or published. An unknown value fails JSON parsing → `400`.
+* A missing record → `404` (checked before the attribute, so a missing record with a null attribute also answers `404`).
 
 ---
 

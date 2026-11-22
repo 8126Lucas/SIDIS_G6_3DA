@@ -39,7 +39,7 @@ Every module started in CI uses the Spring profile `test` (`application-test.pro
 | `discovery-service` | Has no `test` file; it runs with `node1` (`spring-boot:run -Dspring-boot.run.profiles=node1` in `java-tests`, `test,node1` in `postman-tests`). |
 | `APIgateway` | Eureka on `http://localhost:8761/eureka/` and the six routes again. |
 | `auth-service` | SQLite file `auth.db` in the working directory (instead of `/data/auth.db`) and Eureka on `localhost`. |
-| Business services | PostgreSQL `localhost:5432/<service>_db`, Eureka on `localhost`, one RabbitMQ on `localhost:5672`, and a standalone Redis on the service's port (above). `route-service` points to `aircraft_db` instead of `route_db`. |
+| Business services | PostgreSQL `localhost:5432/<service>_db`, Eureka on `localhost`, one RabbitMQ on `localhost:5672`, and a standalone Redis on the service's port (above). |
 
 The profile also changes behaviour: `aircraft-service` and `maintenance-service` accept requests without `X-Gateway-Secret` when `test` is active (see `global-network-and-ports.md`, section 7.4).
 
@@ -68,7 +68,6 @@ The system was started locally the same way as `postman-tests` (same containers,
 
 Remaining points:
 
-* **`route-service` database.** Its test profile uses `aircraft_db` (see above).
 * **Test-only bypass in the code.** The gateway secret check is skipped in `aircraft-service` and `maintenance-service` whenever the `test` profile is active, so CI does not check that filter in those two services.
 * **Branch trigger.** The `push` trigger includes a personal branch (`1241008`).
 

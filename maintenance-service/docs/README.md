@@ -25,11 +25,11 @@ Important implementation notes:
 * **CQRS (iteration 2).** Commands write to PostgreSQL (`maintenance_db`) and publish an event to RabbitMQ; a listener in the service projects it into the Redis cluster. Template reads, record searches, reports and alerts read from Redis; `GET /records/{id}` still reads PostgreSQL. Details: [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md).
 * The read models have `@Indexed` fields, so template lookups by id and status-based reports work on Redis.
 * `Bootstrap` seeds PostgreSQL when it is empty and then, on **every** start, republishes every template and record, so Redis is rebuilt from PostgreSQL.
-* **Known gaps (checked by running commit `8fbc480`):**
+* **Known gaps (checked by running commit `5240749`):**
   * **Roles are not enforced.** The controller has `@PreAuthorize` on every endpoint, but `MaintenanceSecurityConfig` lacks `@EnableMethodSecurity` (the controller tests enable it themselves, so they pass). For example, an `ATCC` token creates templates.
   * **Alerts are empty for everyone except `ATCC`.** `GET /alerts` loads the fleet with `GET /api/hangar/aircraft`, which needs `ATCC`; with any other token (including the supervisor, who is allowed on `/alerts`) `aircraft-service` answers `403` and the client returns an empty list.
   * **`ADMIN` cannot create records.** `aircraft-service` refuses the forwarded `ADMIN` token (`403`), which becomes `500` here.
-  * **`"attribute": null` breaks the projection.** `PATCH /records/{id}` with a null attribute answers `200` and stores `null` in PostgreSQL, but the projector cannot read it and the event is redelivered forever (see `../../docs/data-architecture-cqrs.md`, section 7).
+  * **No protection against failing projections.** The listeners have no error handling or dead-letter queue, so an event that cannot be projected is redelivered forever (see `../../docs/data-architecture-cqrs.md`, section 7). `PATCH /records/{id}` now rejects a null attribute (`400`), which was the known way to cause this.
 * Creating a template or a record answers `201 Created` with the created template or record in the body.
 * With the Spring profile `test` active, `gatewaySecretFilter` does not check `X-Gateway-Secret` (used by CI).
 * `GET /api/maintenance/reports/hours` (iteration 2, `ATCC`) returns the total maintenance hours per aircraft, from the `MaintenanceHoursReport` read model.
