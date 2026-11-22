@@ -160,7 +160,7 @@ jobs:
         run: |
           tail -n 100 eureka.log gateway.log auth.log aircraft.log maintenance.log flight.log route.log airport.log || true
 
-   3. TESTES POSTMAN
+  # 3. TESTES POSTMAN
   postman-tests:
     name: Testes de Integração Postman
     needs: compile
