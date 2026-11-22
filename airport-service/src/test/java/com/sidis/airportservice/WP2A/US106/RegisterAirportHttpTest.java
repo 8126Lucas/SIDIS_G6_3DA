@@ -16,6 +16,7 @@ class RegisterAirportHttpTest extends OperationalHttpTest {
         var body = airportBody(code);
         authenticateAs("backoffice");
         expect(201, request("POST", "/api/airports", body));
+        Thread.sleep(1000);
         var airport = get("/api/airports/" + code);
         assertEquals(code, airport.path("iataCode").asText());
         assertEquals(body.get("name"), airport.path("name").asText());

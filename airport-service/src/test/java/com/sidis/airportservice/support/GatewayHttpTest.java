@@ -98,6 +98,7 @@ public abstract class GatewayHttpTest {
                 .timeout(Duration.ofSeconds(30))
                 .header("Authorization", "Bearer " + token)
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .header("X-Gateway-Secret", "sidis-g6-secret")
                 .POST(HttpRequest.BodyPublishers.ofString(body)).build(),
                 HttpResponse.BodyHandlers.ofString());
     }

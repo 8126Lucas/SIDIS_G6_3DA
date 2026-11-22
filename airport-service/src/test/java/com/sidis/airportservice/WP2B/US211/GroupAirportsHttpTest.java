@@ -14,8 +14,10 @@ class GroupAirportsHttpTest extends OperationalHttpTest {
     @ParameterizedTest @ValueSource(strings = {"country", "region"})
     void shouldGroupByUsCriteria(String criterion) throws Exception {
         String code = createAirport();
+        Thread.sleep(2000);
         String key = get("/api/airports/" + code).path("location").path(criterion).asText();
         authenticateAs("atcc");
+        Thread.sleep(2000);
         var groups = get("/api/airports/grouped?by=" + criterion);
         assertTrue(groups.isObject());
         var group = groups.path(key);

@@ -17,6 +17,7 @@ class UpdateAirportDetailsHttpTest extends OperationalHttpTest {
         var contacts = List.of(Map.of("type", "PHONE", "value", "+351210000000"));
         expect(200, request("PATCH", "/api/airports/" + code + "/details",
                 Map.of("name", name, "operationalHours", "06:00-23:00", "contacts", contacts)));
+        Thread.sleep(1000);
         var airport = get("/api/airports/" + code);
         assertEquals(name, airport.path("name").asText());
         assertEquals(JSON.valueToTree(contacts), airport.path("contacts"));
@@ -26,6 +27,7 @@ class UpdateAirportDetailsHttpTest extends OperationalHttpTest {
         String code = createAirport();
         expect(200, request("PATCH", "/api/airports/" + code + "/details",
                 Map.of("name", unique(), "operationalHours", "06:00-23:00", "contacts", List.of())));
+        Thread.sleep(1000);
         // US208 requires the hours to be retained, not just accepted in a PATCH body.
         assertEquals("06:00-23:00", get("/api/airports/" + code).path("operationalHours").asText());
     }

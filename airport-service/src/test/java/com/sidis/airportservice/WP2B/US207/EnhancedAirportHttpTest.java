@@ -15,6 +15,7 @@ class EnhancedAirportHttpTest extends OperationalHttpTest {
         String code = unusedIata();
         var body = airportBody(code);
         expect(201, request("POST", "/api/airports", body));
+        Thread.sleep(1000);
         var airport = get("/api/airports/" + code);
         assertEquals(JSON.valueToTree(body.get("airportPhotos")), airport.path("airportPhotos"));
         assertEquals(JSON.valueToTree(body.get("facilities")), airport.path("facilities"));
@@ -25,6 +26,7 @@ class EnhancedAirportHttpTest extends OperationalHttpTest {
         var body = airportBody(code);
         body.remove("airportPhotos");
         expect(201, request("POST", "/api/airports", body));
+        Thread.sleep(1000);
         assertTrue(get("/api/airports/" + code).path("airportPhotos").isArray());
         assertTrue(get("/api/airports/" + code).path("airportPhotos").isEmpty());
     }
