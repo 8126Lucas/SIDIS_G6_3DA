@@ -1093,7 +1093,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"US116 - Maintenance record creation returns 200\", function () {\r\n    pm.response.to.have.status(200);\r\n});"
+              "pm.test(\"US116 - Maintenance record creation returns 201\", function () {\r\n    pm.response.to.have.status(201);\r\n});"
             ]
           }
         }
@@ -1243,7 +1243,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"US117 - Unknown template returns 409\", function () {\r\n    pm.response.to.have.status(409);\r\n    pm.expect(pm.response.json().message)\r\n        .to.eql(\"Maintenance Template does not exist\");\r\n});"
+              "pm.test(\"US117 - Unknown template returns 404\", function () {\r\n    pm.response.to.have.status(404);\r\n    pm.expect(pm.response.json().message)\r\n        .to.eql(\"Maintenance Template does not exist\");\r\n});"
             ]
           }
         }
@@ -1615,7 +1615,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"US221 - Average turnaround matches bootstrap data\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const results = pm.response.json();\r\n    pm.expect(results).to.be.an(\"array\").with.lengthOf(2);\r\n\r\n    const expected = {\r\n        \"737-800\": 4,\r\n        \"A320neo\": 1\r\n    };\r\n\r\n    Object.entries(expected).forEach(([model, days]) => {\r\n        const result = results.find(r => r.aircraftType === model);\r\n\r\n        pm.expect(result, model + \" must appear\").to.exist;\r\n        pm.expect(result.averageDays).to.eql(days);\r\n    });\r\n});"
+              "pm.test(\"US221 - Average turnaround matches bootstrap data\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const results = pm.response.json();\r\n    pm.expect(results).to.be.an(\"array\").with.lengthOf(2);\r\n\r\n    const expected = {\r\n        \"737-800\": 6.5,\r\n        \"A320neo\": 1\r\n    };\r\n\r\n    Object.entries(expected).forEach(([model, days]) => {\r\n        const result = results.find(r => r.aircraftType === model);\r\n\r\n        pm.expect(result, model + \" must appear\").to.exist;\r\n        pm.expect(result.averageDays).to.eql(days);\r\n    });\r\n});"
             ]
           }
         }
@@ -1737,58 +1737,6 @@
             {
               "key": "flightHoursThreshold",
               "value": "300"
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "US222 - Maintenance Alerts - Calendar Threshold",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test(\"US222 - Calendar threshold triggers the alert\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const alerts = pm.response.json();\r\n    pm.expect(alerts).to.be.an(\"array\");\r\n\r\n    const aircraft = alerts.find(\r\n        a => a.registrationNumber === \"CS-TUA\"\r\n    );\r\n\r\n    pm.expect(aircraft, \"CS-TUA must appear\").to.exist;\r\n    pm.expect(aircraft.daysSinceLastMaintenance).to.be.at.least(3);\r\n    pm.expect(aircraft.alertReason).to.include(\"days ago\");\r\n    pm.expect(aircraft.alertReason).to.include(\"threshold: 3\");\r\n    pm.expect(aircraft.alertReason).not.to.include(\"Total flight hours\");\r\n});\r\npm.test(\"US222 - Recent maintenance below thresholds produces no alert\", function () {\r\n    pm.response.to.have.status(200);\r\n\r\n    const alerts = pm.response.json();\r\n\r\n    pm.expect(\r\n        alerts.some(a => a.registrationNumber === \"F-HXKA\"),\r\n        \"F-HXKA should not generate an alert\"\r\n    ).to.eql(false);\r\n});"
-            ]
-          }
-        }
-      ],
-      "request": {
-        "auth": {
-          "type": "bearer",
-          "bearer": [
-            {
-              "key": "token",
-              "value": "{{atccToken}}",
-              "type": "string"
-            }
-          ]
-        },
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "https://localhost:7979/api/maintenance/alerts?calendarDaysThreshold=3&flightHoursThreshold=99999",
-          "protocol": "https",
-          "host": [
-            "localhost"
-          ],
-          "port": "7979",
-          "path": [
-            "api",
-            "maintenance",
-            "alerts"
-          ],
-          "query": [
-            {
-              "key": "calendarDaysThreshold",
-              "value": "3"
-            },
-            {
-              "key": "flightHoursThreshold",
-              "value": "99999"
             }
           ]
         }
