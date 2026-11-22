@@ -85,7 +85,7 @@ class FlightControllerTest {
 
     // POST /api/flights/scheduled
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldReturn400WhenScheduleFlightRequestIsInvalid() throws Exception {
         mockMvc.perform(post("/api/flights/scheduled")
                         .with(csrf())
@@ -96,7 +96,7 @@ class FlightControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldReturn400WhenAircraftRegistrationNumberIsBlank() throws Exception {
         String json = """
                 {
@@ -115,7 +115,7 @@ class FlightControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldReturn409WhenAircraftDoesNotExist() throws Exception {
         when(aircraftSearchService.spotAircraftInHangar("CS-TUA"))
                 .thenReturn(Optional.empty());
@@ -129,7 +129,7 @@ class FlightControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldReturn409WhenAircraftModelDoesNotExist() throws Exception {
         AircraftClientDTO aircraft = mock(AircraftClientDTO.class);
         when(aircraft.modelName()).thenReturn("A320");
@@ -144,7 +144,7 @@ class FlightControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldReturn500WhenAircraftSearchFails() throws Exception {
         when(aircraftSearchService.spotAircraftInHangar("CS-TUA"))
                 .thenThrow(new RuntimeException("Unexpected error"));
@@ -158,7 +158,7 @@ class FlightControllerTest {
 
     // GET /api/flights/aircraft/{registrationNumber}
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldGetScheduledFlightsForAircraftSuccessfully() throws Exception {
         when(flightQueryService.getScheduledFlightsForAircraft("CS-TUA")).thenReturn(List.of());
         mockMvc.perform(get("/api/flights/aircraft/CS-TUA"))
@@ -168,7 +168,7 @@ class FlightControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldReturn500WhenGetScheduledFlightsFails() throws Exception {
         when(flightQueryService.getScheduledFlightsForAircraft("CS-TUA"))
                 .thenThrow(new RuntimeException("Unexpected error"));
@@ -178,7 +178,7 @@ class FlightControllerTest {
 
     // GET /api/flights/reports/route-utilization
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldGetRouteUtilizationReportSuccessfully() throws Exception {
         when(flightQueryService.getRouteUtilizationReport()).thenReturn(List.of());
         mockMvc.perform(get("/api/flights/reports/route-utilization"))
@@ -188,7 +188,7 @@ class FlightControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldReturn500WhenRouteUtilizationReportFails() throws Exception {
         when(flightQueryService.getRouteUtilizationReport()).thenThrow(new RuntimeException("Unexpected error"));
         mockMvc.perform(get("/api/flights/reports/route-utilization"))

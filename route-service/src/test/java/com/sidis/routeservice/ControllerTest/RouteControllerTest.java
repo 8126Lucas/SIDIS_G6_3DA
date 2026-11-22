@@ -64,7 +64,7 @@ class RouteControllerTest {
 
     // POST /api/routes
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldCreateRouteSuccessfully() throws Exception {
         when(routeService.createRoute(anyString(), anyString(), anyString(), anyDouble(), any(), any(RouteRequirements.class))).thenReturn(route);
         mockMvc.perform(post("/api/routes")
@@ -81,7 +81,7 @@ class RouteControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldReturn409WhenRequirementsAreNull() throws Exception {
         String json = """
                 {
@@ -102,7 +102,7 @@ class RouteControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldReturn409WhenCreateRouteThrowsDomainException() throws Exception {
         when(routeService.createRoute(
                 anyString(),
@@ -120,7 +120,7 @@ class RouteControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldReturn500WhenCreateRouteThrowsUnexpectedException() throws Exception {
         when(routeService.createRoute(
                 anyString(),
@@ -140,7 +140,7 @@ class RouteControllerTest {
 
     // PATCH /api/routes/{routeId}
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldUpdateRouteSuccessfully() throws Exception {
         when(routeService.updateRoute(
                 eq(1L),
@@ -166,7 +166,7 @@ class RouteControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldReturn400WhenUpdateJsonIsInvalid() throws Exception {
         mockMvc.perform(patch("/api/routes/1")
                         .with(csrf())
@@ -177,7 +177,7 @@ class RouteControllerTest {
 
     // GET /api/routes/{routeId}/history
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldGetRouteHistorySuccessfully() throws Exception {
         RouteReadModel.HistoryData history = mock(RouteReadModel.HistoryData.class);
         when(history.routeUsage()).thenReturn(10);
@@ -189,7 +189,7 @@ class RouteControllerTest {
 
     // GET /api/routes/from/{airportIataCode}
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldGetRoutesFromAirportSuccessfully() throws Exception {
         when(routeQueryService.getRoutesFromAirport("OPO")).thenReturn(List.of());
         mockMvc.perform(get("/api/routes/from/OPO"))
@@ -198,7 +198,7 @@ class RouteControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldReturn409WhenAirportIataCodeIsInvalid() throws Exception {
         when(routeQueryService.getRoutesFromAirport("porto"))
                 .thenThrow(new DomainException(
@@ -209,7 +209,7 @@ class RouteControllerTest {
 
     // GET /api/routes/{routeId}
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldGetRouteDetailsSuccessfully() throws Exception {
         RouteReadModel model = readModel();
         when(routeQueryService.getRouteDetails(1L))
@@ -222,7 +222,7 @@ class RouteControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldReturn409WhenRouteDoesNotExist() throws Exception {
         when(routeQueryService.getRouteDetails(999L))
                 .thenThrow(new DomainException("Route does not exist"));
@@ -232,7 +232,7 @@ class RouteControllerTest {
 
     // GET /api/routes
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldSearchAllRoutesSuccessfully() throws Exception {
         when(routeQueryService.searchRoutes(null, null)).thenReturn(List.of());
         mockMvc.perform(get("/api/routes"))
@@ -241,7 +241,7 @@ class RouteControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldSearchRoutesByOriginAndDestination() throws Exception {
         when(routeQueryService.searchRoutes("OPO", "LIS")).thenReturn(List.of());
         mockMvc.perform(get("/api/routes")
@@ -252,7 +252,7 @@ class RouteControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldReturn409WhenSearchUsesInvalidIataCode() throws Exception {
         when(routeQueryService.searchRoutes("porto", null))
                 .thenThrow(new DomainException(
@@ -264,7 +264,7 @@ class RouteControllerTest {
 
     // GET /api/routes/active
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldGetActiveRoutesSuccessfully() throws Exception {
         when(routeQueryService.listActiveRoutes("popularity"))
                 .thenReturn(List.of());
@@ -274,7 +274,7 @@ class RouteControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldGetActiveRoutesSortedByDistance() throws Exception {
         when(routeQueryService.listActiveRoutes("distance"))
                 .thenReturn(List.of());
@@ -285,7 +285,7 @@ class RouteControllerTest {
 
     // GET /api/routes/total-distance
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldCalculateTotalDistanceSuccessfully() throws Exception {
         when(routeQueryService.calculateTotalRouteDistance())
                 .thenReturn(1000.0);
@@ -297,7 +297,7 @@ class RouteControllerTest {
 
     // GET /api/routes/export/geojson
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldExportGeoJsonSuccessfully() throws Exception {
         String geoJson = """
                 {
@@ -315,7 +315,7 @@ class RouteControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldReturn500WhenGeoJsonExportFails() throws Exception {
         when(routeExportService.exportAsGeoJson())
                 .thenThrow(new RuntimeException("Export failed"));
@@ -325,7 +325,7 @@ class RouteControllerTest {
 
     // GET /api/routes/export/kml
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldExportKmlSuccessfully() throws Exception {
         String kml = """
                 <?xml version="1.0" encoding="UTF-8"?>
@@ -345,7 +345,7 @@ class RouteControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "BACKOFFICE")
     void shouldReturn500WhenKmlExportFails() throws Exception {
         when(routeExportService.exportAsKml())
                 .thenThrow(new RuntimeException("Export failed"));
@@ -355,7 +355,7 @@ class RouteControllerTest {
 
     // GET /api/routes/alternatives
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldGetAlternativeRoutesSuccessfully() throws Exception {
         when(routeQueryService.searchAlternativeRoutes("OPO", "LIS"))
                 .thenReturn(List.of());
@@ -367,7 +367,7 @@ class RouteControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ATCC")
     void shouldReturn500WhenAlternativeRouteParametersAreMissing() throws Exception {
         mockMvc.perform(get("/api/routes/alternatives")
                         .param("origin", "OPO"))

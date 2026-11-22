@@ -15,9 +15,7 @@ import java.net.http.HttpResponse;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -51,7 +49,7 @@ public abstract class GatewayHttpTest {
         HttpResponse<String> response = request("POST", "/api/auth/login", Map.of(
                 "username", System.getenv().getOrDefault("SIDIS_BACKOFFICE_USERNAME", "backoffice"),
                 "password", System.getenv().getOrDefault("SIDIS_BACKOFFICE_PASSWORD", "backoffice123")));
-        assertEquals(200, response.statusCode(), "Gateway login failed (check test credentials).");
+        assertEquals(200, response.statusCode(), "Gateway login failed. HTTP status: " + response.statusCode() + " | Response body: " + response.body());
         token = JSON.readTree(response.body()).path("token").asText();
         assertFalse(token.isBlank(), "Login must return a token");
     }
