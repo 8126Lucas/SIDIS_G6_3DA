@@ -55,7 +55,7 @@ PlantUML source file:
 ## 3. Data Flow and Dependencies
 
 1. Inbound requests arrive through the API Gateway for `/api/flights/**`; the gateway validates the JWT and adds `X-Gateway-Secret`, which `gatewaySecretFilter` checks (`403` when missing).
-2. Scheduling first resolves the aircraft and its model through `AircraftSearchService`, then delegates to `FlightService`. As implemented, the model read from `aircraft-service` has no range (its Redis projection loses it), so scheduling stops with `409 Aircraft range information is unavailable`.
+2. Scheduling first resolves the aircraft and its model through `AircraftSearchService`, then delegates to `FlightService`. The model specs (range, capacity) come from `aircraft-service`'s Redis projection, which keeps them since the `@JsonProperty` fix after `1935a82`.
 3. `FlightService` calls `route-service` and `airport-service`, validates the business rules, patches the route usage in `route-service`, saves the `Flight` in PostgreSQL, and publishes the change after commit; `FlightRedisProjector` writes it to Redis.
 4. Read flows and the utilization report use `FlightQueryService` over `FlightReadRepository` (Redis). On every start, `Bootstrap` republishes every flight so Redis matches PostgreSQL.
 5. `aircraft-service` calls `GET /api/flights` and `GET /api/flights/aircraft/{registration}`.

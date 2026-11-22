@@ -32,7 +32,7 @@ Scenario 1 contains local read operations exposed by `RouteController`:
 
 1. Client sends optional `origin` / `destination`.
 2. Service validates the IATA format of the given filters (`409`).
-3. Service composes a JPA `Specification` and the repository executes it.
+3. Service reads candidates from Redis (by origin, else by destination, else all routes) and filters them in memory.
 4. Controller returns the list as `200 OK`.
 
 #### Flow C — Active Routes
@@ -67,7 +67,7 @@ Scenario 2 describes the write flows in `POST /api/routes` and `PATCH /api/route
 
 #### Flow B — Update Route
 
-1. Client sends `PATCH /api/routes/{routeId}` with any of destination, flight time, status, history.
+1. Client sends `PATCH /api/routes/{routeId}` with any of destination, flight time, status, history; if all four are missing the controller answers `400`.
 2. Service loads the route (`409` if missing).
 3. A new destination is validated and loaded from `airport-service` (`409` if missing or not operational).
 4. Flight time and status changes are applied through domain methods; invalid transitions throw `IllegalStateException` → `409`.

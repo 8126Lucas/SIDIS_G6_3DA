@@ -19,7 +19,7 @@ This document reflects the current implementation in `FlightController`, `Flight
 | `X-Gateway-Secret: sidis-g6-secret` | `FlightSecurityConfig.gatewaySecretFilter` | `403 Forbidden`, body `Unauthorized Access! Please use the API Gateway!` |
 
 * The gateway adds `X-Gateway-Secret` and `X-User-Name` after validating the JWT, so clients only send `Authorization`.
-* The service itself does not validate the JWT and does not read `X-User-Name`; all requests that pass the secret filter are `permitAll()`.
+* The service itself does not validate the JWT and does not read `X-User-Name`; all requests that pass the secret filter are `permitAll()`. The `@PreAuthorize` roles on the controller (see `README.md`, section 2.1) are therefore not evaluated.
 * Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` skip the secret filter.
 
 ---
@@ -84,7 +84,7 @@ All endpoints additionally return `403` when `X-Gateway-Secret` is missing (and 
 
 1. `aircraft-service` `GET /api/hangar/aircraft/{registrationNumber}` → `409` (`"Aircraft does not exist"`) if not found.
 2. `aircraft-service` `GET /api/catalog/{modelName}` (model specs) → `409` (`"Aircraft does not exist"`) if not found.
-3. `route-service` `GET /api/routes/{routeId}` → `409` (`"Route does not exist"`) when `route-service` answers `409`.
+3. `route-service` `GET /api/routes/{routeId}` → `409` (`"Route does not exist or invalid state"`) on any `4xx`.
 4. `airport-service` `GET /api/airports/{iataCode}` for origin and destination → `409` (`"Airport does not exist"`) on any `4xx`.
 5. Business rules, in order (all `DomainException` → `409`):
    1. `scheduledArrival` must be after `scheduledDeparture` (`"Scheduled arrival must be after departure"`).

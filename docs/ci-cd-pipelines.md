@@ -8,25 +8,49 @@ The repository has two GitHub Actions workflows in `.github/workflows/`: **CI** 
 
 ### 1.1. Triggers
 
-* `push` to `main`.
+* `push` to `main` or to branch `1241008`.
 * `pull_request` targeting `main`.
 * A pull request with the label `documentation` skips `compile`, and therefore every job that depends on it.
 
 ### 1.2. Jobs
 
-The workflow has two active jobs on `ubuntu-latest` with JDK 21 (Temurin, Maven cache). The `postman-tests` job is still in the file but commented out.
+The workflow has three jobs on `ubuntu-latest` with JDK 21 (Temurin, Maven cache).
 
 | Job | What it does |
 | :--- | :--- |
-| `compile` — Compilação Preliminar | `./mvnw clean package -DskipTests`. If any module does not compile, the workflow stops here (fail-fast) and the slower job never starts. |
-| `java-tests` — Build e Testes Java E2E | Needs `compile`. Starts three service containers: `postgres:15-alpine` (user `sidis`, with a health check), `rabbitmq:3.12-management-alpine` (`5672`) and `redis:7-alpine` (`6379`). Creates the five databases with `psql`, builds, starts `discovery-service` (profile `node1`), waits 15 s, starts `APIgateway` and the six business services in the background (`-Xmx256m`, logs to `<service>.log`), waits 150 s for Eureka, then runs `./mvnw verify`. |
+| `compile` — Compilação Preliminar | `./mvnw clean package -DskipTests`. If any module does not compile, the workflow stops here (fail-fast) and the slower jobs never start. |
+| `java-tests` — Build e Testes Java E2E | Needs `compile`. Runs the system on the runner and then `./mvnw verify` (see 1.3). Prints the last 100 lines of every service log if a step fails. |
+| `postman-tests` — Testes de Integração Postman | Needs `compile`, runs in parallel with `java-tests`. Same service containers and databases; builds the jars and starts them with `java -Xmx256m -Dspring.profiles.active=test -jar ...` (discovery with `test,node1`), waits 120 s, installs Newman and runs `newman run "./docs/postman/SIDIS HTTP Tests.postman_collection.json" --insecure`. The global collection (`AISafe-Global-System`) is not run in CI. |
 
-### 1.3. Why the services are started
+Both test jobs start the same service containers:
+
+| Container | Host port | Used by |
+| :--- | :--- | :--- |
+| `postgres:15-alpine` (user `sidis`, health check) | `5432` | All five business services; the job creates the five databases with `psql` |
+| `rabbitmq:3.12-management-alpine` | `5672` (and `15672` in `java-tests`) | All five business services |
+| `redis:7-alpine` × 5 (`redis-aircraft`, `-maintenance`, `-airport`, `-flight`, `-route`, with health checks) | `6379`, `6382`, `6385`, `6388`, `6391` | One standalone Redis per service |
+
+### 1.3. The `test` profile
+
+Every module started in CI uses the Spring profile `test` (`application-test.properties`), which replaces the Docker addresses with `localhost`:
+
+| Module | What the `test` profile sets |
+| :--- | :--- |
+| `discovery-service` | Has no `test` file; it runs with `node1` (`spring-boot:run -Dspring-boot.run.profiles=node1` in `java-tests`, `test,node1` in `postman-tests`). |
+| `APIgateway` | Eureka on `http://localhost:8761/eureka/` and the six routes again. |
+| `auth-service` | SQLite file `auth.db` in the working directory (instead of `/data/auth.db`) and Eureka on `localhost`. |
+| Business services | PostgreSQL `localhost:5432/<service>_db`, Eureka on `localhost`, one RabbitMQ on `localhost:5672`, and a standalone Redis on the service's port (above). `route-service` points to `aircraft_db` instead of `route_db`. |
+
+The profile also changes behaviour: `aircraft-service` and `maintenance-service` accept requests without `X-Gateway-Secret` when `test` is active (see `global-network-and-ports.md`, section 7.4).
+
+In `java-tests` each module is started with `SPRING_PROFILES_ACTIVE=test ./mvnw spring-boot:run` from its folder, so the job compiles each module again instead of running the jars from `compile`.
+
+### 1.4. Why the services are started
 
 Two kinds of tests run in `./mvnw verify`:
 
-* **End-to-end HTTP tests** (`support/GatewayHttpTest` in each module): they log in through `https://localhost:7979/api/auth/login` and call the real gateway, which needs Eureka and the target services to be up.
-* **Controller tests** with `MockMvc` in `aircraft-service` and `maintenance-service` (added in iteration 2): they run without the rest of the system and enable method security in their own test configuration, so they check the `@PreAuthorize` roles.
+* **End-to-end HTTP tests** (`support/GatewayHttpTest` in each module): they log in through `https://localhost:7979/api/auth/login` and call the real gateway, which needs Eureka and the target services to be up. The default login is `backoffice`, except in `APIgateway`, whose tests now log in as `atcc` by default.
+* **Controller tests** with `MockMvc` (added in iteration 2; `spring-security-test` is now a test dependency of `airport-service`, `flight-service` and `route-service` too): they run without the rest of the system and enable method security in their own test configuration, so they check the `@PreAuthorize` roles even in services that do not enforce them at runtime.
 
 `discovery-service` has a self-contained test (it starts its own server on a random port).
 
@@ -34,19 +58,19 @@ Consequences:
 
 * Running `./mvnw verify` locally fails unless the whole system is running first (start it with `docker compose up` or each service by hand).
 * The base URL and login can be changed with `SIDIS_BASE_URL`, `SIDIS_BACKOFFICE_USERNAME` and `SIDIS_BACKOFFICE_PASSWORD`.
-* The 150-second wait is fixed: if a service takes longer to register, the first tests can fail with `503` from the gateway.
-* The service logs are written to files on the runner but are not uploaded, so they are not visible after a failure.
+* Locally the services need the `test` profile (or the Docker variables) and the same containers as CI.
+* The 120-second wait is fixed: if a service takes longer to register, the first tests can fail with `503` from the gateway.
+* The service logs are not uploaded as artifacts; `java-tests` prints their last 100 lines on failure, `postman-tests` does not.
 
-### 1.4. Gaps after iteration 2
+### 1.5. What changed since iteration 2 started
 
-PostgreSQL and RabbitMQ are now on the runner, but the end-to-end job still cannot pass:
+The gaps that stopped the end-to-end job at `1935a82` were addressed by the `test` profile: Eureka, PostgreSQL, RabbitMQ and Redis addresses point to the runner, Redis runs as one standalone instance per service on the expected port, the SQLite file is created in the working directory, the gateway route key was fixed, the maintenance `Bootstrap` no longer fails on an empty database, and the Postman job is enabled.
 
-* **Eureka variables.** The workflow does not set `EUREKA_URL_1` and `EUREKA_URL_2`. Started without them, a service logs `Invalid eureka server URI: ${EUREKA_URL_1}/`, never registers, and the gateway answers `503` for it (checked by starting `auth-service` without the variables).
-* **Gateway.** `APIgateway` does not start with the current `application.properties` (old key on the `route-service` route, see `APIgateway/docs/routing-and-security.md`).
-* **Redis.** The runner has one standalone Redis on `6379`, while the services use the cluster client and expect three nodes per service on different ports (`6379 - 6393`).
-* **Maintenance startup.** On the runner's empty database, `maintenance-service` stops during `Bootstrap` (see `data-architecture-cqrs.md`, section 7).
-* **SQLite path.** `auth-service` opens `/data/auth.db`, a folder the runner does not create.
-* **Postman.** The Postman job is commented out, so neither collection runs in CI.
+Remaining points:
+
+* **`route-service` database.** Its test profile uses `aircraft_db` (see above).
+* **Test-only bypass in the code.** The gateway secret check is skipped in `aircraft-service` and `maintenance-service` whenever the `test` profile is active, so CI does not check that filter in those two services.
+* **Branch trigger.** The `push` trigger includes a personal branch (`1241008`).
 
 ---
 
@@ -60,8 +84,10 @@ PostgreSQL and RabbitMQ are now on the runner, but the end-to-end job still cann
 
 | Job | What it does |
 | :--- | :--- |
-| `build-services` | Checks out the code, builds every module with `mvn clean package -DskipTests`, lowercases the repository owner name, and uploads all `**/target/*.jar` files as the `maven-artifacts` artifact (kept 1 day). |
+| `build-services` | Checks out the code, builds every module with the Maven wrapper (`chmod +x mvnw && ./mvnw clean package -DskipTests`), lowercases the repository owner name, and uploads all `**/target/*.jar` files as the `maven-artifacts` artifact (kept 1 day). |
 | `push-images` | Matrix over the 8 modules (`fail-fast: false`): downloads the jars, logs in to `ghcr.io` with `GITHUB_TOKEN`, builds `<module>/Dockerfile`, and pushes `ghcr.io/<owner>/<module>:latest`. |
+
+The workflow declares `permissions: contents: read, packages: write`, which `GITHUB_TOKEN` needs to push to `ghcr.io`.
 
 Every `Dockerfile` uses `eclipse-temurin:21-jre-alpine`, copies `target/*.jar` and runs it with `-Xmx256m`.
 

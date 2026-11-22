@@ -23,10 +23,10 @@ Current implemented responsibilities:
 Important implementation notes:
 
 * **CQRS (iteration 2).** Commands write to PostgreSQL (`airport_db`); after the transaction commits, a `AirportEventPublisher` sends a `AirportChangedEvent` (the whole read model, with its JPA `@Version`) to `airport.exchange`, and `AirportRedisProjector` stores it in Redis unless Redis already has the same or a newer version. Reads go through `AirportQueryService` and Redis. On every start, `Bootstrap` republishes every row, so Redis is rebuilt from PostgreSQL. Details: [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md).
-* There are no role checks in this service: any valid token reaches every endpoint.
+* **Roles are declared but not enforced.** Every endpoint has a `@PreAuthorize` role (section 2.1), but the service has no `JwtAuthenticationFilter` and no `@EnableMethodSecurity`, and its chain is `permitAll()`, so any request that passes the gateway reaches every endpoint. `security.jwt.secret` is set in `application.properties` and `jjwt-api` was added to the `pom.xml`, but nothing reads them yet.
 * There is optimistic locking on `Airport` via `@Version`; conflicts map to `409`.
-* A missing airport is reported as `DomainException` (`409 Conflict`), not `404`; `ResourceNotFoundException` exists but is not thrown by the service's own lookups.
-* Only the certification request has a Bean Validation rule (expiry not before start); other invalid input fails in the domain, in enum parsing, or at persistence.
+* `GET /api/airports/{iataCode}` answers `404` (`ResourceNotFoundException`) for an unknown airport. The other lookups of a missing airport (inside `AirportService`) still throw `DomainException` (`409 Conflict`).
+* `POST /api/airports` validates the request with Bean Validation (`@NotBlank`/`@NotNull` on the main fields, location and facilities); the certification request checks that the expiry is not before the start. Runways, certifications, contacts and photos may be omitted (`null` is treated as an empty list).
 * Every request (except Actuator, H2 console and Swagger UI paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403` (see `domain-and-resilience.md`, section 6).
 * Calls to `route-service` have 2-second timeouts. The client methods are marked `@Retryable`, but `@EnableRetry` is missing, so they are not retried.
 * The `UseCaseLoggingAdvice` pointcut does not match `AirportService` (see `domain-and-resilience.md`, section 6).
@@ -40,8 +40,9 @@ Important implementation notes:
 | Service Port | `8091` (instance 1, PC3), `8092` (instance 2, PC4) | `server.port`, overridden by `SERVER_PORT` in `docker-compose.yml` |
 | API Prefix | `/api/airports` | Base mapping in `AirportController` |
 | Write database | PostgreSQL `jdbc:postgresql://${IP_PC5}:5432/airport_db` | User `sidis`; tables created by Hibernate (`ddl-auto=update`) |
-| Read database | Redis cluster `${SPRING_REDIS_CLUSTER_NODES}` | Default `localhost:6385,localhost:6386,localhost:6387`; in the lab `redis-airport-1..3`; hash `Airport` |
-| Message broker | RabbitMQ `${SPRING_RABBITMQ_ADDRESSES}` | Default `localhost:5672`; exchange `airport.exchange` |
+| Read database | Redis cluster `${SPRING_REDIS_CLUSTER_NODES}` (profile `docker`) | Default `localhost:6385,localhost:6386,localhost:6387`; in the lab `redis-airport-1..3`; hash `Airport`. Without the `docker` profile: standalone Redis on `localhost:6379` (`6385` with the `test` profile) |
+| Message broker | RabbitMQ `${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674` | Overridden by `SPRING_RABBITMQ_ADDRESSES` in `docker-compose.yml`; exchange `airport.exchange` |
+| Profiles | `docker` (set in `docker-compose.yml`), `test` (CI) | `application-docker.properties`: Redis cluster. `application-test.properties`: PostgreSQL, Eureka, RabbitMQ and Redis on `localhost` |
 | Metrics | `/actuator/prometheus`, `/actuator/health` | Scraped by Prometheus; exempt from the gateway secret filter |
 | Schema Strategy | `update` | `spring.jpa.hibernate.ddl-auto` |
 | OpenAPI Docs | `/api/docs` | springdoc API docs path |
@@ -49,6 +50,23 @@ Important implementation notes:
 | Service Registry | `${EUREKA_URL_1},${EUREKA_URL_2}` | Both discovery nodes (`prefer-ip-address=true`); registers with `${IP_PC<n>}` as its address |
 | Gateway Secret | `sidis-g6-secret` | Hardcoded in `AirportSecurityConfig` and `JwtTokenInterceptor` |
 | Outgoing Call Timeouts | `2000` ms connect / `2000` ms read | `GlobalRestClientConfig` |
+
+### 2.1. Roles per Endpoint (declared, not enforced)
+
+| Endpoint | `@PreAuthorize` role | User story (comment in code) |
+| :--- | :--- | :--- |
+| `POST /api/airports` | `BACKOFFICE` | US106 / US207 |
+| `POST /api/airports/{iata}/certifications` | `ATCC` or `BACKOFFICE` | US106a |
+| `GET /api/airports/{iata}` | `ATCC` or `BACKOFFICE` | US107 |
+| `GET /api/airports` | `ATCC` | US108 |
+| `PATCH /api/airports/{iata}/status` | `BACKOFFICE` | US109 |
+| `PATCH /api/airports/{iata}/details` | `ATCC` | US208 |
+| `GET /api/airports/{iata}/routes` | `ATCC` | US209 |
+| `GET /api/airports/busiest` | `BACKOFFICE` | US210 |
+| `GET /api/airports/grouped` | `ATCC` | US211 |
+| `POST /api/airports/import` | `BACKOFFICE` | US225 |
+
+Without a JWT filter and `@EnableMethodSecurity` these annotations have no effect at runtime. The controller tests enable method security themselves, so they check them.
 
 External client base URLs configured in code (resolved through Eureka via `@LoadBalanced` `RestClient.Builder`):
 

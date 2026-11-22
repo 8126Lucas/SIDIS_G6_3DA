@@ -210,9 +210,10 @@ Empty body.
 Execution steps:
 
 1. Look up model by `modelName` in the catalog → `404` if missing.
-2. Build a new `Aircraft` (initial status `INACTIVE`, `meanRange = 0.0`).
-3. Apply `availability` through `AircraftLifeCycleUpdaterService`.
-4. Persist through `AddAircraftUseCase`.
+2. Build a new `Aircraft` (initial status `INACTIVE`, `meanRange = 0.0`) and persist it through `AddAircraftUseCase` (`aircraft.event.created`).
+3. Apply `availability` through `AircraftLifeCycleUpdaterService` (`aircraft.event.updated`).
+
+`availability` is parsed before step 1, so an invalid value fails before anything is saved. The two steps are separate transactions: if step 3 fails (for example an availability transition that is not allowed), the aircraft stays saved as `INACTIVE`.
 
 Notes:
 
@@ -274,7 +275,7 @@ This endpoint is also consumed by `flight-service` (flight scheduling), `route-s
 
 Notes:
 
-* Filtering uses a JPA `Specification`.
+* `AircraftSearchService` loads every `AircraftRedis` and filters in memory (model name, status, manufacturing date), then cuts the requested page.
 * The response is the page content only (a JSON array), without paging metadata.
 * An unknown `status` value raises `IllegalArgumentException` → `400`.
 
@@ -369,6 +370,7 @@ The timestamp is `Instant.now()` truncated to minutes.
 ```
 
 * **Endpoint:** `GET /api/hangar/analytics/status-summary`
+* **Description:** Reads every aircraft from Redis and counts them per availability (every status appears, `0` when none).
 
 #### Response Example (`200 OK`)
 

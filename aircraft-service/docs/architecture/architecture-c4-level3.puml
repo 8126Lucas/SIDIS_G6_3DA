@@ -98,7 +98,7 @@ view_controller --> calc_svc : "utilization data"
 calc_svc --> aircraft_search_svc : "findAll"
 
 model_search_svc --> model_query_repo : "findByModelName"
-aircraft_search_svc --> aircraft_query_repo : "findById / findAll / countByStatus"
+aircraft_search_svc --> aircraft_query_repo : "findById / findAll"
 flight_search_svc --> aircraft_query_repo : "findById"
 fuel_uc --> aircraft_query_repo : "findAll / findById"
 
@@ -109,7 +109,7 @@ model_query_repo --> aircraft_redis : "AircraftModel:<modelName>"
 aircraft_query_repo --> aircraft_redis : "Aircraft:<registration>"
 bootstrapper --> model_cmd_repo : "seeds catalog"
 bootstrapper --> aircraft_cmd_repo : "seeds fleet"
-bootstrapper --> rabbit : "one event per seeded row"
+bootstrapper --> rabbit : "republishes every row on start"
 
 ' --- outgoing HTTP ---
 flight_search_svc --> flight_client : "all flights"

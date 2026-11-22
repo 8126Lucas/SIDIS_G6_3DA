@@ -37,25 +37,7 @@ activate gateway
 gateway -> controller : Forward request\n(JWT validated, + X-Gateway-Secret, X-User-Name)
 activate controller
 
-controller -> lifecycle : changeAvailability(registrationNumber, availability)
-activate lifecycle
-lifecycle -> cmd_repo : findById(registrationNumber)
-cmd_repo -> pg : SELECT ... FROM company_aircrafts
-pg --> cmd_repo : no row (aircraft not created yet)
-cmd_repo --> lifecycle : Optional.empty
-lifecycle -[#red]> exception_handler : throw ResourceNotFoundException\n("Aircraft not found in database")
-deactivate lifecycle
-activate exception_handler
-exception_handler --> client : 404 Not Found (ErrorDetails JSON)
-deactivate exception_handler
-deactivate controller
-deactivate gateway
-
-note over controller, add_uc
-  As implemented, the availability is changed before the aircraft exists,
-  so every new registration ends here. The steps below are the
-  creation that AddAircraftUseCase would run next.
-end note
+controller -> controller : AircraftAvailability.valueOf(availability)\n(invalid value -> 400)
 
 controller -> add_uc : execute(registrationNumber, modelName, ...)
 activate add_uc
@@ -65,13 +47,25 @@ alt model missing
     add_uc -[#red]> exception_handler : throw DomainException\n("Aircraft Model does not exist!")
     exception_handler --> client : 409 Conflict
 else model found
-    add_uc -> cmd_repo : save(new Aircraft)
+    add_uc -> cmd_repo : save(new Aircraft) (status INACTIVE)
     cmd_repo -> pg : INSERT INTO company_aircrafts (+ features, components, certifications)
     add_uc -> mq : AircraftSyncEvent\nkey aircraft.event.created
     add_uc --> controller : void
-    controller --> client : 201 Created
+    deactivate add_uc
+
+    controller -> lifecycle : changeAvailability(registrationNumber, availability)
+    activate lifecycle
+    lifecycle -> cmd_repo : findById(registrationNumber)
+    cmd_repo -> pg : SELECT ... FROM company_aircrafts
+    lifecycle -> lifecycle : apply requested availability
+    lifecycle -> cmd_repo : save(aircraft)
+    lifecycle -> mq : AircraftSyncEvent\nkey aircraft.event.updated
+    lifecycle --> controller : void
+    deactivate lifecycle
+    controller --> client : 201 Created (empty body)
 end
-deactivate add_uc
+deactivate controller
+deactivate gateway
 
 == Projection (asynchronous) ==
 

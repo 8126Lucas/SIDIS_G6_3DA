@@ -25,17 +25,17 @@ In every flow the API Gateway first validates the JWT and forwards the request w
 #### Flow A — Airport by IATA Code
 
 1. Client requests one airport.
-2. Controller delegates to `AirportService.getAirportByIata(...)`.
-3. Service calls `AirportRepository.findByIataCode(...)`.
-4. Missing airport throws `DomainException` → `409`.
-5. Controller maps to `AirportResponse` and returns `200 OK`.
+2. Controller delegates to `AirportQueryService.getAirportByIata(...)`.
+3. The query service reads the `Airport` read model from Redis.
+4. Missing airport throws `ResourceNotFoundException` → `404`.
+5. Controller maps to `AirportResponse` (missing lists become `[]`) and returns `200 OK`.
 
 #### Flow B — Filtered Search
 
 1. Client sends optional filters.
-2. Controller delegates to `AirportService.searchAirports(...)`.
-3. Service composes a JPA `Specification` (city, country, name; exact match).
-4. Repository executes the query; controller returns the list as `200 OK`.
+2. Controller delegates to `AirportQueryService.searchAirports(...)`.
+3. The query service reads candidates from Redis (by the `city` index if given, else by `country`, else all airports).
+4. It filters them in memory (city, country, name; exact match) and the controller returns the list as `200 OK`.
 
 #### Flow C — Grouped Airports
 

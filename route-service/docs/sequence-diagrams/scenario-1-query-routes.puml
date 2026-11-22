@@ -72,16 +72,16 @@ alt filter is not [A-Z]{3}
     exception_handler --> client : 409 Conflict (ErrorDetails JSON)
     deactivate exception_handler
 else valid filters
-    route_uc -> route_uc : Build JPA Specification (origin AND destination)
-    route_uc -> repo : findAll(spec)
+    route_uc -> repo : findByOriginAirport_IataCode(origin) if origin,\nelse findByDestinationAirport_IataCode(destination) if destination,\nelse findAll()
     activate repo
-    repo -> db : read Route hashes (indexed fields)
+    repo -> db : read Route hashes
     activate db
     db --> repo : RouteReadModel(s)
     deactivate db
-    repo --> route_uc : List<Route>
+    repo --> route_uc : candidates
     deactivate repo
-    route_uc --> controller : List<Route>
+    route_uc -> route_uc : filter in memory (origin AND destination)
+    route_uc --> controller : List<RouteReadModel>
     deactivate route_uc
     controller --> gateway : 200 OK (List<RouteResponse>)
     gateway --> client : 200 OK Response

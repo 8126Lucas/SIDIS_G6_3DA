@@ -64,7 +64,9 @@ See also `APIgateway/docs/routing-and-security.md`.
 Role usage:
 
 * The gateway does not read the `roles` claim.
-* No downstream service reads `roles` or `X-User-Name`; there is no role-based authorization anywhere in the system.
+* No downstream service reads `X-User-Name`.
+* `aircraft-service` and `maintenance-service` validate the token again with a `JwtAuthenticationFilter` and read `roles` (a list or a single string) as `ROLE_<role>`. Only `aircraft-service` has `@EnableMethodSecurity`, so it is the only service where `@PreAuthorize` is enforced.
+* `maintenance-service`, `airport-service`, `flight-service` and `route-service` declare `@PreAuthorize` roles on every endpoint, but they are not evaluated (no `@EnableMethodSecurity`; the last three also have no JWT filter). See `../../docs/global-network-and-ports.md`, section 7.2.
 
 Known weaknesses:
 

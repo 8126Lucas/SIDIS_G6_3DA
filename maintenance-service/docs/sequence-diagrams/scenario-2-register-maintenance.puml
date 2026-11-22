@@ -57,7 +57,7 @@ else Valid request
     add_template_uc -> mq : MaintenanceTemplateSyncEvent\nkey maintenancetemplate.event.created
     add_template_uc --> controller : MaintenanceTemplate
     deactivate add_template_uc
-    controller --> gateway : 201 Created (empty body)
+    controller --> gateway : 201 Created (MaintenanceTemplateResponse)
     gateway --> client : 201 Created Response
 end
 deactivate controller
@@ -96,8 +96,9 @@ else Aircraft found
     add_record_uc -> record_repo : save(new MaintenanceRecord(...)) [status INLINE]
     record_repo --> add_record_uc : MaintenanceRecord
     add_record_uc -> mq : MaintenanceRecordSyncEvent\nkey maintenance.event.created
+    add_record_uc --> controller : MaintenanceRecord
     deactivate add_record_uc
-    controller --> gateway : 201 Created (empty body)
+    controller --> gateway : 201 Created (MaintenanceRecordResponse)
     gateway --> client : 201 Created Response
 end
 deactivate controller

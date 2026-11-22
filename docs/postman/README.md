@@ -7,7 +7,11 @@ Integration tests for the whole AISafe system, sent through the API Gateway.
 | `AISafe-Global-System.postman_collection.json` | The collection |
 | `AISafe-Lab.postman_environment.json` | URLs of the system spread over the 5 PCs (entry through HAProxy) |
 | `AISafe-Local.postman_environment.json` | URLs of a system running on one machine (gateway on `7979`) |
-| `SIDIS HTTP Tests.postman_collection.json` | Previous collection. Its scenarios were migrated to the global one |
+| `SIDIS HTTP Tests.postman_collection.json` | Older collection, kept up to date by the team and run by CI (see below) |
+
+## Collection run by CI
+
+The `postman-tests` job in `ci.yml` runs `SIDIS HTTP Tests.postman_collection.json` (not the global one) with `newman run ... --insecure`. It has 65 requests (aircraft, maintenance, security and validation), calls `https://localhost:7979` directly (no environment file), and logs in once per role at the start (`Setup - Login - Backoffice/Technician/Supervisor/ATCC`), saving `backofficeToken`, `technicianToken`, `supervisorToken` and `atccToken` in collection variables so each request uses the role it needs.
 
 ## Environments
 
@@ -65,7 +69,7 @@ Request names follow `Action - expected status [user story]`, for example `Creat
 * The same script generates unique values for each run (`modelName`, `aircraftReg`, `airportIata`, ...). In the app these values persist between runs, so run `00 - Setup` before repeating the collection. Newman starts fresh every time.
 * Each folder runs on its own, but the requests inside a service folder depend on each other. Run them in order.
 * Some tests check the seeded data, such as the costs of CS-TUA. If they fail after manual changes, restart the services to reset their in-memory databases.
-* Since iteration 2, `aircraft-service` checks roles (`@PreAuthorize`), so some requests need a token of another role than `backoffice`. The role tokens saved by `01 - Auth Service` can be used for that. `maintenance-service` declares roles but does not enforce them yet; `airport-service`, `flight-service` and `route-service` have no role checks.
+* Since iteration 2, `aircraft-service` checks roles (`@PreAuthorize`), so some requests need a token of another role than `backoffice`. The role tokens saved by `01 - Auth Service` can be used for that. `maintenance-service`, `airport-service`, `flight-service` and `route-service` declare roles with `@PreAuthorize` but do not enforce them (see [`../global-network-and-ports.md`](../global-network-and-ports.md), section 7.2).
 
 ## Expected statuses
 
@@ -94,16 +98,16 @@ The expectations describe the API of iteration 1, and every request is sent as `
 | A request needs an id that an earlier, failed request should have stored | 9 |
 | Behaviour of the current code (below) | 66 |
 
-| Area | Behaviour now | Cause |
-| --- | --- | --- |
-| `POST /api/hangar/aircraft` | Always `404 Aircraft not found in database` | The controller changes the availability before creating the aircraft |
-| `POST /api/flights/scheduled` | `409 Aircraft range information is unavailable` | The model projection in Redis loses range, fuel and speed |
-| `POST /api/maintenance/templates` | `201` with no body, so the template id is not stored | Response changed from `200` with the template |
-| `GET /api/maintenance/records` | `500 No property 'findAll' found` | JPA `Specification` used on a Redis repository |
-| `/api/maintenance/parts/*` | `500` | `NullPointerException` on records without used parts |
-| Maintenance calls to `aircraft-service` | `500` (from a `403`) | The caller's token is forwarded and its role is not accepted by `aircraft-service` |
-| Journeys 1 and 2 | Fail in chain | No aircraft can be created and no flight can be scheduled |
+| Area | Behaviour at `1935a82` | Cause | At `8fbc480` |
+| --- | --- | --- | --- |
+| `POST /api/hangar/aircraft` | Always `404 Aircraft not found in database` | The controller changed the availability before creating the aircraft | Fixed in code |
+| `POST /api/flights/scheduled` | `409 Aircraft range information is unavailable` | The model projection in Redis lost range, fuel and speed | Fixed in code |
+| `POST /api/maintenance/templates` | `201` with no body, so the template id is not stored | Response changed from `200` with the template | Returns `201` **with** the template again |
+| `GET /api/maintenance/records` | `500 No property 'findAll' found` | JPA `Specification` used on a Redis repository | Fixed in code (filtering in memory) |
+| `/api/maintenance/parts/*` | `500` | `NullPointerException` on records without used parts | Fixed in code |
+| Maintenance calls to `aircraft-service` | `500` (from a `403`) | The caller's token is forwarded and its role was not accepted by `aircraft-service` | Fixed for `GET /api/hangar/aircraft/{reg}`; the aircraft list used by alerts still needs `ATCC` |
+| Journeys 1 and 2 | Fail in chain | No aircraft could be created and no flight could be scheduled | Should pass once the two fixes above are in place |
 
-`maintenance-service` was only reachable after inserting a row in its database by hand: on an empty database it stops during `Bootstrap` (see [`../data-architecture-cqrs.md`](../data-architecture-cqrs.md), section 7).
+The `Bootstrap` failure on an empty maintenance database was also fixed (see [`../data-architecture-cqrs.md`](../data-architecture-cqrs.md), section 7).
 
-To make the collection useful again it has to log in with the role each request needs (the collection script supports per-role tokens, see `01 - Auth Service`) and follow the contract changes that are intended, such as the template `201`.
+The last column is read from the code: the global collection was not run again against `8fbc480`. It still sends every request as `backoffice`, so the 14 role failures remain until each request logs in with the role it needs (the collection script supports per-role tokens, see `01 - Auth Service`). `09 - Known Issues` also needs checking: `GET /api/maintenance/records` without `aircraft` should now answer `200`, so that pinned request is expected to fail and move to its service folder.

@@ -61,13 +61,15 @@ Synchronous `RestClient` integrations (all built from the shared `@LoadBalanced`
 | :--- | :--- | :--- | :--- |
 | `AircraftRestClientService.findAircraftByRegistration` | `aircraft-service` `GET /api/hangar/aircraft/{registrationNumber}` | Scheduling | `404` → empty → `409` |
 | `AircraftRestClientService.findAircraftModel` | `aircraft-service` `GET /api/catalog/{modelName}` | Scheduling | any `4xx` → empty → `409` |
-| `RouteRestClientService.findByRouteId` | `route-service` `GET /api/routes/{routeId}` | Scheduling | `409` → `DomainException("Route does not exist")` |
-| `RouteRestClientService.update` | `route-service` `PATCH /api/routes/{routeId}` | Scheduling | not caught (`500`) |
+| `RouteRestClientService.findByRouteId` | `route-service` `GET /api/routes/{routeId}` | Scheduling | any `4xx` → `DomainException("Route does not exist or invalid state")` → `409` |
+| `RouteRestClientService.update` | `route-service` `PATCH /api/routes/{routeId}` | Scheduling | any `4xx` → `DomainException(<status text>)` → `409` |
 | `AirportRestClientService.findAirportByIataCode` | `airport-service` `GET /api/airports/{iataCode}` | Scheduling | any `4xx` → `DomainException("Airport does not exist")` |
 
 Declared but not called by any endpoint: `AircraftRestClientService.findAll()` (`GET /api/hangar/aircraft`) and `countByStatus(...)` (`GET /api/hangar/analytics/status-summary`); `RouteRestClientService.getRoutes()`, `getRoutesFromAirport(...)` and the origin/destination search.
 
-`JwtTokenInterceptor` adds `X-Gateway-Secret: sidis-g6-secret` to every outgoing call and copies the incoming `Authorization: Bearer` header, so calls pass the other services' gateway secret filters.
+The unused route client methods also turn any `4xx` into `DomainException(<status text>)`; `5xx` and timeouts are not caught (`500`).
+
+`JwtTokenInterceptor` adds `X-Gateway-Secret: sidis-g6-secret` to every outgoing call and copies the incoming `Authorization: Bearer` header, so calls pass the other services' gateway secret filters. `GlobalRestClientConfig` also sets `X-Gateway-Secret` as a default header on the builder (property `gateway.secret`, default `sidis-g6-secret`), so the header is sent twice with the same value.
 
 Contract notes:
 
@@ -110,7 +112,7 @@ Current gaps:
 
 Security:
 
-* `FlightSecurityConfig` defines a stateless `SecurityFilterChain`: CSRF, form login and HTTP Basic disabled, all requests `permitAll()`, no role checks.
+* `FlightSecurityConfig` defines a stateless `SecurityFilterChain`: CSRF, form login and HTTP Basic disabled, all requests `permitAll()`. The controller declares `@PreAuthorize` roles (see `README.md`, section 2.1), but there is no `@EnableMethodSecurity` and no filter that turns the JWT into an authentication, so the roles are not checked.
 * `gatewaySecretFilter` (registered before `UsernamePasswordAuthenticationFilter`) requires `X-Gateway-Secret: sidis-g6-secret`; otherwise it writes `403` with the plain-text body `Unauthorized Access! Please use the API Gateway!`.
 * Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` skip the check.
 * JWT validation happens only in the API Gateway; the service does not read `X-User-Name`.

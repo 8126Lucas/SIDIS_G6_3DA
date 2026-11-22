@@ -39,9 +39,9 @@ In every flow the API Gateway first validates the JWT and forwards the request w
 
 #### Flow C — Search Records
 
-1. When `aircraft` is set, the controller checks it in `aircraft-service` (`404` if missing). The call forwards the caller's token, so for a technician or supervisor `aircraft-service` answers `403` and the request ends in `500`.
-2. `MaintenanceRecordSearchService` builds a JPA `Specification` on `aircraftRegistration`, attribute and start date range and passes it to the Redis repository, which does not support it: `500` (`No property 'findAll' found for type 'MaintenanceRecordRedis'`).
-3. Without `aircraft`, `aircraftRegistration.isEmpty()` throws `NullPointerException` → `500`.
+1. When `aircraft` is set, the controller checks it in `aircraft-service` (`404` if missing). The call forwards the caller's token; `aircraft-service` accepts the maintenance roles for this lookup.
+2. `MaintenanceRecordSearchService` loads every record from Redis and filters in memory by registration, attribute (through the template read model) and start date range; every filter is optional.
+3. The result is sorted by record id (newest first), the requested page is cut from it, and the controller returns `200 OK`.
 
 #### Flow D — Rejected Requests
 
@@ -67,7 +67,7 @@ Scenario 2 describes the write flows in `POST /api/maintenance/templates` (US115
 
 1. Client sends name, expected duration, checklist, operation and attribute.
 2. Bean validation or an unknown enum value → `400`.
-3. `AddMaintenanceTemplateUseCase` saves the template in PostgreSQL and publishes `maintenancetemplate.event.created`; the controller returns `201 Created` with an empty body.
+3. `AddMaintenanceTemplateUseCase` saves the template in PostgreSQL and publishes `maintenancetemplate.event.created`; the controller returns `201 Created` with the created template (including `templateId`).
 4. `MaintenanceTemplateRedisProjector` writes `MaintenanceTemplate:<templateId>` to Redis.
 
 #### Register Record
@@ -75,7 +75,7 @@ Scenario 2 describes the write flows in `POST /api/maintenance/templates` (US115
 1. Controller calls `aircraft-service` `GET /api/hangar/aircraft/{registrationNumber}` (`404` if missing).
 2. Controller calls `AddMaintenanceRecordUseCase.executeShort(...)` with the registration returned by `aircraft-service` and the `templateId`.
 3. The use case loads the template from PostgreSQL (`404` if missing), saves the record as `INLINE` and publishes `maintenance.event.created`.
-4. Controller returns `201 Created` (empty body); `MaintenanceRecordRedisProjector` writes `MaintenanceRecord:<recordId>` to Redis.
+4. Controller returns `201 Created` with the created record; `MaintenanceRecordRedisProjector` writes `MaintenanceRecord:<recordId>` to Redis.
 
 #### Advance Status
 

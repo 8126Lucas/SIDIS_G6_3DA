@@ -23,14 +23,11 @@ Current implemented responsibilities:
 Important implementation notes:
 
 * **CQRS (iteration 2).** Commands write to PostgreSQL (`aircraft_db`) and publish an event to RabbitMQ; a listener in the service projects it into the Redis cluster, and every read and analytics endpoint reads from Redis. Details: [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md).
-* `Bootstrap` seeds PostgreSQL and publishes one event per seeded model and aircraft, so the seed data is also on the read side. The read models have `@Indexed` fields (`modelName`, `status`, ...), so lookups such as `GET /api/catalog/{modelName}` work.
-* **Known gaps (verified by running commit `1935a82`):**
-  * `POST /api/hangar/aircraft` always answers `404 Aircraft not found in database`: the availability is changed before the aircraft is created.
-  * The model projection keeps only the seating capacity of the specs. Range, fuel capacity and cruising speed are `null` in Redis, so `flight-service` cannot schedule flights (`409 Aircraft range information is unavailable`).
-  * `GET /api/hangar/analytics/status-summary` answers `500`: `countByStatus` returns no value on the Redis repository.
-* **Roles (RBAC).** `JwtAuthenticationFilter` reads the `roles` claim of the token and `@PreAuthorize` checks it on each endpoint (`@EnableMethodSecurity` is on). See section 2.1.
+* `Bootstrap` seeds PostgreSQL when the tables are empty and then, on **every** start, republishes one event per model and aircraft, so Redis is rebuilt from PostgreSQL. The read models have `@Indexed` fields (`modelName`, `status`, ...), so lookups such as `GET /api/catalog/{modelName}` work.
+* The three gaps found by running commit `1935a82` were fixed in code: `POST /api/hangar/aircraft` now creates the aircraft before changing its availability, the model specs (range, fuel capacity, cruising speed) reach Redis (`@JsonProperty` on `AircraftSpecsRedis`), and the status summary counts in memory instead of calling `countByStatus` on Redis.
+* **Roles (RBAC).** `JwtAuthenticationFilter` reads the `roles` claim of the token (a list or a single string; a `ROLE_` prefix is not added twice) and `@PreAuthorize` checks it on each endpoint (`@EnableMethodSecurity` is on). See section 2.1. A token that cannot be parsed is logged to `System.err` with its stack trace and the request continues unauthenticated.
 * There is optimistic locking on `Aircraft` via `@Version` (not on `AircraftModel`); conflicts now map to `409`.
-* Every request (except Actuator and Swagger UI paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403`.
+* Every request (except Actuator and Swagger UI paths) must carry `X-Gateway-Secret: sidis-g6-secret`, otherwise `403`. With the Spring profile `test` active the check is skipped. `/error` is open, so errors keep their real status.
 * The utilization view (`/api/hangar/view/utilization`) now has a placeholder `utilization.html` template that does not render the computed data.
 * Some calls to other services target endpoints or fields that are not exposed by those services (see `domain-and-resilience.md`, section 4).
 * Outgoing calls have 2-second timeouts and up to 3 attempts (`@Retryable`, enabled with `@EnableRetry`).
@@ -45,7 +42,8 @@ Important implementation notes:
 | Service Port | `8081` (instance 1, PC2), `8082` (instance 2, PC5) | `server.port`, overridden by `SERVER_PORT` in `docker-compose.yml` |
 | API Prefixes | `/api/hangar`, `/api/catalog` | Base mappings in `HangarController` and `ModelCatalogController` |
 | Write database | PostgreSQL `jdbc:postgresql://${IP_PC5}:5432/aircraft_db` | User `sidis`; tables created by Hibernate (`ddl-auto=update`) |
-| Read database | Redis cluster `${SPRING_REDIS_CLUSTER_NODES}` | Default `localhost:6379,6380,6381`; hashes `Aircraft` and `AircraftModel` |
+| Read database | Redis cluster `${SPRING_REDIS_CLUSTER_NODES}` (profile `docker`) | Default `localhost:6379,6380,6381`; hashes `Aircraft` and `AircraftModel`. Without the `docker` profile: standalone Redis on `localhost:6379` |
+| Profiles | `docker` (set in `docker-compose.yml`), `test` (CI) | `application-docker.properties`: Redis cluster. `application-test.properties`: PostgreSQL, Eureka, RabbitMQ and Redis on `localhost` |
 | Message broker | RabbitMQ `${IP_PC5}:5672,${IP_PC5}:5673,${IP_PC3}:5674` | Exchanges `aircraft.exchange`, `aircraftmodel.exchange` |
 | Metrics | `/actuator/prometheus`, `/actuator/health` | Scraped by Prometheus; exempt from the gateway secret filter |
 | OpenAPI Docs | `/api/docs` | springdoc API docs path |
@@ -61,13 +59,13 @@ Important implementation notes:
 | `POST /api/catalog/model`, `PATCH /api/catalog/model/{modelName}` | `BACKOFFICE` |
 | `GET /api/catalog/{modelName}`, `GET /api/catalog/rankings` | any authenticated user |
 | `POST /api/hangar/aircraft`, `GET /api/hangar/aircraft`, `GET /api/hangar/aircraft/{reg}/compatible-routes` | `ATCC` |
-| `GET /api/hangar/aircraft/{reg}` | `ATCC` or `BACKOFFICE` |
+| `GET /api/hangar/aircraft/{reg}` | `ATCC`, `BACKOFFICE`, `MAINTENANCE_SUPERVISOR` or `MAINTENANCE_TECHNICIAN` |
 | `GET /api/hangar/aircraft/{reg}/status` | any authenticated user |
 | `PATCH /api/hangar/aircraft/{reg}` | `BACKOFFICE` |
 | `GET /api/hangar/analytics/aircraft-availability`, `/analytics/status-summary` | `ATCC` |
 | `GET /api/hangar/analytics/fuel-efficiency`, `/fuel-efficiency/aircraft`, `/fuel-efficiency/routes`, `/operational-hours`, `GET /api/hangar/aircraft-features`, `GET /api/hangar/view/utilization` | `BACKOFFICE` |
 
-A wrong role gets `403 Access Denied`. Other services that call these endpoints forward the original user's token, so the same rules apply to them: `maintenance-service` gets `403` for technicians and supervisors (see `../../docs/global-network-and-ports.md`, section 7.3).
+A wrong role gets `403 Access Denied`. Other services that call these endpoints forward the original user's token, so the same rules apply to them: `maintenance-service` can look up one aircraft with a technician's or supervisor's token, but its aircraft list call (`GET /api/hangar/aircraft`, alerts) still gets `403` for them (see `../../docs/global-network-and-ports.md`, section 7.3).
 
 External client base URLs configured in code (resolved through Eureka via `@LoadBalanced` `RestClient.Builder`):
 

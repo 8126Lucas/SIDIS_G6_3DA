@@ -52,6 +52,8 @@ The table in the root `README.md` ("PC Workload Distribution") predates the last
 | `IP_PC1` … `IP_PC5` | LAN IP of each PC. Used as `EUREKA_INSTANCE_IP_ADDRESS`, in the instance ids, and in the PostgreSQL, RabbitMQ and Redis addresses. |
 | `EUREKA_URL_1`, `EUREKA_URL_2` | URLs of the two Eureka nodes (`http://<IP_PC1>:8761/eureka/`, `http://<IP_PC3>:8762/eureka/`). |
 
+Every business and auth container also sets `SPRING_PROFILES_ACTIVE=docker`. In the five business services that profile holds the Redis cluster nodes (`application-docker.properties`; `auth-service` has no such file, so the profile changes nothing there); without it the services use a single Redis on `localhost:6379` (see `data-architecture-cqrs.md`, section 5).
+
 ---
 
 ## 4. Port Allocation Matrix
@@ -100,7 +102,7 @@ The services' ports are published on their PC, so they can also be reached direc
 | `/api/maintenance/**` | `lb://maintenance-service` | Yes |
 | `/api/routes/**` | `lb://route-service` | Yes |
 
-At commit `230065c` the `route-service` route sets its id with the old key `spring.cloud.gateway.routes[4].id`, which stops the gateway from starting; the fix is to use `spring.cloud.gateway.server.webflux.routes[4].id` like the other routes.
+All six routes use the `spring.cloud.gateway.server.webflux.routes[n]` keys (the old key on the `route-service` route was fixed after `1935a82`). The `test` profile (`application-test.properties`) repeats the same routes with Eureka on `http://localhost:8761/eureka/`, for CI.
 
 Details: [`APIgateway/docs/routing-and-security.md`](../APIgateway/docs/routing-and-security.md).
 
@@ -140,19 +142,30 @@ Both gateways and both `auth-service` instances share the same secret, so a toke
 | `technician` / `technician123` | `MAINTENANCE_TECHNICIAN` |
 | `supervisor` / `supervisor123` | `MAINTENANCE_SUPERVISOR` |
 
-The gateway still only validates the token. Roles are checked inside the services, where a `JwtAuthenticationFilter` reads the `roles` claim (as `ROLE_<role>`) and `@PreAuthorize` protects each endpoint:
+The gateway still only validates the token. Every business controller now declares its roles with `@PreAuthorize`, but a role is only checked where the service also has a `JwtAuthenticationFilter` (reads the `roles` claim, accepts a list or a single string, and maps it to `ROLE_<role>`) **and** `@EnableMethodSecurity`:
 
 | Service | Role checks |
 | :--- | :--- |
-| `aircraft-service` | **Enforced** (`@EnableMethodSecurity`). For example `POST /api/hangar/aircraft`, `GET /api/hangar/aircraft` and the availability analytics need `ATCC`; model changes, availability changes, fuel and operational-hours analytics need `BACKOFFICE`; `GET /api/hangar/aircraft/{reg}` accepts both. A wrong role gets `403 Access Denied`. |
-| `maintenance-service` | **Declared but not enforced.** The controller has `@PreAuthorize` on every endpoint (templates, records and status changes: `MAINTENANCE_TECHNICIAN`; ongoing, turnaround and parts: `MAINTENANCE_SUPERVISOR`; costs, alerts and hours: `ATCC`), but `MaintenanceSecurityConfig` has no `@EnableMethodSecurity`, so any authenticated collaborator passes. The controller tests enable it in their own test configuration, so they do not show the gap. |
-| `airport-service`, `flight-service`, `route-service` | No role checks. |
+| `aircraft-service` | **Enforced** (`@EnableMethodSecurity`). For example `POST /api/hangar/aircraft`, `GET /api/hangar/aircraft` and the availability analytics need `ATCC`; model changes, availability changes, fuel and operational-hours analytics need `BACKOFFICE`; `GET /api/hangar/aircraft/{reg}` accepts `ATCC`, `BACKOFFICE`, `MAINTENANCE_SUPERVISOR` and `MAINTENANCE_TECHNICIAN`. A wrong role gets `403 Access Denied`. |
+| `maintenance-service` | **Declared but not enforced.** The controller has `@PreAuthorize` on every endpoint (templates, records and status changes: `MAINTENANCE_TECHNICIAN`; ongoing, turnaround and parts: `MAINTENANCE_SUPERVISOR`; costs and hours: `ATCC`; alerts: `ATCC` or `MAINTENANCE_SUPERVISOR`), and it has a `JwtAuthenticationFilter`, but `MaintenanceSecurityConfig` has no `@EnableMethodSecurity`, so any authenticated collaborator passes. |
+| `airport-service`, `flight-service`, `route-service` | **Declared but not enforced.** `@PreAuthorize` was added to every endpoint (with the US number in a comment), but these services have neither a `JwtAuthenticationFilter` nor `@EnableMethodSecurity`, and their chain is `permitAll()`. The roles are listed in each service's `README.md`. |
+
+The controller tests (`MockMvc`) enable method security in their own test configuration, so they pass even where the running service does not check roles.
 
 Details: [`auth-service/docs/security-and-authorization.md`](../auth-service/docs/security-and-authorization.md).
 
 ### 7.3. Roles in calls between services
 
-A service that calls another one forwards the caller's `Authorization` header (`JwtTokenInterceptor`), so the second service checks the **original user's** role. `maintenance-service` calls `aircraft-service` (`GET /api/hangar/aircraft/{reg}`, `GET /api/hangar/aircraft?size=1000`), which only accepts `ATCC` or `BACKOFFICE`. With a technician's or supervisor's token, `aircraft-service` answers `403` and `maintenance-service` turns it into `500`. As a result, a technician cannot create a maintenance record (`POST /api/maintenance/record`), and record searches and the turnaround report fail for the roles meant to use them.
+A service that calls another one forwards the caller's `Authorization` header (`JwtTokenInterceptor`), so the second service checks the **original user's** role. `maintenance-service` calls `aircraft-service` in two ways:
+
+* `GET /api/hangar/aircraft/{reg}` (record creation, model names in the turnaround and cost reports) now also accepts `MAINTENANCE_TECHNICIAN` and `MAINTENANCE_SUPERVISOR`, so a technician can create a record.
+* `GET /api/hangar/aircraft?size=1000` (maintenance alerts) still needs `ATCC`. With a supervisor's token `aircraft-service` answers `403`; `AircraftRestClientService.findAll` catches it and returns an empty list, so the supervisor gets an empty alert list instead of an error.
+
+### 7.4. Test profile
+
+`aircraft-service` and `maintenance-service` skip the gateway secret check when the Spring profile `test` is active (their `gatewaySecretFilter` reads the active profiles; CI starts every service with this profile). Started with `test`, they accept direct calls without `X-Gateway-Secret`. `airport-service`, `flight-service` and `route-service` still require the header in every profile.
+
+In `aircraft-service`, `/error` is also open (`permitAll`), so an exception inside a protected request returns its real status instead of `403`.
 
 ---
 
@@ -160,7 +173,7 @@ A service that calls another one forwards the caller's `Authorization` header (`
 
 ### 8.1. Synchronous (HTTP)
 
-All calls go through a shared `@LoadBalanced` `RestClient` (2-second connect and read timeouts). `JwtTokenInterceptor` adds `X-Gateway-Secret` and copies the caller's `Authorization` header.
+All calls go through a shared `@LoadBalanced` `RestClient` (2-second connect and read timeouts). `JwtTokenInterceptor` adds `X-Gateway-Secret` and copies the caller's `Authorization` header. In `flight-service` the builder also sets `X-Gateway-Secret` as a default header (property `gateway.secret`, default `sidis-g6-secret`), so the header is sent twice with the same value.
 
 | Caller | Callee | Calls | Purpose |
 | :--- | :--- | :--- | :--- |

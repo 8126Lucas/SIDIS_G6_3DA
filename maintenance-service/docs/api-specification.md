@@ -11,12 +11,7 @@ This document reflects the current implementation in `MaintenanceRecordControlle
 * **API Prefix:** `/api/maintenance`
 * **Content-Type:** `application/json`
 
-**Read side (iteration 2).** Templates, record searches, reports, alerts and parts summaries read from Redis (`MaintenanceRecordRedis`, `MaintenanceTemplateRedis`, `MaintenanceHoursReportRedis`). `GET /records/{id}` and the `PATCH` endpoints work on the PostgreSQL entity. Behaviour checked by running commit `1935a82`:
-
-* `GET /templates`, `GET /templates/{id}`, `/reports/costs`, `/reports/hours` and `/alerts` answer `200`.
-* `GET /records` answers `500` (`No property 'findAll' found for type 'MaintenanceRecordRedis'`): it passes a JPA `Specification` to the Redis repository.
-* `/parts/inventory` and `/parts/low-stock` answer `500` (`NullPointerException`) when a record in Redis has no list of used parts.
-* Calls to `aircraft-service` (`POST /record`, `GET /records?aircraft=`, `/turnaround-average`) forward the caller's token; with a technician's or supervisor's token `aircraft-service` answers `403` and this service returns `500`.
+**Read side (iteration 2).** Templates, record searches, reports, alerts and parts summaries read from Redis (`MaintenanceRecordRedis`, `MaintenanceTemplateRedis`, `MaintenanceHoursReportRedis`). `GET /records/{id}` and the `PATCH` endpoints work on the PostgreSQL entity. The `500` errors seen when running commit `1935a82` (`GET /records`, `/parts/*`) were fixed in code after it. Calls to `aircraft-service` forward the caller's token: the single-aircraft lookup (`POST /record`, `GET /records?aircraft=`, reports) accepts maintenance roles, while the fleet list used by `/alerts` needs `ATCC`.
 
 See [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.md), section 7.
 
@@ -29,7 +24,7 @@ See [`../../docs/data-architecture-cqrs.md`](../../docs/data-architecture-cqrs.m
 
 * The gateway adds `X-Gateway-Secret` and `X-User-Name` after validating the JWT, so clients only send `Authorization`.
 * Since iteration 2 the service validates the JWT again (`JwtAuthenticationFilter`) and requires an authenticated request. Each endpoint has a `@PreAuthorize` role (see `README.md`, section 2.1), but `MaintenanceSecurityConfig` has no `@EnableMethodSecurity`, so the roles are **not enforced**: any valid token passes (checked: an `ATCC` token created a template, a technician's token read `/ongoing`).
-* Paths containing `/actuator`, `/h2-console`, `/swagger-ui` or `/api-docs` skip the secret filter.
+* Paths containing `/actuator`, `/h2-console`, `/swagger-ui` or `/api-docs` skip the secret filter. With the Spring profile `test` active, no path is checked.
 
 ---
 
@@ -39,15 +34,15 @@ All endpoints additionally return `403` when `X-Gateway-Secret` is missing (and 
 
 | Method | Endpoint Path | Description | User Story | Status Codes |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/api/maintenance/templates` | Create a maintenance template | US115 | `200`, `400` |
+| `POST` | `/api/maintenance/templates` | Create a maintenance template | US115 | `201`, `400` |
 | `GET` | `/api/maintenance/templates/{id}` | Get one template | US117 | `200`, `404` |
 | `GET` | `/api/maintenance/templates` | List all templates | US117 | `200` |
-| `POST` | `/api/maintenance/record` | Create a maintenance record for an aircraft | US116 | `200`, `400`, `404`, `500` |
+| `POST` | `/api/maintenance/record` | Create a maintenance record for an aircraft | US116 | `201`, `400`, `404`, `500` |
 | `GET` | `/api/maintenance/records/{id}` | Get one record | US119 | `200`, `404` |
 | `PATCH` | `/api/maintenance/records/{id}/status` | Move a record to `ONGOING` | US119 | `200`, `400`, `404` |
 | `PATCH` | `/api/maintenance/records/{id}/complete` | Complete a record | US119 | `200`, `400`, `404`, `409` |
 | `PATCH` | `/api/maintenance/records/{id}` | Change the component attribute of a record's template | US217 | `200`, `400`, `404` |
-| `GET` | `/api/maintenance/records` | Search records by aircraft, attribute and dates | US218 | `200`, `404`, `500` |
+| `GET` | `/api/maintenance/records` | Search records by aircraft, attribute and dates | US218 | `200`, `404` |
 | `GET` | `/api/maintenance/ongoing` | Records in `ONGOING` status | US219 | `200` |
 | `GET` | `/api/maintenance/reports/costs?groupBy=` | Parts cost per aircraft or per model | US220 | `200`, `500` |
 | `GET` | `/api/maintenance/turnaround-average` | Average maintenance days per aircraft model | US221 | `200`, `500` |
@@ -88,7 +83,22 @@ All endpoints additionally return `403` when `X-Gateway-Secret` is missing (and 
 
 #### Successful Response (`201 Created`)
 
-Empty body. The new `templateId` is not returned, so a client has to find it with `GET /api/maintenance/templates`.
+The created template (`MaintenanceTemplateResponse`), including the new `templateId`:
+
+```json
+{
+  "templateId": 5,
+  "name": "A-Check Engine Inspection",
+  "expectedDuration": 6.5,
+  "templateChecklist": {
+    "Check oil levels": true,
+    "Inspect engine turbine blades": true,
+    "Run engine ground test": true
+  },
+  "operation": "INSPECTION",
+  "attribute": "ENGINE"
+}
+```
 
 Execution steps:
 
@@ -139,7 +149,7 @@ Note:
 
 #### Successful Response (`201 Created`)
 
-Empty body.
+The created record (`MaintenanceRecordResponse`, same shape as section 3.4), with status `INLINE`, `notes: null`, `tasksDone: {}` and `endDate: null`.
 
 Execution steps:
 
@@ -150,7 +160,7 @@ Execution steps:
 
 Notes:
 
-* Only `HttpClientErrorException.NotFound` is caught in `AircraftRestClientService`; any other downstream error (`403`, `5xx`, timeout) is retried up to 3 times and then becomes `500`.
+* Only `HttpClientErrorException.NotFound` is caught in `AircraftRestClientService`; any other downstream error (`403`, `5xx`, timeout) is retried up to 3 times and then becomes `500`. `aircraft-service` accepts `ATCC`, `BACKOFFICE`, `MAINTENANCE_TECHNICIAN` and `MAINTENANCE_SUPERVISOR` on this call, so only other roles (for example `ADMIN`) get the `500`.
 
 ---
 
@@ -179,14 +189,18 @@ Notes:
   "durationHours": 40.0,
   "description": "In Progress",
   "startDate": "2026-10-29",
-  "status": "INLINE"
+  "status": "INLINE",
+  "notes": null,
+  "tasksDone": {},
+  "endDate": null
 }
 ```
 
 Notes:
 
 * A missing record throws `DomainException("Maintenance Record does not exist")` → `404`.
-* The response does not include `endDate`, `usedParts`, `techniciansUsername`, `supervisorUsername`, or the `doneList`.
+* `notes` and `tasksDone` come from the record's `DoneList` (filled when the record is completed); `tasksDone` is `{}` when there is none. `endDate` is set on completion.
+* The response does not include `usedParts`, `techniciansUsername` or `supervisorUsername`.
 
 ---
 
@@ -282,8 +296,8 @@ Empty body.
 Notes:
 
 * The attribute is changed on the record's `MaintenanceTemplate`, not on the record, so every record that shares that template changes category.
-* There is no explicit `save`; the change is persisted by dirty checking, because open-session-in-view keeps the template managed across the two service calls.
-* `attribute` is not validated: an empty body or `"attribute": null` sets the template attribute to `null`. An unknown value fails JSON parsing → `400`.
+* `MaintenanceRecordProgressService.changeRecordAttribute` saves the template, publishes `MaintenanceTemplateSyncEvent` (`maintenancetemplate.event.updated`) and then the record event (`maintenance.event.updated`), so the new attribute reaches `MaintenanceTemplate:<id>` in Redis.
+* `attribute` is not validated: an empty body or `"attribute": null` sets the template attribute to `null` in PostgreSQL and still answers `200`, but the projector then fails (`MaintenanceAttribute.valueOf("null")`) and Redis keeps the old attribute. An unknown value fails JSON parsing → `400`.
 * A missing record → `404`.
 
 ---
@@ -354,9 +368,10 @@ Notes:
 
 Current behavior:
 
-* When `aircraft` is set, the controller first checks it in `aircraft-service` → `404` (`"Aircraft does not exist"`) if missing; then the `Specification` filters on `aircraftRegistration` and the other given filters → `200`.
-* Without `aircraft`, `MaintenanceRecordSearchService` calls `aircraftRegistration.isEmpty()` on `null` → `NullPointerException` → `500`. Searching only by attribute or dates is therefore not possible.
-* An unknown `attribute` value fails inside the `Specification` (`500`).
+* When `aircraft` is set, the controller first checks it in `aircraft-service` → `404` (`"Aircraft does not exist"`) if missing.
+* `MaintenanceRecordSearchService` loads every `MaintenanceRecord` from Redis and filters in memory: registration (if given), attribute (looked up in the record's `MaintenanceTemplate` read model), and `startDate` between `initialDate` and `finalDate` (inclusive). The result is sorted by record id, newest first, and the requested page is cut from it.
+* Every filter is optional, so searching only by attribute or by dates works.
+* An unknown `attribute` value matches nothing (`200` with `[]`).
 
 ---
 
@@ -383,7 +398,7 @@ Current behavior:
 Notes:
 
 * `AircraftRestClientService.findAll()` calls `GET /api/hangar/aircraft?size=1000`, so only the first 1000 aircraft are checked.
-* A `4xx` from `aircraft-service` returns an empty list (no alerts); other errors are retried up to 3 times and then end in `500`.
+* A `4xx` from `aircraft-service` returns an empty list (no alerts); other errors are retried up to 3 times and then end in `500`. `GET /api/hangar/aircraft` needs `ATCC`, so with a supervisor's token (allowed by `@PreAuthorize` here) the alert list is always empty.
 * An aircraft with `totalFlightHours = null` makes the threshold comparison throw (`500`).
 
 ---

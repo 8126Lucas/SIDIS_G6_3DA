@@ -132,7 +132,7 @@ Current gaps:
 
 Security:
 
-* `RouteSecurityConfig` defines a stateless `SecurityFilterChain`: CSRF, form login and HTTP Basic disabled, all requests `permitAll()`, no role checks.
+* `RouteSecurityConfig` defines a stateless `SecurityFilterChain`: CSRF, form login and HTTP Basic disabled, all requests `permitAll()`. The controller declares `@PreAuthorize` roles (see `README.md`, section 2.1), but there is no `@EnableMethodSecurity` and no filter that turns the JWT into an authentication, so the roles are not checked.
 * `gatewaySecretFilter` (registered before `UsernamePasswordAuthenticationFilter`) requires `X-Gateway-Secret: sidis-g6-secret`; otherwise it writes `403` with the plain-text body `Unauthorized Access! Please use the API Gateway!`.
 * Paths containing `/h2-console`, `/swagger-ui` or `/api-docs` skip the check.
 * JWT validation happens only in the API Gateway; the service does not read `X-User-Name`.
