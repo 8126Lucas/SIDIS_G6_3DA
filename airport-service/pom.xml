@@ -134,7 +134,6 @@
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
             <version>0.13.0</version>
-            <scope>test</scope>
         </dependency>
     </dependencies>
 

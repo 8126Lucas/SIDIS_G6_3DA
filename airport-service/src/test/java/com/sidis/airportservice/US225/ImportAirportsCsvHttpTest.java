@@ -18,6 +18,10 @@ class ImportAirportsCsvHttpTest extends OperationalHttpTest {
         String csv = "iataCode,type,name,status,city,longitude,latitude,region,timezone,country,routeDistance,runways,certifications,contacts,images\n"
                 + row(first) + row(second);
         expect(200, postCsv("/api/airports/import", csv));
+        
+        // Dá tempo ao RabbitMQ e ao RedisProjector para sincronizarem os dados (Eventual Consistency)
+        Thread.sleep(2000);
+        
         for (String code : List.of(first, second)) {
             var airport = get("/api/airports/" + code);
             assertEquals(code, airport.path("iataCode").asText());
