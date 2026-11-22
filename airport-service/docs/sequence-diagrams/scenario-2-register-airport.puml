@@ -33,9 +33,15 @@ activate gateway
 gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
 
+controller -> controller : Bean Validation (@NotBlank / @NotNull on\nmain fields, location, facilities, runways list)
 controller -> controller : Build Airport aggregate\n(AirportStatus / RunwayStatus / ContactType.valueOf)
 
-alt unknown enum value
+alt missing required field
+    controller -[#red]> exception_handler : MethodArgumentNotValidException
+    activate exception_handler
+    exception_handler --> client : 400 Bad Request (validationErrors)
+    deactivate exception_handler
+else unknown enum value
     controller -[#red]> exception_handler : throw IllegalArgumentException
     activate exception_handler
     exception_handler --> client : 400 Bad Request (ErrorDetails JSON)
@@ -76,6 +82,11 @@ client -> gateway : POST /api/airports/import\n(multipart file)
 activate gateway
 gateway -> controller : Forward request\n(+ X-Gateway-Secret, X-User-Name)
 activate controller
+
+opt file missing or empty
+    controller -[#red]> exception_handler : throw IllegalArgumentException("CSV file is required")
+    exception_handler --> client : 400 Bad Request
+end
 
 controller -> csv_svc : importFile(file.getInputStream())
 activate csv_svc

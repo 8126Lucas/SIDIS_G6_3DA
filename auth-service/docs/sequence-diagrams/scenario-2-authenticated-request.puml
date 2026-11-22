@@ -46,7 +46,7 @@ else Bearer token present
         downstream -> secret_filter : request
         activate secret_filter
         alt X-Gateway-Secret == sidis-g6-secret
-            secret_filter -> controller : request (permitAll, roles not checked)
+            secret_filter -> controller : request (@PreAuthorize declared,\nnot evaluated in maintenance-service)
             activate controller
             controller --> secret_filter : 200 OK (JSON)
             deactivate controller
@@ -63,6 +63,6 @@ end
 deactivate gateway_filter
 deactivate gateway
 
-note over secret_filter, controller : All five business services (aircraft, airport, flight,\nmaintenance, route) have gatewaySecretFilter.\nNo service reads the roles claim or X-User-Name.
+note over secret_filter, controller : All five business services (aircraft, airport, flight,\nmaintenance, route) have gatewaySecretFilter.\nNo service reads X-User-Name; only aircraft-service\nenforces the roles claim (@EnableMethodSecurity).
 
 @enduml

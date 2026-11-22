@@ -41,7 +41,7 @@ The stats page in `haproxy.cfg` has no `stats auth` line, so it does not ask for
 | **PC4** | `api-gateway-2`, `airport-service-2`, `flight-service-1`, `route-service-1` | `redis-airport-1`, `redis-flight-1`, `redis-route-1` |
 | **PC5** | `aircraft-service-2`, `flight-service-2`, `route-service-2` | `postgresql-1`, `rabbitmq-1`, `rabbitmq-2`, `redis-airport-2/3`, `redis-flight-2/3`, `redis-route-2/3` |
 
-The table in the root `README.md` ("PC Workload Distribution") predates the last changes to `docker-compose.yml` and differs from it (for example, it places `api-gateway-2` on PC3); the compose profiles above are what runs.
+The table in the root `README.md` ("PC Workload Distribution") follows these profiles.
 
 ### 3.1. Variables each PC must define
 

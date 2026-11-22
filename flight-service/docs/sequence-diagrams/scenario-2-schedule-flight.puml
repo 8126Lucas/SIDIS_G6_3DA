@@ -57,7 +57,7 @@ else found
     activate route_svc
 
     route_svc -> route_api : GET /api/routes/{routeId}
-    route_api --> route_svc : RouteResponse (409 -> DomainException "Route does not exist")
+    route_api --> route_svc : RouteResponse (any 4xx -> DomainException\n"Route does not exist or invalid state")
     route_svc -> airport_svc : GET /api/airports/{originIata}
     airport_svc --> route_svc : AirportResponse (4xx -> DomainException "Airport does not exist")
     route_svc -> airport_svc : GET /api/airports/{destinationIata}

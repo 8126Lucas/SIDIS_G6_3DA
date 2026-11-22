@@ -64,7 +64,7 @@ deactivate route_client
 
 controller -> route_search : findCompatibleRoutes(aircraft, routes)
 activate route_search
-route_search -> route_search : keep routeRequirements.requiredCapacity <= seats\nand distanceKm <= range (meanRange)
+route_search -> route_search : keep routeRequirements.requiredCapacity <= seats\nand distanceKm <= range\n(meanRange if > 0, else model maximumRange)
 route_search --> controller : List<RouteClientDTO>
 deactivate route_search
 

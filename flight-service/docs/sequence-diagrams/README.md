@@ -56,7 +56,7 @@ Scenario 2 describes `POST /api/flights/scheduled` (US212), which checks `aircra
 1. Controller loads the aircraft (`GET /api/hangar/aircraft/{registration}`) and its model (`GET /api/catalog/{modelName}`) from `aircraft-service`; either missing → `409`.
 2. `FlightService` loads the route from `route-service` (`409` if missing) and both airports from `airport-service` (`409` if missing).
 3. Rules: arrival after departure, route `ACTIVE`, airports `OPERATIONAL`, aircraft `AVAILABLE`, range, capacity, no overlapping flight of the same aircraft. Any failure → `DomainException` → `409`.
-4. `FlightService` sends `PATCH /api/routes/{routeId}` with the route history and `routeUsage + 1`.
+4. `FlightService` sends `PATCH /api/routes/{routeId}` with the route history and `routeUsage + 1` (a `4xx` answer becomes `DomainException` → `409`).
 5. The new `Flight` is saved as `SCHEDULED` and `201 Created` is returned.
 
 Notes:
