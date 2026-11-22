@@ -42,6 +42,9 @@ public class AddModelUseCase {
      * @param aircraftModelSpecs the group of physical characteristics of the model
      */
     public void execute(String modelName, String manufacturer, List <String> modelImage, AircraftSpecs aircraftModelSpecs) {
+        if (aircraftModelRepository.findById(modelName).isPresent()) {
+            throw new DomainException("Aircraft Model already exists!");
+        }
         AircraftModel model = new AircraftModel(modelName, manufacturer,aircraftModelSpecs, modelImage);
         aircraftModelRepository.save(model);
 
@@ -69,6 +72,9 @@ public class AddModelUseCase {
      * @param aircraftModel the model object to be persisted
      */
     public void execute(AircraftModel aircraftModel) {
+        if (aircraftModelCommandRepository.findById(aircraftModel.getModelName()).isPresent()) {
+            throw new DomainException("Aircraft Model already exists!");
+        }
         aircraftModelRepository.save(aircraftModel);
 
         AircraftSpecsRedis specs = new AircraftSpecsRedis(

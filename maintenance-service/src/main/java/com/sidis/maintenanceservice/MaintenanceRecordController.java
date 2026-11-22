@@ -195,7 +195,9 @@ public class MaintenanceRecordController {
                 .findById(id)
                 .orElseThrow(() ->
                         new DomainException("Maintenance Record does not exist"));
-
+        if (request.attribute() == null || request.attribute().isBlank()) {
+            throw new IllegalArgumentException("Attribute cannot be null or empty");
+        }
         maintenanceRecordProgressService.changeRecordAttribute(record,request.attribute());
     }
 
